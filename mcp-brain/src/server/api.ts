@@ -218,8 +218,54 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 		}
 	});
 
+	// Ensure project exists (create if not)
+	app.post("/api/projects/ensure", async (req, res) => {
+		const rawName = (req.body.name as string) || "";
+		if (!rawName.trim()) {
+			return res.status(400).json({ error: "name is required" });
+		}
+		const projectName = normalizeProject(rawName);
+		try {
+			const db = dbService.getDb();
+			// Check if project already exists in memories or directives
+			const existing = await db.get(
+				`SELECT 1 FROM (
+					SELECT project FROM memories WHERE project = ?
+					UNION
+					SELECT project FROM core_directives WHERE project = ?
+				) LIMIT 1`,
+				[projectName, projectName]
+			);
+			if (existing) {
+				return res.json({ created: false, project: projectName });
+			}
+			// Create seed memory to register the project
+			const seedId = `mem_${Date.now()}_seed`;
+			const now = Date.now();
+			await dbService.enqueueWrite(async () => {
+				await db.run(
+					`INSERT INTO memories (id, project, type, title, content, tags, createdAt, updatedAt)
+					 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+					[
+						seedId,
+						projectName,
+						"project-created",
+						`Proyecto ${projectName} creado automáticamente`,
+						`**What**: Proyecto creado desde el AI Agent Wizard\n**Why**: Necesario para registrar agentes generados automáticamente\n**Where**: Proyecto: ${projectName}`,
+						"auto-generated",
+						now,
+						now,
+					]
+				);
+			});
+			return res.status(201).json({ created: true, project: projectName });
+		} catch (e: unknown) {
+			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+		}
+	});
+
 	// Merge projects
-app.post("/api/projects/merge", async (req, res) => {
+	app.post("/api/projects/merge", async (req, res) => {
 	try {
 		const source = normalizeProject(req.body.source as string);
 		const target = normalizeProject(req.body.target as string);

@@ -367,7 +367,7 @@ export const BrainConsole: React.FC = () => {
 						/>
 					)}
 					{activeTab === "settings" && <BrainSettings project={project} />}
-					{activeTab === "scaffold" && <BrainScaffold />}
+					{activeTab === "scaffold" && <BrainScaffold project={project} onToast={addToast} />}
 				</div>
 
 				{/* Panel Lateral: KPIs y Estadísticas */}

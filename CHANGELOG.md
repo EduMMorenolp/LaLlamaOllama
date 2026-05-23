@@ -7,7 +7,34 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 
 ## [Unreleased]
 
-### 🧠 Evolución de mcp-brain y Auto-Sincronización MCP (2026-05-14)
+### 🤖 AI Agent Wizard — Generación Inteligente de Agentes con IA (2026-05-23)
+
+#### Añadido
+- **Nuevo endpoint `POST /api/agents/analyze-project`** en el backend (Express):
+  - Recibe modelo Ollama, estructura de proyecto (árbol de archivos) y archivos de configuración.
+  - Envía el análisis a la IA local y devuelve agentes OpenCode, rules y workflows generados automáticamente.
+  - Nuevo servicio `backend/src/services/agents.service.ts` con lógica de construcción de prompt y parseo de respuesta JSON.
+- **Nuevo endpoint `POST /api/projects/ensure`** en mcp-brain:
+  - Verifica si un proyecto existe en la base de datos del brain.
+  - Si no existe, crea una memoria semilla tipo `"project-created"` para registrarlo automáticamente.
+- **Nuevo componente `AIAgentWizard.tsx`** en el frontend:
+  - Modal wizard con 3 pasos: seleccionar modelo Ollama → nombre del proyecto → seleccionar carpeta.
+  - Usa la **File System Access API** (`showDirectoryPicker`) para leer la estructura del proyecto directamente desde el navegador.
+  - Lee automáticamente archivos de configuración clave (package.json, tsconfig, etc.).
+  - Envía la estructura al backend para análisis con IA.
+  - Muestra resultados: lista de archivos generados con previsualización, descarga individual, copia.
+  - Botón "Guardar como Templates" para persistir los archivos en el brain como templates reutilizables.
+  - Botón "✨ Crear Proyecto en Brain" para registrar el proyecto automáticamente.
+  - Todos los agentes generados incluyen conexión Brain MCP (`http://localhost:3015/sse`).
+- **Botón "AI Wizard"** en el Scaffold de Agentes (`BrainScaffold.tsx`):
+  - Nuevo botón junto al existente "Nuevo Template" que abre el modal del wizard.
+  - El componente `BrainScaffold` ahora acepta props `project` y `onToast` desde `BrainConsole`.
+
+#### Modificado
+- `frontend/src/components/BrainConsole.tsx` — pasa `project` y `addToast` a `BrainScaffold`.
+- `frontend/src/components/BrainScaffold.tsx` — acepta nuevas props, agrega botón AI Wizard.
+- `backend/src/main.ts` — agrega import, instanciación y ruta para `AgentsService`.
+- `mcp-brain/src/server/api.ts` — agrega endpoint `POST /api/projects/ensure`.
 
 #### Añadido
 - **Conciencia de Fase SDD (Spec-Driven Development):**

@@ -1,7 +1,8 @@
-import { Check, ChevronRight, ClipboardCopy, Download, Layers, Plus, Trash2, X } from "lucide-react";
+import { Brain, Check, ChevronRight, ClipboardCopy, Download, Layers, Plus, Trash2, X } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { brainApi } from "../services/api.service";
+import { AIAgentWizard } from "./AIAgentWizard";
 
 interface TemplateVariable {
 	name: string;
@@ -161,7 +162,12 @@ const NewTemplateModal: React.FC<NewTemplateModalProps> = ({ onClose, onSaved })
 	);
 };
 
-export const BrainScaffold: React.FC = () => {
+interface BrainScaffoldProps {
+	project?: string;
+	onToast?: (message: string, type: "success" | "error" | "info", detail?: string) => void;
+}
+
+export const BrainScaffold: React.FC<BrainScaffoldProps> = ({ project = "lallamaollama", onToast }) => {
 	const [templatesList, setTemplatesList] = useState<Template[]>([]);
 	const [filterTool, setFilterTool] = useState<string>("all");
 	const [filterType, setFilterType] = useState<string>("all");
@@ -171,6 +177,7 @@ export const BrainScaffold: React.FC = () => {
 	const [loadingPreview, setLoadingPreview] = useState(false);
 	const [copied, setCopied] = useState(false);
 	const [showNewModal, setShowNewModal] = useState(false);
+	const [showWizard, setShowWizard] = useState(false);
 	const [deleting, setDeleting] = useState(false);
 	const previewRef = useRef<HTMLPreElement>(null);
 
@@ -287,6 +294,13 @@ export const BrainScaffold: React.FC = () => {
 					}}
 				/>
 			)}
+			{showWizard && (
+				<AIAgentWizard
+					project={project}
+					onClose={() => setShowWizard(false)}
+					onToast={onToast || (() => {})}
+				/>
+			)}
 
 			{/* Header */}
 			<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -298,18 +312,33 @@ export const BrainScaffold: React.FC = () => {
 						Genera archivos de agentes, rules y workflows desde templates.
 					</p>
 				</div>
-				<button
-					type="button"
-					onClick={() => setShowNewModal(true)}
-					style={{
-						display: "flex", alignItems: "center", gap: "6px",
-						padding: "8px 14px", borderRadius: "8px",
-						background: "rgba(79,140,255,0.15)", border: "1px solid rgba(79,140,255,0.3)",
-						color: "var(--accent)", cursor: "pointer", fontSize: "12px", fontWeight: 600,
-					}}
-				>
-					<Plus size={14} /> Nuevo Template
-				</button>
+				<div style={{ display: "flex", gap: "8px" }}>
+					<button
+						type="button"
+						onClick={() => setShowWizard(true)}
+						style={{
+							display: "flex", alignItems: "center", gap: "6px",
+							padding: "8px 14px", borderRadius: "8px",
+							background: "linear-gradient(135deg, rgba(79,140,255,0.2), rgba(139,92,246,0.2))",
+							border: "1px solid rgba(139,92,246,0.3)",
+							color: "rgba(167,139,250,0.9)", cursor: "pointer", fontSize: "12px", fontWeight: 600,
+						}}
+					>
+						<Brain size={14} /> AI Wizard
+					</button>
+					<button
+						type="button"
+						onClick={() => setShowNewModal(true)}
+						style={{
+							display: "flex", alignItems: "center", gap: "6px",
+							padding: "8px 14px", borderRadius: "8px",
+							background: "rgba(79,140,255,0.15)", border: "1px solid rgba(79,140,255,0.3)",
+							color: "var(--accent)", cursor: "pointer", fontSize: "12px", fontWeight: 600,
+						}}
+					>
+						<Plus size={14} /> Nuevo Template
+					</button>
+				</div>
 			</div>
 
 			<div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: "20px", alignItems: "start" }}>
