@@ -119,6 +119,13 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 - **vite.config.ts**: Agregada configuracion de proxy para `/api`, `/v1`, `/sse` y `/socket.io` hacia `localhost:3000`
 - **Instalacion de dependencias**: `pnpm install` ejecutado en la raiz del proyecto
 
+#### Cambiado
+- **Modelo asignado al agente `documentation`**: Configurado `gemma4:e2b` como modelo exclusivo para el agente de documentación en `opencode.json`, reservando modelos con razonamiento (`deepseek-r1:8b`, `qwen2.5-coder:7b`) para agentes de código y orquestación.
+
+#### Mejorado
+- **README actualizado**: Badge de versión `0.4.0` → `0.5.0`, lista de agentes corregida (eliminado `add-mcp-tool.md`, agregado `mcp-brain.md`), nota de optimización ~59% de agentes, nuevo flujo del orquestador centralizado documentado.
+- **Prueba del agente `documentation` con `gemma4:e2b`**: El agente documentation se invocó exitosamente con el nuevo modelo asignado, analizó y actualizó el README sin errores.
+
 
 ### 🤖 Agentes especializados por dominio (AÑADIDO - 2026-05-12)
 
