@@ -136,6 +136,8 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 - **`mem_suggest_topic_key` con LLM**: Ahora intenta usar Ollama para sugerir topic keys semánticas, con fallback al slug actual si Ollama no está disponible.
 - **Dashboard BrainConsole**: Nuevos tabs "Explorador de Memorias" (búsqueda y eliminación de memorias) y "Fusionar Proyectos" (UI para merge). Indicador de health status del brain en el panel lateral.
 - **Orquestador con health check**: El flujo del orquestador ahora verifica disponibilidad del brain y maneja errores gracefulmente.
+- **Directivas inyectadas en instrucciones MCP**: Las directivas centrales ahora se cargan desde SQLite al iniciar el servidor y se inyectan en el campo `instructions` del protocolo MCP (tanto SSE como Stdio). Cualquier agente conectado vía SSE recibe automáticamente las reglas del proyecto.
+- **`mem_get_directives` tool**: Nueva herramienta MCP para consultar directivas centrales de cualquier proyecto. Los sub-agentes por `task()` reciben las directivas vía contexto del orquestador.
 
 #### Cambiado
 - **Fix typo `lallamasollama` → `lallamaollama`**: Corregido en 12 lugares de `api.ts` los defaults que tenían una 's' extra. También corregido en `BrainConsole.tsx`.

@@ -12,7 +12,7 @@ import { createMcpServer } from "./mcp.js";
 
 const PORT = process.env.BRAIN_PORT || 3015;
 
-export function startApiServer(dbService: DatabaseService) {
+export function startApiServer(dbService: DatabaseService, directives?: string) {
 	const app = express();
 	app.use(cors());
 	app.use(express.json());
@@ -366,7 +366,7 @@ app.post("/api/projects/merge", async (req, res) => {
 
 	// --- MCP SSE Transport ---
 
-	const sseServer = createMcpServer(dbService);
+	const sseServer = createMcpServer(dbService, directives);
 	const sseTransports = new Map<string, SSEServerTransport>();
 
 	app.get("/sse", async (req, res) => {

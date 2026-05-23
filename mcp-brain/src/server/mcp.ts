@@ -2,7 +2,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import type { DatabaseService } from "../database/connection.js";
-import { analysis, audit, memories, sessions, templates } from "../services/index.js";
+import { analysis, audit, memories, sessions, settings, templates } from "../services/index.js";
 import { normalizeProject } from "../services/normalizeProject.js";
 import { generate } from "../services/llm/generate.js";
 import type { AgentCompliance } from "../services/audit/getAgentCompliance.js";
@@ -18,15 +18,8 @@ const VALID_RELATIONS = [
 
 let currentProject: string | null = null;
 
-export function createMcpServer(dbService: DatabaseService): Server {
-	const mcpServer = new Server(
-		{
-			name: "lallamallama-brain",
-			version: "1.0.0",
-		},
-		{
-			capabilities: { tools: {} },
-			instructions: `Provides persistent memory that survives across sessions and compactions.
+export function createMcpServer(dbService: DatabaseService, directives?: string): Server {
+	const baseInstructions = `Provides persistent memory that survives across sessions and compactions.
 
 CORE TOOLS (always available):
   mem_save — save decisions, bugs, discoveries, conventions PROACTIVELY (do not wait to be asked)
@@ -36,6 +29,7 @@ CORE TOOLS (always available):
   mem_get_observation — get full untruncated content of a search result by ID
   mem_save_prompt — save user prompt for context
   mem_current_project — detect current project from cwd (recommended first call)
+  mem_get_directives — get core directives for the current project
 
 DEFERRED TOOLS:
   mem_update, mem_suggest_topic_key, mem_session_start, mem_session_end, mem_stats, mem_delete, mem_timeline, mem_capture_passive
@@ -51,7 +45,21 @@ IF judgment_required IS TRUE:
 
   HEURISTIC — when to ask the user vs. resolve autonomously:
   ASK the user when confidence is below 0.7, OR the relation is supersedes/conflicts_with AND type is architecture/policy/decision.
-  RESOLVE silently when confidence >= 0.7 AND relation is not supersedes/conflicts_with.`,
+  RESOLVE silently when confidence >= 0.7 AND relation is not supersedes/conflicts_with.`;
+
+	// Inject core directives into instructions if available
+	const fullInstructions = directives
+		? `## 🎯 DIRECTIVAS CENTRALES DEL PROYECTO\n\n${directives}\n\n---\n\n${baseInstructions}`
+		: baseInstructions;
+
+	const mcpServer = new Server(
+		{
+			name: "lallamallama-brain",
+			version: "1.0.0",
+		},
+		{
+			capabilities: { tools: {} },
+			instructions: fullInstructions,
 		} as { capabilities: { tools: Record<string, unknown> }; instructions: string }
 	);
 
@@ -342,6 +350,18 @@ El agente que llama a esta tool es quien debe escribir el archivo si el usuario 
 						variables: { type: "object", description: "Variables para rellenar el template (clave: valor)" },
 					},
 					required: ["template_id", "variables"],
+				},
+			},
+			{
+				name: "mem_get_directives",
+				description: `Get the core directives (project rules and personality) for a project. 
+Core directives define the immutable rules, coding standards, and agent behavior for the project.
+Use this at the start of a session to know how to behave in this project.`,
+				inputSchema: {
+					type: "object",
+					properties: {
+						project: { type: "string", description: "Project name (default: lallamaollama)" },
+					},
 				},
 			},
 		];
@@ -643,6 +663,21 @@ Use this before read-only operations to verify you're in good standing.`,
 					response = { content: [{ type: "text", text: JSON.stringify(stats, null, 2) }] };
 					break;
 				}
+				case "mem_get_directives": {
+					const project = normalizeProject((args?.project as string) || "lallamaollama");
+					const content = await settings.getCoreDirectives(dbService, project);
+					response = {
+						content: [
+							{
+								type: "text",
+								text: content
+									? `## Directivas Centrales: ${project}\n\n${content}`
+									: `No hay directivas definidas para "${project}".`,
+							},
+						],
+					};
+					break;
+				}
 				case "mem_my_compliance": {
 					const targetAgent = (args?.agent as string) || agentIdentity;
 					const compliance = await audit.getAgentCompliance(dbService, targetAgent, 24);
@@ -760,6 +795,7 @@ const READ_ONLY_TOOLS = new Set([
 	"mem_stats",
 	"mem_get_observation",
 	"mem_current_project",
+	"mem_get_directives",
 	"mem_my_compliance",
 	"mem_suggest_tags",
 	"mem_suggest_topic_key",
@@ -810,8 +846,8 @@ function buildComplianceReminder(compliance: AgentCompliance): string {
 	return lines.join("\n");
 }
 
-export async function startMcpServer(dbService: DatabaseService) {
-	const mcpServer = createMcpServer(dbService);
+export async function startMcpServer(dbService: DatabaseService, directives?: string) {
+	const mcpServer = createMcpServer(dbService, directives);
 	const transport = new StdioServerTransport();
 	await mcpServer.connect(transport);
 	console.error(`[Brain MCP] MCP Server running on Stdio`);
