@@ -95,7 +95,7 @@ const NewTemplateModal: React.FC<NewTemplateModalProps> = ({ onClose, onSaved })
 			background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)",
 			display: "flex", alignItems: "center", justifyContent: "center",
 		}}>
-			<div className="card-glass" style={{ width: "600px", maxHeight: "90vh", overflowY: "auto", padding: "28px", display: "flex", flexDirection: "column", gap: "16px", border: "1px solid var(--border)", boxShadow: "0 0 20px rgba(0, 0, 0, 0.5)", borderRadius: "20px", backgroundColor: "black" }}>
+			<div className="card-glass" style={{ width: "600px", maxHeight: "90vh", overflowY: "auto", padding: "28px", display: "flex", flexDirection: "column", gap: "16px" }}>
 				<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
 					<h3 style={{ fontSize: "16px", fontWeight: 700 }}>Nuevo Template</h3>
 					<button type="button" onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer" }}>
@@ -363,10 +363,10 @@ export const BrainScaffold: React.FC = () => {
 									>
 										<div style={{ width: "8px", height: "8px", borderRadius: "50%", background: tc.dot, flexShrink: 0 }} />
 										<div style={{ flex: 1, minWidth: 0 }}>
-											<div style={{ fontSize: "12px", fontWeight: 600, color: isActive ? "var(--accent)" : "rgba(255, 255, 255, 0.8)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+											<div style={{ fontSize: "12px", fontWeight: 600, color: isActive ? "var(--accent)" : "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
 												{tpl.name}
 											</div>
-											<div style={{ fontSize: "10px", color: isActive ? "rgba(255, 255, 255, 0.5)" : "rgba(255, 255, 255, 0.3)", marginTop: "2px" }}>
+											<div style={{ fontSize: "10px", color: "var(--text-dim)", marginTop: "2px" }}>
 												{TYPE_LABELS[tpl.type] ?? tpl.type}
 											</div>
 										</div>
