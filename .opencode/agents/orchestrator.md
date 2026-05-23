@@ -44,17 +44,19 @@ permission:
 
 ## FLUJO DE TRABAJO
 
-0. **Cargar contexto del brain**: `mem_context(project: "lallamaollama", limit: 15)`. Pasa este contexto en el `task prompt` de cada sub-agente.
-1. Lee el requerimiento del usuario
-2. Identifica sub-proyectos afectados
-3. Para cada sub-proyecto: `task(<agente>, objetivo=<...>, context=<contexto>)` — en paralelo si es posible
-4. Espera resultados
-5. **Verifica**: `task(qa-verification, dominios=<todos>, commands=<builds>)`. Si errors → corrige y vuelve al paso 5.
-6. **Guarda en el brain** por cada cambio significativo:
+0. **Health check del brain**: `mem_stats(project: "lallamaollama")`. Si falla (timeout/error), registra que el brain no está disponible y continúa sin contexto (no bloquea). Si responde, procede normal.
+1. **Cargar contexto del brain**: `mem_context(project: "lallamaollama", limit: 15)`. Si falla, continua sin contexto con un warning.
+2. Pasa el contexto (o string vacío si no hay brain) en el `task prompt` de cada sub-agente.
+3. Lee el requerimiento del usuario
+4. Identifica sub-proyectos afectados
+5. Para cada sub-proyecto: `task(<agente>, objetivo=<...>, context=<contexto>)` — en paralelo si es posible
+6. Espera resultados
+7. **Verifica**: `task(qa-verification, dominios=<todos>, commands=<builds>)`. Si errors → corrige y vuelve al paso 7.
+8. **Guarda en el brain** por cada cambio significativo:
    - `mem_save(project: lallamaollama, type: feature|bug-fix|architecture, title: <resumen>, agent: "OpenCode orchestrator", content: **What**/**Why**/**Where**)`
    - Si devuelve `judgment_required` → `mem_judge` por cada `candidate`
-7. **Actualiza CHANGELOG.md** directamente
-8. Responde al usuario con resumen ejecutivo
+9. **Actualiza CHANGELOG.md** directamente
+10. Responde al usuario con resumen ejecutivo
 
 ## NOTAS
 

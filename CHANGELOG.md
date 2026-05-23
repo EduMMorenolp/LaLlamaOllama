@@ -126,6 +126,21 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 - **README actualizado**: Badge de versión `0.4.0` → `0.5.0`, lista de agentes corregida (eliminado `add-mcp-tool.md`, agregado `mcp-brain.md`), nota de optimización ~59% de agentes, nuevo flujo del orquestador centralizado documentado.
 - **Prueba del agente `documentation` con `gemma4:e2b`**: El agente documentation se invocó exitosamente con el nuevo modelo asignado, analizó y actualizó el README sin errores.
 
+### 🔧 Normalización de proyectos, merge, dashboard y mejoras del brain (2026-05-23)
+
+#### Añadido
+- **normalizeProject() genérico**: Nueva función en `mcp-brain/src/services/normalizeProject.ts` que normaliza cualquier nombre de proyecto a slug consistente (lowercase, sin especiales, sin duplicados). Se aplica automáticamente en todos los handlers MCP y endpoints REST.
+- **Endpoint `POST /api/projects/merge`**: Permite fusionar dos proyectos en el brain (mueve memorias, directivas, sesiones y audit logs). Nueva función `mergeProjects.ts`.
+- **Cache de embeddings**: Map in-memory con TTL 5 minutos en `searchMemories.ts` para evitar re-embedding en búsquedas repetidas.
+- **Endpoint `GET /api/health`**: Health check del servicio mcp-brain.
+- **`mem_suggest_topic_key` con LLM**: Ahora intenta usar Ollama para sugerir topic keys semánticas, con fallback al slug actual si Ollama no está disponible.
+- **Dashboard BrainConsole**: Nuevos tabs "Explorador de Memorias" (búsqueda y eliminación de memorias) y "Fusionar Proyectos" (UI para merge). Indicador de health status del brain en el panel lateral.
+- **Orquestador con health check**: El flujo del orquestador ahora verifica disponibilidad del brain y maneja errores gracefulmente.
+
+#### Cambiado
+- **Fix typo `lallamasollama` → `lallamaollama`**: Corregido en 12 lugares de `api.ts` los defaults que tenían una 's' extra. También corregido en `BrainConsole.tsx`.
+- **Rutas Windows parametrizadas**: `CLAUDE_CONFIG_PATH` y `ROOCODE_CONFIG_PATH` ahora son configurables vía variables de entorno.
+- **Validación de `relation` en `mem_judge`**: Ahora solo acepta los 6 valores válidos (`related`, `compatible`, `scoped`, `conflicts_with`, `supersedes`, `not_conflict`). Validación runtime + enum en inputSchema.
 
 ### 🤖 Agentes especializados por dominio (AÑADIDO - 2026-05-12)
 

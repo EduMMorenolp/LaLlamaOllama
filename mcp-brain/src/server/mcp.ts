@@ -3,7 +3,18 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import type { DatabaseService } from "../database/connection.js";
 import { analysis, audit, memories, sessions, templates } from "../services/index.js";
+import { normalizeProject } from "../services/normalizeProject.js";
+import { generate } from "../services/llm/generate.js";
 import type { AgentCompliance } from "../services/audit/getAgentCompliance.js";
+
+const VALID_RELATIONS = [
+    "related",
+    "compatible",
+    "scoped",
+    "conflicts_with",
+    "supersedes",
+    "not_conflict",
+] as const;
 
 let currentProject: string | null = null;
 
@@ -289,7 +300,11 @@ PARAMS:
 						type: "object",
 						properties: {
 							judgment_id: { type: "string" },
-							relation: { type: "string" },
+							relation: {
+                            type: "string",
+                            enum: ["related", "compatible", "scoped", "conflicts_with", "supersedes", "not_conflict"],
+                            description: "Relation type for the judgment verdict",
+                        },
 							reason: { type: "string" },
 						},
 						required: ["judgment_id", "relation"],
@@ -392,9 +407,10 @@ Use this before read-only operations to verify you're in good standing.`,
 					break;
 				}
 				case "mem_save_prompt": {
+					const project = normalizeProject(args?.project as string);
 					const memory = await memories.saveMemory(
 						dbService,
-						args?.project as string,
+						project,
 						"prompt",
 						"User Prompt",
 						args?.content as string,
@@ -405,6 +421,7 @@ Use this before read-only operations to verify you're in good standing.`,
 					break;
 				}
 				case "mem_capture_passive": {
+					const project = normalizeProject(args?.project as string);
 					const content = args?.content as string;
 					const learnings: string[] = [];
 					const matches = content.match(/## Key Learnings:[\s\S]*?(?=\n## |$)/i);
@@ -436,11 +453,24 @@ Use this before read-only operations to verify you're in good standing.`,
 				case "mem_suggest_topic_key": {
 					const title = args?.title as string;
 					const type = (args?.type as string) || "general";
-					const slug = title
+					const fallbackSlug = title
 						.toLowerCase()
 						.replace(/[^a-z0-9]+/g, "-")
 						.replace(/(^-|-$)+/g, "");
-					response = { content: [{ type: "text", text: `${type}/${slug}` }] };
+
+					try {
+						const model = process.env.OLLAMA_MODEL || "llama3.2:3b";
+						const llmResult = await generate(model, `Given the title "${title}" and type "${type}", suggest a short stable topic key (2-5 words, lowercase, hyphen-separated) for grouping related memories. Return only the key.`, { temperature: 0.1, num_ctx: 512 });
+						const cleaned = llmResult.trim().toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/-+/g, "-").replace(/^-+|-+$/g, "");
+						if (cleaned.length > 0) {
+							response = { content: [{ type: "text", text: type + "/" + cleaned }] };
+							break;
+						}
+					} catch {
+						// Ollama unavailable - fall through to slug fallback
+					}
+
+					response = { content: [{ type: "text", text: type + "/" + fallbackSlug }] };
 					break;
 				}
 				case "mem_update": {
@@ -461,10 +491,11 @@ Use this before read-only operations to verify you're in good standing.`,
 					break;
 				}
 				case "mem_search": {
+					const project = normalizeProject(args?.project as string);
 					const mems = await memories.searchMemories(
 						dbService,
 						args?.query as string,
-						args?.project as string,
+						project,
 						(args?.mode as "lexical" | "semantic" | "hybrid" | undefined) || "hybrid",
 						(args?.limit as number) || 10
 					);
@@ -472,9 +503,10 @@ Use this before read-only operations to verify you're in good standing.`,
 					break;
 				}
 				case "mem_context": {
+					const project = normalizeProject(args?.project as string);
 					const mems = await memories.getContext(
 						dbService,
-						args?.project as string,
+						project,
 						(args?.limit as number) || 20
 					);
 					response = { content: [{ type: "text", text: JSON.stringify(mems, null, 2) }] };
@@ -489,7 +521,7 @@ Use this before read-only operations to verify you're in good standing.`,
 				}
 				case "mem_current_project": {
 					if (args?.project) {
-						currentProject = args.project as string;
+						currentProject = normalizeProject(args.project as string);
 						response = { content: [{ type: "text", text: `Active project set to: ${currentProject}` }] };
 					} else {
 						response = {
@@ -504,7 +536,8 @@ Use this before read-only operations to verify you're in good standing.`,
 					break;
 				}
 				case "mem_session_start": {
-					const id = await sessions.startSession(dbService, args?.project as string, args?.name as string);
+					const project = normalizeProject(args?.project as string);
+					const id = await sessions.startSession(dbService, project, args?.name as string);
 					response = { content: [{ type: "text", text: `Session started. ID: ${id}` }] };
 					break;
 				}
@@ -527,9 +560,10 @@ Use this before read-only operations to verify you're in good standing.`,
 					break;
 				}
 				case "mem_timeline": {
+					const project = normalizeProject(args?.project as string);
 					const timeline = await memories.getTimeline(
 						dbService,
-						args?.project as string,
+						project,
 						(args?.limit as number) || 20
 					);
 					response = { content: [{ type: "text", text: JSON.stringify(timeline, null, 2) }] };
@@ -556,10 +590,18 @@ Use this before read-only operations to verify you're in good standing.`,
 					break;
 				}
 				case "mem_judge": {
+					const relation = args?.relation as string;
+					if (!VALID_RELATIONS.includes(relation as typeof VALID_RELATIONS[number])) {
+						response = {
+							content: [{ type: "text", text: `Error: Invalid relation "${relation}". Valid values: ${VALID_RELATIONS.join(", ")}` }],
+							isError: true,
+						};
+						break;
+					}
 					const success = await analysis.judge(
 						dbService,
 						args?.judgment_id as string,
-						args?.relation as string,
+						relation,
 						args?.reason as string
 					);
 					response = {
@@ -596,7 +638,8 @@ Use this before read-only operations to verify you're in good standing.`,
 					break;
 				}
 				case "mem_stats": {
-					const stats = await memories.getStats(dbService, args?.project as string);
+					const project = normalizeProject(args?.project as string);
+					const stats = await memories.getStats(dbService, project);
 					response = { content: [{ type: "text", text: JSON.stringify(stats, null, 2) }] };
 					break;
 				}
@@ -669,6 +712,10 @@ Use this before read-only operations to verify you're in good standing.`,
 			const resultStatus = response.isError ? "error" : "success";
 			const resultText = response.content?.[0]?.text || "";
 
+			// Normalize project for audit logging
+			const rawProject = args?.project as string | undefined;
+			const auditProject = rawProject ? normalizeProject(rawProject) : "";
+
 			// Fire-and-forget: no bloqueamos la respuesta del agente
 			audit
 				.logToolCall(dbService, {
@@ -678,7 +725,7 @@ Use this before read-only operations to verify you're in good standing.`,
 					resultStatus,
 					resultPreview: resultText,
 					durationMs,
-					project: (args?.project as string) || "",
+					project: auditProject,
 				})
 				.catch((err: unknown) => console.error("[Audit] Error logging tool call:", err));
 

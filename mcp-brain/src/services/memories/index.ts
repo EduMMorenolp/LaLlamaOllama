@@ -7,3 +7,4 @@ export * from "./getTimeline.js";
 export * from "./saveMemory.js";
 export * from "./searchMemories.js";
 export * from "./updateMemory.js";
+export * from "./mergeProjects.js";
