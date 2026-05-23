@@ -11,107 +11,28 @@ permission:
     "*": "deny"
   glob: "allow"
   grep: "allow"
-  task: "allow"
   todowrite: "allow"
-  mcp: "allow"
 ---
 
-Eres un agente especializado en el backend de LaLlamaOllama.
-
-## PROYECTO
-
-- **Ubicación**: `backend/`
-- **Stack**: Express 4 + TypeScript (NodeNext modules), Socket.IO, Dockerode, MCP SDK, Axios, Helmet, express-rate-limit, SQLite3, Zod, Cheerio
-- **Puerto**: `${APP_PORT:-3000}`
-- **Entry point**: `src/main.ts`
-
-## ESTRUCTURA
-
-```
-backend/
-├── src/
-│   ├── main.ts                       # Entry: Express app, rutas, middleware, MCP server, Socket.IO
-│   ├── app.module.ts                 # Bootstrap de servicios
-│   ├── auth/
-│   │   └── auth.service.ts           # Validación API Key, gestión de IPs
-│   ├── ollama/
-│   │   ├── ollama.service.ts         # Comunicación con Ollama, GPU metrics, rate limiting
-│   │   └── ollama.tools.ts           # Registro de MCP Tools
-│   ├── session/
-│   │   └── session.manager.ts        # Gestión de sesiones de chat
-│   └── memory/
-│       ├── database.service.ts       # SQLite initialization
-│       ├── memory.service.ts         # Memoria conversacional con resumen
-│       └── memory.tools.ts           # MCP Tools de memoria
-├── Dockerfile
-└── package.json
-```
-
-## RUTAS DE API
-
-| Ruta | Método | Auth | Propósito |
-|------|--------|------|-----------|
-| `/v1/models` | GET | Sí | Listar modelos (OpenAI format) |
-| `/v1/chat/completions` | POST | Sí | Chat streaming/blocking (OpenAI format) |
-| `/api/models` | GET | Sí | Listar modelos (formato completo) |
-| `/api/status` | GET | Sí | Estado completo del servidor |
-| `/api/status/fast` | GET | Sí | Estado ligero para polling |
-| `/api/engine-stats` | GET | Sí | Estadísticas del motor Ollama |
-| `/api/hardware` | GET | Sí | Métricas de hardware (VRAM, GPU) |
-| `/api/config` | GET | No | Configuración pública |
-| `/api/logs` | GET | Sí | Logs de acceso |
-| `/api/ollama/pull` | POST | Sí | Descargar modelo |
-| `/api/ollama/delete` | POST | Sí | Eliminar modelo |
-| `/api/ollama/unload` | POST | Sí | Liberar VRAM |
-| `/api/ollama/stop-ollama` | POST | Sí | Detener contenedor Ollama |
-| `/api/ollama/start-ollama` | POST | Sí | Iniciar contenedor Ollama |
-| `/api/blacklist` | POST | Sí | Añadir IP a blacklist |
-| `/api/memory` | GET/POST | Sí | Memoria conversacional |
-| `/sse` | GET | No | MCP Server SSE endpoint |
-| `/messages` | POST | No | MCP Server messages endpoint |
+Stack: Express 4 + TypeScript (NodeNext) | Puerto: `${APP_PORT:-3000}` | Entry: `src/main.ts`
 
 ## REGLAS
 
-1. **Auth en todas las rutas**: Toda ruta `/api/*` y `/v1/*` debe pasar por `authMiddleware`. Excepciones: `/sse`, `/messages`, `/api/config`.
-2. **Streaming SSE**: `/v1/chat/completions` con `stream:true` debe usar `text/event-stream` con formato OpenAI compatible (`data: {...}\n\n`).
-3. **No bloqueante**: Las consultas a `nvidia-smi` deben ser asíncronas y cacheadas. No bloquear el Event Loop.
-4. **Dockerode**: Usar `dockerode` para cualquier interacción con contenedores (nunca comandos shell directos).
-5. **MCP Tools**: Registrar toda tool nueva en `ollama.tools.ts` con `ListToolsRequestSchema` + `CallToolRequestSchema`.
-6. **Rate Limiting**: 15k requests por 15 min. Saltar para IPs locales o API Key válida.
-7. **CORS**: Permitir orígenes en desarrollo, restringir en producción.
+1. **Auth**: Toda ruta `/api/*` y `/v1/*` con `authMiddleware`. Excepciones: `/sse`, `/messages`, `/api/config`.
+2. **Streaming SSE**: `text/event-stream`, formato OpenAI (`data: {...}\n\n`).
+3. **No bloqueante**: `nvidia-smi` asíncrono y cacheados.
+4. **Dockerode**: para contenedores (nunca shell).
+5. **Rate Limiting**: 15k/15min. Bypass para IPs locales o API Key válida.
+6. **CORS**: Permitir en desarrollo, restringir en producción.
 
-## PATRÓN DE RUTAS
+## MCP TOOLS
 
-```ts
-app.get("/api/nueva-ruta", authMiddleware, async (req, res) => {
-  try {
-    const data = await appModule.ollamaService.getData();
-    res.json({ data });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-```
-
-## SCRIPTS DISPONIBLES
-
-| Script | Descripción |
-|---|---|
-| `npm run build` | `tsc` (strict mode) |
-| `npm run dev` | `ts-node src/main.ts` |
+Dos handlers en `ollama.tools.ts`:
+- `ListToolsRequestSchema`: definición con `name`, `description`, `inputSchema` (JSON Schema)
+- `CallToolRequestSchema`: switch por `name`, `try/catch`, return `{ isError: true, content }` en errores (nunca crashear)
+- Probar con MCP Inspector
 
 ## FLUJO DE TRABAJO
 
-1. Antes de implementar: `mem_search(query: "<tema>", project: "lallamaollama")` para revisar decisiones previas
-2. Implementa los cambios solicitados (rutas, controladores, servicios)
-3. **Registra en el cerebro** con `mem_save`:
-   - `project`: `lallamaollama`
-   - `type`: `"bug-fix"` / `"feature"` / `"architecture"` / `"convention"` según corresponda
-   - `title`: título corto y buscable (ej. `"Nueva ruta DELETE /api/projects"`)
-   - `agent`: `"OpenCode backend-dev"`
-   - `content`: formato `**What** / **Why** / **Where** / **Learned**`
-   - Si `mem_save` devuelve `judgment_required: true` → llamar `mem_judge` por cada candidato
-4. Invoca `qa-verification` vía `task` con:
-   - `project`: `backend`
-   - `changes`: descripción de lo implementado
-   - `commands`: `npm run build`
+1. Implementa los cambios (rutas, servicios, MCP Tools)
+2. Responde al orquestador con resumen de lo implementado

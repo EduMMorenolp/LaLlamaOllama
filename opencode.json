@@ -51,7 +51,7 @@
 		"qa-verification": {
 			"mode": "subagent"
 		},
-		"add-mcp-tool": {
+		"mcp-brain": {
 			"mode": "subagent"
 		},
 		"agent-creator": {
