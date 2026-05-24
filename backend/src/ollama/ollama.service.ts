@@ -365,6 +365,51 @@ export class OllamaService {
 		}
 	}
 
+	/**
+	 * Construye mensajes de sesión comprimiendo historial antiguo para ahorrar tokens.
+	 * Si hay >6 msgs en cache, resume los antiguos en un system msg y mantiene los últimos 5.
+	 */
+	private buildSessionMessages(
+		messages: SessionMessage[],
+		sessionId?: string
+	): SessionMessage[] {
+		if (!sessionId) return messages;
+		const cached = this.sessionCache.get(sessionId) || [];
+		if (messages.length !== 1 || cached.length === 0) return messages;
+
+		let finalMessages: SessionMessage[];
+		if (cached.length > 6) {
+			// Resumir mensajes antiguos en un system message
+			const keep = cached.slice(-5);
+			const summary = `[Historial: ${cached.length - 5} mensajes anteriores resumidos. Último tema: "${cached[cached.length - 1]?.content?.substring(0, 80)}"]`;
+			finalMessages = [{ role: "system", content: summary }, ...keep, ...messages];
+		} else {
+			finalMessages = [...cached, ...messages];
+		}
+
+		// Cache limitado a 10 mensajes (vs 20 anterior)
+		this.sessionCache.set(sessionId, finalMessages.slice(-10));
+		return finalMessages;
+	}
+
+	/**
+	 * Envía solo options no-default para ahorrar bytes en el request a Ollama
+	 */
+	private buildOllamaBody(
+		model: string,
+		messages: SessionMessage[],
+		options: Record<string, unknown>,
+		keepAlive: string | number,
+		stream: boolean
+	): Record<string, unknown> {
+		const body: Record<string, unknown> = { model, messages, stream };
+		const mergedOptions = { ...options };
+		if (options.num_ctx === undefined) mergedOptions.num_ctx = this.globalNumCtx;
+		if (Object.keys(mergedOptions).length > 0) body.options = mergedOptions;
+		if (keepAlive !== "5m") body.keep_alive = keepAlive;
+		return body;
+	}
+
 	async chat(
 		model: string,
 		messages: SessionMessage[],
@@ -372,33 +417,16 @@ export class OllamaService {
 		keep_alive: string | number = "5m",
 		sessionId?: string
 	): Promise<ChatResponse> {
-		// Enqueue the chat request to limit GPU concurrency
 		return this.enqueueRequest(async () => {
-			let finalMessages = messages;
-
-			if (sessionId) {
-				const cached = this.sessionCache.get(sessionId) || [];
-				if (messages.length === 1 && cached.length > 0) {
-					finalMessages = [...cached, ...messages];
-				}
-				this.sessionCache.set(sessionId, finalMessages);
-				const cached2 = this.sessionCache.get(sessionId);
-				if (cached2?.length && cached2.length > 20) {
-					this.sessionCache.set(sessionId, cached2.slice(-20));
-				}
-			}
-
+			const finalMessages = this.buildSessionMessages(messages, sessionId);
 			this.lastChatTime = Date.now();
 			const startMs = Date.now();
-			const response = await this.axiosClient.post(`${this.baseUrl}/api/chat`, {
-				model,
-				messages: finalMessages,
-				options: { ...options, num_ctx: options?.num_ctx || this.globalNumCtx },
-				keep_alive,
-				stream: false,
-			});
 
-			// Trackear tokens y tiempo (usar cache GPU sin bloqueo)
+			const response = await this.axiosClient.post(
+				`${this.baseUrl}/api/chat`,
+				this.buildOllamaBody(model, finalMessages, options, keep_alive, false)
+			);
+
 			const durationMs = Date.now() - startMs;
 			const promptTokens = response.data.prompt_eval_count || 0;
 			const evalTokens = response.data.eval_count || 0;
@@ -421,36 +449,14 @@ export class OllamaService {
 		keep_alive: string | number = "5m",
 		sessionId?: string
 	): Promise<{ data: import("stream").Readable }> {
-		// Enqueue streaming request to limit GPU concurrency
 		return this.enqueueRequest(async () => {
-			let finalMessages = messages;
-
-			if (sessionId) {
-				const cached = this.sessionCache.get(sessionId) || [];
-				if (messages.length === 1 && cached.length > 0) {
-					finalMessages = [...cached, ...messages];
-				}
-				this.sessionCache.set(sessionId, finalMessages);
-				const cached2 = this.sessionCache.get(sessionId);
-				if (cached2?.length && cached2.length > 20) {
-					this.sessionCache.set(sessionId, cached2.slice(-20));
-				}
-			}
-
+			const finalMessages = this.buildSessionMessages(messages, sessionId);
 			this.lastChatTime = Date.now();
 
 			return this.axiosClient.post(
 				`${this.baseUrl}/api/chat`,
-				{
-					model,
-					messages: finalMessages,
-					options: { ...options, num_ctx: options?.num_ctx || this.globalNumCtx },
-					keep_alive,
-					stream: true,
-				},
-				{
-					responseType: "stream",
-				}
+				this.buildOllamaBody(model, finalMessages, options, keep_alive, true),
+				{ responseType: "stream" }
 			);
 		});
 	}

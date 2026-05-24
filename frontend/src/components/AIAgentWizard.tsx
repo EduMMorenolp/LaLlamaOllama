@@ -12,6 +12,7 @@ import {
 	RefreshCw,
 	X,
 } from "lucide-react";
+import { ModalLayout } from "./ModalLayout";
 import type React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { api, brainApi } from "../services/api.service";
@@ -466,28 +467,26 @@ export const AIAgentWizard: React.FC<AIAgentWizardProps> = ({ project, onClose, 
 	/* ── Render loading ── */
 	if (phase === "loading") {
 		return (
-			<div style={{
-				position: "fixed", inset: 0, zIndex: 9998,
-				background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)",
-				display: "flex", alignItems: "center", justifyContent: "center",
-			}}>
-				<div className="card-glass" style={{
+						<ModalLayout onClose={onClose}>
+				<div style={{
 					padding: "48px", textAlign: "center",
 					display: "flex", flexDirection: "column", alignItems: "center", gap: "20px",
 					minWidth: "360px",
 				}}>
+
 					<Loader2 size={40} className="animate-spin" style={{ color: "var(--accent)" }} />
 					<div style={{ fontSize: "14px", fontWeight: 600 }}>Generando Agentes</div>
 					<p style={{ fontSize: "12px", color: "var(--text-dim)" }}>{loadingMessage}</p>
 					<p style={{ fontSize: "11px", color: "var(--text-muted)" }}>
 						Esto puede tomar unos segundos dependiendo del modelo...
 					</p>
+				
 				</div>
-				<style>{`
+<style>{`
 					@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 					.animate-spin { animation: spin 1s linear infinite; }
 				`}</style>
-			</div>
+			</ModalLayout>
 		);
 	}
 
@@ -496,15 +495,8 @@ export const AIAgentWizard: React.FC<AIAgentWizardProps> = ({ project, onClose, 
 		const allFiles = [...result.agents, ...result.rules, ...result.workflows];
 
 		return (
-			<div style={{
-				position: "fixed", inset: 0, zIndex: 9998,
-				background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)",
-				display: "flex", alignItems: "center", justifyContent: "center",
-			}}>
-				<div className="card-glass" style={{
-					width: "780px", maxHeight: "90vh", overflowY: "auto",
-					padding: "28px", display: "flex", flexDirection: "column", gap: "16px",
-				}}>
+						<ModalLayout onClose={onClose} width="780px">
+
 					{/* Header */}
 					<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
 						<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -694,22 +686,15 @@ export const AIAgentWizard: React.FC<AIAgentWizardProps> = ({ project, onClose, 
 							<RefreshCw size={14} /> Nuevo Análisis
 						</button>
 					</div>
-				</div>
-			</div>
+				
+			</ModalLayout>
 		);
 	}
 
 	/* ── Render config phase ── */
 	return (
-		<div style={{
-			position: "fixed", inset: 0, zIndex: 9998,
-			background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)",
-			display: "flex", alignItems: "center", justifyContent: "center",
-		}}>
-			<div className="card-glass" style={{
-				width: "580px", maxHeight: "90vh", overflowY: "auto",
-				padding: "28px", display: "flex", flexDirection: "column", gap: "18px",
-			}}>
+					<ModalLayout onClose={onClose} width="580px">
+
 				{/* Header */}
 				<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
 					<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -856,7 +841,7 @@ export const AIAgentWizard: React.FC<AIAgentWizardProps> = ({ project, onClose, 
 				<div style={{ fontSize: "10px", color: "var(--text-muted)", textAlign: "center", lineHeight: 1.5 }}>
 					Los agentes generados incluirán conexión al Brain MCP en <code>http://localhost:3015/sse</code>
 				</div>
-			</div>
-		</div>
+			
+			</ModalLayout>
 	);
 };

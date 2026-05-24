@@ -8,6 +8,7 @@ import { BrainScaffold } from "./BrainScaffold";
 import { BrainSettings } from "./BrainSettings";
 import { MemoryExplorer } from "./MemoryExplorer";
 import { ProjectMerger } from "./ProjectMerger";
+import { TabButton } from "./TabButton";
 
 interface BrainStats {
 	total: number;
@@ -228,126 +229,12 @@ export const BrainConsole: React.FC = () => {
 			<div
 				style={{ display: "flex", gap: "12px", borderBottom: "1px solid var(--border)", paddingBottom: "12px" }}
 			>
-				<button
-					onClick={() => setActiveTab("auditor")}
-					type="button"
-					style={{
-						display: "flex",
-						alignItems: "center",
-						gap: "8px",
-						padding: "10px 20px",
-						borderRadius: "8px",
-						fontSize: "13px",
-						fontWeight: 600,
-						border: "none",
-						background: activeTab === "auditor" ? "rgba(79, 140, 255, 0.15)" : "transparent",
-						color: activeTab === "auditor" ? "var(--accent)" : "var(--text-dim)",
-						cursor: "pointer",
-						transition: "var(--transition)",
-					}}
-				>
-					<Brain size={16} /> Auditor de Memoria
-				</button>
-				<button
-					onClick={() => setActiveTab("explorer")}
-					type="button"
-					style={{
-						display: "flex",
-						alignItems: "center",
-						gap: "8px",
-						padding: "10px 20px",
-						borderRadius: "8px",
-						fontSize: "13px",
-						fontWeight: 600,
-						border: "none",
-						background: activeTab === "explorer" ? "rgba(79, 140, 255, 0.15)" : "transparent",
-						color: activeTab === "explorer" ? "var(--accent)" : "var(--text-dim)",
-						cursor: "pointer",
-						transition: "var(--transition)",
-					}}
-				>
-					<Search size={16} /> Explorador de Memorias
-				</button>
-				<button
-					onClick={() => setActiveTab("directives")}
-					type="button"
-					style={{
-						display: "flex",
-						alignItems: "center",
-						gap: "8px",
-						padding: "10px 20px",
-						borderRadius: "8px",
-						fontSize: "13px",
-						fontWeight: 600,
-						border: "none",
-						background: activeTab === "directives" ? "rgba(79, 140, 255, 0.15)" : "transparent",
-						color: activeTab === "directives" ? "var(--accent)" : "var(--text-dim)",
-						cursor: "pointer",
-						transition: "var(--transition)",
-					}}
-				>
-					<BookOpen size={16} /> Directivas Centrales
-				</button>
-				<button
-					onClick={() => setActiveTab("merge")}
-					type="button"
-					style={{
-						display: "flex",
-						alignItems: "center",
-						gap: "8px",
-						padding: "10px 20px",
-						borderRadius: "8px",
-						fontSize: "13px",
-						fontWeight: 600,
-						border: "none",
-						background: activeTab === "merge" ? "rgba(79, 140, 255, 0.15)" : "transparent",
-						color: activeTab === "merge" ? "var(--accent)" : "var(--text-dim)",
-						cursor: "pointer",
-						transition: "var(--transition)",
-					}}
-				>
-					<GitMerge size={16} /> Fusionar Proyectos
-				</button>
-				<button
-					onClick={() => setActiveTab("settings")}
-					type="button"
-					style={{
-						display: "flex",
-						alignItems: "center",
-						gap: "8px",
-						padding: "10px 20px",
-						borderRadius: "8px",
-						fontSize: "13px",
-						fontWeight: 600,
-						border: "none",
-						background: activeTab === "settings" ? "rgba(79, 140, 255, 0.15)" : "transparent",
-						color: activeTab === "settings" ? "var(--accent)" : "var(--text-dim)",
-						cursor: "pointer",
-						transition: "var(--transition)",
-					}}
-				>
-					<Settings size={16} /> Ajustes Cognitivos
-				</button>
-				<button
-					onClick={() => setActiveTab("scaffold")}
-					type="button"
-					style={{
-						display: "flex",
-						alignItems: "center",
-						gap: "8px",
-						padding: "10px 20px",
-						borderRadius: "8px",
-						fontSize: "13px",
-						fontWeight: 600,
-						border: "none",
-						background: activeTab === "scaffold" ? "rgba(79, 140, 255, 0.15)" : "transparent",
-						color: activeTab === "scaffold" ? "var(--accent)" : "var(--text-dim)",
-						cursor: "pointer",
-						transition: "var(--transition)",
-					}}
-				>
-					<Layers size={16} /> Scaffold
-				</button>
+				<TabButton active={activeTab === "auditor"} onClick={() => setActiveTab("auditor")} icon={<Brain size={16} />} label="Auditor de Memoria" />
+				<TabButton active={activeTab === "explorer"} onClick={() => setActiveTab("explorer")} icon={<Search size={16} />} label="Explorador de Memorias" />
+				<TabButton active={activeTab === "directives"} onClick={() => setActiveTab("directives")} icon={<BookOpen size={16} />} label="Directivas Centrales" />
+				<TabButton active={activeTab === "merge"} onClick={() => setActiveTab("merge")} icon={<GitMerge size={16} />} label="Fusionar Proyectos" />
+				<TabButton active={activeTab === "settings"} onClick={() => setActiveTab("settings")} icon={<Settings size={16} />} label="Ajustes Cognitivos" />
+				<TabButton active={activeTab === "scaffold"} onClick={() => setActiveTab("scaffold")} icon={<Layers size={16} />} label="Scaffold" />
 			</div>
 
 			<div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: "24px", alignItems: "start" }}>

@@ -1,22 +1,18 @@
 ---
-description: Workflow para implementar una nueva ruta o funcionalidad en el backend (Express 4 + TypeScript). Seguir en orden.
+description: Workflow para implementar una nueva ruta o funcionalidad en el backend (Express 4 + TypeScript).
 ---
 
 # Workflow — Implementar en Backend
 
-## PASO 1 — Buscar contexto previo
+> Ver pasos comunes en [`_steps-common.md`](./_steps-common.md)
 
-```
-mem_search(query: "<tema de la ruta>", project: "lallamaollama", mode: "hybrid")
-```
+## PASO 1 — Contexto previo
 
-Verificar si la funcionalidad ya existe o si hay decisiones previas que afectan el diseño.
+Ver `PASO COMÚN — Buscar contexto previo` en `_steps-common.md`.
 
 ---
 
-## PASO 2 — Identificar dónde agregar
-
-Abrir `backend/src/main.ts` y ubicar la sección correcta por dominio:
+## PASO 2 — Identificar dónde agregar en main.ts
 
 | Dominio | Buscar en main.ts |
 |---------|-------------------|
@@ -35,7 +31,6 @@ Abrir `backend/src/main.ts` y ubicar la sección correcta por dominio:
 ## PASO 3 — Implementar la ruta
 
 ```typescript
-// Patrón obligatorio:
 app.<method>("/api/<ruta>", authMiddleware, async (req, res) => {
     try {
         const result = await appModule.ollamaService.<método>(/*params*/);
@@ -47,67 +42,34 @@ app.<method>("/api/<ruta>", authMiddleware, async (req, res) => {
 });
 ```
 
-**Reglas de implementación:**
+**Reglas:**
 - `authMiddleware` SIEMPRE como segundo argumento
-- Usar `Dockerode` para operaciones de contenedores (nunca `exec`)
-- Si requiere emit a frontend: `io.emit("evento", { dato })`
-- Parámetros de body con tipado explícito: `const { campo } = req.body as { campo: string }`
+- Usar `Dockerode` (nunca `exec`)
+- Si requiere emit: `io.emit("evento", { dato })`
+- Parámetros tipados: `const { campo } = req.body as { campo: string }`
 
 ---
 
-## PASO 4 — Si es una nueva MCP Tool (opcional)
+## PASO 4 — MCP Tool (opcional)
 
-Si la funcionalidad también debe exponerse como MCP Tool:
-1. Agregar la definición al array `MCP_TOOL_CATALOG` en `ollama/ollama.tools.ts`
-2. Agregar handler en `ollama.service.ts` si necesita lógica nueva
-
----
-
-## PASO 5 — Verificar con Biome
-
-```bash
-npx biome check backend/
-```
-
-Corregir cualquier error antes de continuar.
+Si también debe ser MCP Tool:
+1. Definición en `ollama/ollama.tools.ts`
+2. Handler en `ollama.service.ts`
 
 ---
 
-## PASO 6 — Verificar TypeScript
+## PASO 5 — Verificar
 
-```bash
-cd backend && npm run build
-```
-
-Código 0 = OK.
+Ver `PASO COMÚN — Verificar TypeScript` en `_steps-common.md`.
 
 ---
 
-## PASO 7 — Actualizar Postman Collection
+## PASO 6 — Postman Collection
 
-Abrir `postman-collection/LaLlamaOllama-Postman-Collection.json` y agregar:
-- La nueva request en la carpeta correcta
-- Headers: `x-api-key: {{API_KEY}}`
-- URL: `{{BASE_URL}}/api/<ruta>`
-- Body example si es POST/PUT
-
-Ver workflow `postman.md` para el proceso detallado.
+Abrir `postman-collection/LaLlamaOllama-Postman-Collection.json` y agregar request en la carpeta correcta con headers y body example. Ver `postman.md`.
 
 ---
 
-## PASO 8 — Guardar en el cerebro
+## PASO 7 — Guardar
 
-```
-mem_save(
-    project: "lallamaollama",
-    type: "feature",
-    title: "Nueva ruta: <METHOD> /api/<ruta>",
-    agent: "Antigravity / Claude Sonnet",
-    content: """
-        **What**: <qué hace la ruta>
-        **Why**: <por qué se necesita>
-        **Where**: backend/src/main.ts L<número>
-        **Learned**: <cualquier gotcha o decisión>
-    """
-)
-```
+Ver `PASO COMÚN — Guardar en el cerebro` en `_steps-common.md`.

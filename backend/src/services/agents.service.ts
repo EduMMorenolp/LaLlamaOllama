@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import type { OllamaService } from "../ollama/ollama.service.js";
 
 export interface FileNode {
@@ -21,6 +22,9 @@ export interface AgentGenerationResponse {
 }
 
 export class AgentsService {
+	private lastPromptHash: string = "";
+	private lastPrompt: string = "";
+
 	constructor(private readonly ollamaService: OllamaService) {}
 
 	/**
@@ -81,19 +85,19 @@ Usa este formato exacto:
   "agents": [
     {
       "path": ".opencode/agents/orchestrator.md",
-      "content": "---\\nname: orchestrator\\ndescription: ...\\n..."
+      "content": "---\nname: orchestrator\ndescription: ...\n..."
     }
   ],
   "rules": [
     {
       "path": ".agents/rules/backend.md",
-      "content": "---\\ntrigger: always_on\\n..."
+      "content": "---\ntrigger: always_on\n..."
     }
   ],
   "workflows": [
     {
       "path": ".agents/workflows/session-start.md",
-      "content": "---\\ndescription: ...\\n..."
+      "content": "---\ndescription: ...\n..."
     }
   ]
 }
@@ -109,6 +113,27 @@ REGLAS PARA EL CONTENIDO DE CADA ARCHIVO:
 	}
 
 	/**
+	 * Versión cacheada de buildPrompt.
+	 * Genera un hash MD5 de los inputs y solo recompila si cambiaron.
+	 */
+	private buildPromptCached(
+		projectName: string,
+		structure: FileNode,
+		configFiles: Record<string, string>
+	): string {
+		const input = projectName + JSON.stringify({ structure, configFiles });
+		const hash = crypto.createHash("md5").update(input).digest("hex");
+
+		if (hash === this.lastPromptHash) {
+			return this.lastPrompt;
+		}
+
+		this.lastPrompt = this.buildPrompt(projectName, structure, configFiles);
+		this.lastPromptHash = hash;
+		return this.lastPrompt;
+	}
+
+	/**
 	 * Analiza la estructura del proyecto usando un modelo Ollama y genera agentes
 	 */
 	async analyzeProject(
@@ -117,7 +142,7 @@ REGLAS PARA EL CONTENIDO DE CADA ARCHIVO:
 		structure: FileNode,
 		configFiles: Record<string, string>
 	): Promise<AgentGenerationResponse> {
-		const prompt = this.buildPrompt(projectName, structure, configFiles);
+		const prompt = this.buildPromptCached(projectName, structure, configFiles);
 
 		const response = await this.ollamaService.chat(model, [
 			{ role: "system", content: "Eres un arquitecto de agentes OpenCode AI. Siempre respondes con JSON válido." },

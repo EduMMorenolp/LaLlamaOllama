@@ -51,6 +51,23 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
   - Endpoint `POST /api/mcp/sync` en `api.ts` para localizar y actualizar configuraciones en **OpenCode AI**, **Antigravity AI**, **RooCode (VS Code)** y **Claude Desktop**.
   - Tarjetas UI en `BrainSettings.tsx` con tooltips de información (`ℹ️`) y botón de copia global al portapapeles (`📋`).
 
+### 🚀 Optimización de Tokens — Quick Wins (2026-05-23)
+
+#### Modificado
+- **Compresión de sesión en `ollama.service.ts`** — historial >6 mensajes se comprime en un solo mensaje de sistema tipo summary. Ahorro estimado: ~10K tokens/request.
+- **`getContext()` sin content por defecto** — nuevo flag `includeContent` (default `false`), límite reducido de 20 a 10. Ahorro estimado: ~8K tokens/call. Archivos: `mcp-brain/src/services/memories/getContext.ts`, `api.ts`, `mcp.ts`.
+- **Descripciones de MCP tools acortadas** — todas las descripciones reducidas de ~200-900 chars a ~50-80 chars en `mcp-brain/src/server/mcp.ts`.
+- **Compliance reminder plano** — reemplazado el bloque ASCII-art de `buildComplianceReminder()` por texto plano de una línea. Archivo: `mcp-brain/src/server/mcp.ts`.
+- **Truncación de content en saveMemory** — `content` se trunca a 1000 chars al guardar. Archivo: `mcp-brain/src/services/memories/saveMemory.ts`.
+- **JSON sin pretty-print** — reemplazadas 11 ocurrencias de `JSON.stringify(obj, null, 2)` por `JSON.stringify(obj)` en `mcp-brain/src/server/mcp.ts`. Ahorro: ~30% del payload en respuestas MCP.
+- **Audit log truncation** — argumentos limitados a 10 campos, snapshot a 500 chars, result_preview a 200 chars en `logToolCall.ts`. Añadido cleanup oportunista (1/100 llamadas elimina logs >30 días).
+- **Prompt caching en agents.service.ts** — caché del prompt compilado mediante hash MD5 de estructura+configs. Solo recompila si los inputs cambian. Archivo: `backend/src/services/agents.service.ts`.
+- **Workflows refactorizados** — creado `_steps-common.md` con pasos compartidos. Reducidos 3 workflows de dominio de ~475 líneas totales a ~180, referenciando pasos comunes.
+- **Eliminado lodash del frontend** — removidas dependencias `lodash` y `@types/lodash` de `frontend/package.json` (no se usaban en código fuente).
+- **Componentes compartidos TabButton + ModalLayout** — extraídos patrones duplicados de tabs en `BrainConsole.tsx` y overlay modal en `AIAgentWizard.tsx` a componentes reutilizables en `frontend/src/components/`.
+- **ChatPlayground useReducer** — refactorizados 10 `useState` en un solo `useReducer` con `chatReducer` (17 acciones tipadas). Reduce declaraciones de estado en ~70%.
+- **CSS eliminado** — `App.css` (Vite boilerplate, 42 líneas, no usado) eliminado.
+
 ### 🔄 Migración a SSE Remoto para mcp-brain y Sincronización Multi-IDE (2026-05-14)
 
 #### Añadido

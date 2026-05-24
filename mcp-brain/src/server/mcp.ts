@@ -71,25 +71,9 @@ IF judgment_required IS TRUE:
 		}> = [
 				{
 					name: "mem_save",
-					description: `Save an important observation to persistent memory. Call this PROACTIVELY after completing significant work — don't wait to be asked.
+					description: `Save important observations to persistent memory. Call after completing significant work.
 
-ALWAYS provide your identity in the 'agent' field (e.g., 'Cursor / Claude 3.5 Sonnet', 'Antigravity / Gemini 2.5 Flash', 'OpenCode AI', 'RooCode / Cline').
-
-WHEN to save (call this after each of these):
-- Architectural decisions or tradeoffs
-- Bug fixes (what was wrong, why, how you fixed it)
-- New patterns or conventions established
-- Configuration changes or environment setup
-- Important discoveries or gotchas
-- File structure changes
-
-FORMAT for content — use this structured format:
-  **What**: [concise description of what was done]
-  **Why**: [the reasoning, user request, or problem that drove it]
-  **Where**: [files/paths affected]
-  **Learned**: [any gotchas, edge cases, or decisions made — omit if none]
-
-TITLE should be short and searchable, like: "JWT auth middleware", "Fixed N+1 query"`,
+Provide identity in 'agent' field, format content as **What**/**Why**/**Where**/**Learned**`,
 					inputSchema: {
 						type: "object",
 						properties: {
@@ -110,8 +94,7 @@ TITLE should be short and searchable, like: "JWT auth middleware", "Fixed N+1 qu
 				},
 				{
 					name: "mem_save_prompt",
-					description:
-						"Save a user prompt to persistent memory. Use this to record what the user asked — their intent, questions, and requests — so future sessions have context about the user's goals.",
+					description: "Save user prompt to persistent memory for session context.",
 					inputSchema: {
 						type: "object",
 						properties: {
@@ -124,7 +107,7 @@ TITLE should be short and searchable, like: "JWT auth middleware", "Fixed N+1 qu
 				},
 				{
 					name: "mem_capture_passive",
-					description: `Extract and save structured learnings from text output. Use this at the end of a task to capture knowledge automatically. The tool looks for sections like "## Key Learnings:" and extracts items.`,
+					description: "Extract structured learnings from text output automatically.",
 					inputSchema: {
 						type: "object",
 						properties: {
@@ -137,8 +120,7 @@ TITLE should be short and searchable, like: "JWT auth middleware", "Fixed N+1 qu
 				},
 				{
 					name: "mem_suggest_topic_key",
-					description:
-						"Suggest a stable topic_key for memory upserts. Use this before mem_save when you want evolving topics (like architecture decisions) to update a single observation over time.",
+					description: "Suggest a stable topic_key for grouping related memories.",
 					inputSchema: {
 						type: "object",
 						properties: {
@@ -224,20 +206,7 @@ TITLE should be short and searchable, like: "JWT auth middleware", "Fixed N+1 qu
 				},
 				{
 					name: "mem_session_summary",
-					description: `Save a comprehensive end-of-session summary. Call this when a session is ending or when significant work is complete.
-FORMAT — use this exact structure in the content field:
-## Goal
-[One sentence: what were we building/working on]
-## Instructions
-[User preferences, constraints, or context discovered]
-## Discoveries
-- [Technical finding, gotcha, or learning 1]
-## Accomplished
-- ✅ [Completed task 1]
-## Next Steps
-- [What remains to be done]
-## Relevant Files
-- path/to/file.ts — [what changed]`,
+					description: "Save end-of-session summary with goal, discoveries, and next steps.",
 					inputSchema: {
 						type: "object",
 						properties: { sessionId: { type: "string" }, summary: { type: "string" } },
@@ -298,12 +267,7 @@ FORMAT — use this exact structure in the content field:
 				},
 				{
 					name: "mem_judge",
-					description: `Record a verdict on a pending memory conflict surfaced by mem_save.
-WHEN TO CALL: After mem_save returns judgment_required=true, iterate candidates[] and call mem_judge once per entry using that entry's judgment_id.
-PARAMS:
-  judgment_id (required) — from candidates[].judgment_id in the mem_save response
-  relation    (required) — one of: related, compatible, scoped, conflicts_with, supersedes, not_conflict
-  reason      (optional) — free-text explanation of the verdict`,
+					description: "Record verdict on a memory conflict surfaced by mem_save. Provide judgment_id and relation.",
 					inputSchema: {
 						type: "object",
 						properties: {
@@ -320,7 +284,7 @@ PARAMS:
 				},
 			{
 				name: "scaffold_list_templates",
-				description: "Lista los templates de scaffolding disponibles para generar archivos de agentes, rules o workflows. Filtrar por tool (antigravity, opencode, universal) y/o type (rule, workflow, agent).",
+				description: "List available scaffolding templates for agents, rules, or workflows.",
 				inputSchema: {
 					type: "object",
 					properties: {
@@ -331,18 +295,7 @@ PARAMS:
 			},
 			{
 				name: "scaffold_file",
-				description: `Genera un archivo de agente, rule o workflow a partir de un template almacenado en el cerebro.
-
-Retorna el contenido Markdown renderizado con las variables provistas + el path de salida sugerido.
-
-FLUJO RECOMENDADO:
-1. scaffold_list_templates → ver templates disponibles y sus variables requeridas
-2. scaffold_file → obtener contenido renderizado
-3. Preguntar al usuario: "¿Guardo el archivo en <output_path>?"
-4. Si sí → usar write_to_file / herramienta de escritura del agente con el contenido retornado
-
-NOTA: mcp-brain corre en Docker y NO puede escribir al disco del host.
-El agente que llama a esta tool es quien debe escribir el archivo si el usuario lo solicita.`,
+				description: "Generate a scaffold file from a stored template with provided variables.",
 				inputSchema: {
 					type: "object",
 					properties: {
@@ -354,9 +307,7 @@ El agente que llama a esta tool es quien debe escribir el archivo si el usuario 
 			},
 			{
 				name: "mem_get_directives",
-				description: `Get the core directives (project rules and personality) for a project. 
-Core directives define the immutable rules, coding standards, and agent behavior for the project.
-Use this at the start of a session to know how to behave in this project.`,
+				description: "Get core directives (project rules and personality) for a project.",
 				inputSchema: {
 					type: "object",
 					properties: {
@@ -380,13 +331,7 @@ Use this at the start of a session to know how to behave in this project.`,
 		// --- CAPA 5: Add compliance self-audit tool ---
 		tools.push({
 			name: "mem_my_compliance",
-			description: `Check your own compliance status with the shared brain audit system.
-
-All tool calls are automatically tracked. This tool reports your personal stats.
-
-Returns: compliance score, last mem_save, total saves vs. total calls, and whether you should register changes.
-
-Use this before read-only operations to verify you're in good standing.`,
+			description: "Check your compliance status with the shared brain audit system.",
 			inputSchema: {
 				type: "object",
 				properties: {
@@ -423,7 +368,7 @@ Use this before read-only operations to verify you're in good standing.`,
 						undefined,
 						agentName
 					);
-					response = { content: [{ type: "text", text: JSON.stringify(res, null, 2) }] };
+					response = { content: [{ type: "text", text: JSON.stringify(res) }] };
 					break;
 				}
 				case "mem_save_prompt": {
@@ -519,7 +464,7 @@ Use this before read-only operations to verify you're in good standing.`,
 						(args?.mode as "lexical" | "semantic" | "hybrid" | undefined) || "hybrid",
 						(args?.limit as number) || 10
 					);
-					response = { content: [{ type: "text", text: JSON.stringify(mems, null, 2) }] };
+					response = { content: [{ type: "text", text: JSON.stringify(mems) }] };
 					break;
 				}
 				case "mem_context": {
@@ -529,13 +474,13 @@ Use this before read-only operations to verify you're in good standing.`,
 						project,
 						(args?.limit as number) || 20
 					);
-					response = { content: [{ type: "text", text: JSON.stringify(mems, null, 2) }] };
+					response = { content: [{ type: "text", text: JSON.stringify(mems) }] };
 					break;
 				}
 				case "mem_get_observation": {
 					const memory = await memories.getMemory(dbService, args?.id as string);
 					response = {
-						content: [{ type: "text", text: memory ? JSON.stringify(memory, null, 2) : "Not found" }],
+						content: [{ type: "text", text: memory ? JSON.stringify(memory) : "Not found" }],
 					};
 					break;
 				}
@@ -576,7 +521,7 @@ Use this before read-only operations to verify you're in good standing.`,
 				}
 				case "mem_session_summary": {
 					const summary = await sessions.getSessionSummary(dbService, args?.sessionId as string);
-					response = { content: [{ type: "text", text: JSON.stringify(summary, null, 2) }] };
+					response = { content: [{ type: "text", text: JSON.stringify(summary) }] };
 					break;
 				}
 				case "mem_timeline": {
@@ -586,7 +531,7 @@ Use this before read-only operations to verify you're in good standing.`,
 						project,
 						(args?.limit as number) || 20
 					);
-					response = { content: [{ type: "text", text: JSON.stringify(timeline, null, 2) }] };
+					response = { content: [{ type: "text", text: JSON.stringify(timeline) }] };
 					break;
 				}
 				case "mem_suggest_tags": {
@@ -639,7 +584,7 @@ Use this before read-only operations to verify you're in good standing.`,
 							args?.memoryId1 as string,
 							args?.memoryId2 as string
 						);
-						response = { content: [{ type: "text", text: JSON.stringify(comparison, null, 2) }] };
+						response = { content: [{ type: "text", text: JSON.stringify(comparison) }] };
 					} catch (e: unknown) {
 						const message = e instanceof Error ? e.message : String(e);
 						if (message.includes("not found")) {
@@ -660,7 +605,7 @@ Use this before read-only operations to verify you're in good standing.`,
 				case "mem_stats": {
 					const project = normalizeProject(args?.project as string);
 					const stats = await memories.getStats(dbService, project);
-					response = { content: [{ type: "text", text: JSON.stringify(stats, null, 2) }] };
+					response = { content: [{ type: "text", text: JSON.stringify(stats) }] };
 					break;
 				}
 				case "mem_get_directives": {
@@ -681,7 +626,7 @@ Use this before read-only operations to verify you're in good standing.`,
 				case "mem_my_compliance": {
 					const targetAgent = (args?.agent as string) || agentIdentity;
 					const compliance = await audit.getAgentCompliance(dbService, targetAgent, 24);
-					response = { content: [{ type: "text", text: JSON.stringify(compliance, null, 2) }] };
+					response = { content: [{ type: "text", text: JSON.stringify(compliance) }] };
 					break;
 				}
 				case "scaffold_list_templates": {
@@ -705,7 +650,7 @@ Use this before read-only operations to verify you're in good standing.`,
 						})),
 						is_seed: t.is_seed,
 					}));
-					response = { content: [{ type: "text", text: JSON.stringify(summary, null, 2) }] };
+					response = { content: [{ type: "text", text: JSON.stringify(summary) }] };
 					break;
 				}
 				case "scaffold_file": {
@@ -730,7 +675,7 @@ Use this before read-only operations to verify you're in good standing.`,
 							? `Contenido listo. Pregunta al usuario: "¿Guardo el archivo en ${result.output_path}?" y si acepta, usa tu herramienta de escritura de archivos.`
 							: "Contenido generado correctamente.",
 					};
-					response = { content: [{ type: "text", text: JSON.stringify(payload, null, 2) }] };
+					response = { content: [{ type: "text", text: JSON.stringify(payload) }] };
 					break;
 				}
 				default:
@@ -763,6 +708,13 @@ Use this before read-only operations to verify you're in good standing.`,
 					project: auditProject,
 				})
 				.catch((err: unknown) => console.error("[Audit] Error logging tool call:", err));
+			// Cleanup oportunista: 1 de cada 100 llamadas elimina registros >30 días
+			if (Math.random() < 0.01) {
+				dbService.getDb().run(
+					`DELETE FROM mcp_audit_log WHERE timestamp < ?`,
+					[Date.now() - 30 * 24 * 60 * 60 * 1000]
+				).catch((err: unknown) => console.error("[Audit] Cleanup error:", err));
+			}
 
 			// --- CAPA 3: COMPLIANCE REMINDER — solo herramientas de solo lectura ---
 			if (resultStatus === "success" && isReadOnlyTool(name)) {
@@ -822,28 +774,13 @@ function extractAgentIdentity(args: Record<string, unknown> | undefined): string
  * en la respuesta de una tool de solo lectura.
  */
 function buildComplianceReminder(compliance: AgentCompliance): string {
-	const lines: string[] = [];
-	lines.push("╔══════════════════════════════════════════════════════╗");
-	lines.push("║     🔍 COMPLIANCE REMINDER — Shared Brain Audit     ║");
-	lines.push("╚══════════════════════════════════════════════════════╝");
-	lines.push("");
-	lines.push(`Agent: ${compliance.agentIdentity}`);
-	lines.push(`Score: ${compliance.complianceScore}% (${compliance.totalSaves} saves / ${compliance.totalCalls} calls)`);
-
-	if (compliance.lastSaveTimestamp) {
-		lines.push(`Last mem_save: ${new Date(compliance.lastSaveTimestamp).toLocaleString()} (${compliance.hoursSinceLastSave}h ago)`);
-	} else {
-		lines.push("Last mem_save: NEVER");
-	}
-
-	lines.push("");
-	lines.push("⚠️  You have NOT registered changes via mem_save recently.");
-	lines.push("    Team policy requires ALL agents to log their work.");
-	lines.push("");
-	lines.push("📋 Next step: Call mem_save with your recent changes.");
-	lines.push("📊 To check your compliance at any time: mem_my_compliance");
-	lines.push("────────────────────────────────────────────────────────");
-	return lines.join("\n");
+	const lastSave = compliance.lastSaveTimestamp
+		? `${new Date(compliance.lastSaveTimestamp).toLocaleString()} (${compliance.hoursSinceLastSave}h ago)`
+		: "NEVER";
+	return [
+		`[COMPLIANCE] Agent: ${compliance.agentIdentity} | Score: ${compliance.complianceScore}% (${compliance.totalSaves}/${compliance.totalCalls}) | Last save: ${lastSave}`,
+		`Policy: ALL agents must log work via mem_save. Call mem_save with your recent changes, or check mem_my_compliance anytime.`,
+	].join("\n");
 }
 
 export async function startMcpServer(dbService: DatabaseService, directives?: string) {

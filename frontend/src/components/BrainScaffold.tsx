@@ -319,12 +319,13 @@ export const BrainScaffold: React.FC<BrainScaffoldProps> = ({ project = "lallama
 						style={{
 							display: "flex", alignItems: "center", gap: "6px",
 							padding: "8px 14px", borderRadius: "8px",
-							background: "linear-gradient(135deg, rgba(79,140,255,0.2), rgba(139,92,246,0.2))",
-							border: "1px solid rgba(139,92,246,0.3)",
-							color: "rgba(167,139,250,0.9)", cursor: "pointer", fontSize: "12px", fontWeight: 600,
+							background: "linear-gradient(135deg, rgba(139,92,246,0.25), rgba(79,140,255,0.25))",
+							border: "1px solid rgba(139,92,246,0.5)",
+							color: "rgba(167,139,250,1)", cursor: "pointer", fontSize: "12px", fontWeight: 700,
+							boxShadow: "0 0 12px rgba(139,92,246,0.15)",
 						}}
 					>
-						<Brain size={14} /> AI Wizard
+						<Brain size={14} /> Wizard
 					</button>
 					<button
 						type="button"
