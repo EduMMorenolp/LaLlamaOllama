@@ -1,7 +1,6 @@
 import {
 	Brain,
 	Check,
-	ChevronRight,
 	ClipboardCopy,
 	Download,
 	Eye,
@@ -78,9 +77,8 @@ async function readDirectoryTree(
 	}
 
 	const children: FileNode[] = [];
-	const configContents: Record<string, string> = {};
 
-	for await (const entry of dirHandle.values()) {
+	for await (const entry of (dirHandle as any).values()) {
 		if (entry.name.startsWith(".") && entry.name !== ".env") continue;
 		if (EXCLUDE_DIRS.has(entry.name)) continue;
 
@@ -147,7 +145,7 @@ async function readConfigFiles(
 
 	// Also try to read package.json from subdirectories if not in root
 	if (!configFiles["package.json"]) {
-		for await (const entry of dirHandle.values()) {
+		for await (const entry of (dirHandle as any).values()) {
 			if (entry.kind !== "directory") continue;
 			if (entry.name.startsWith(".")) continue;
 			if (["node_modules", ".git", "dist", "build"].includes(entry.name)) continue;
@@ -338,7 +336,7 @@ export const AIAgentWizard: React.FC<AIAgentWizardProps> = ({ project, onClose, 
 	};
 
 	/* ── Save as template in brain ── */
-	const handleSaveAsTemplate = async (file: GeneratedFile) => {
+	/* const handleSaveAsTemplate = async (file: GeneratedFile) => {
 		try {
 			// Determine tool and type based on path
 			const tool = "opencode";
@@ -433,15 +431,6 @@ export const AIAgentWizard: React.FC<AIAgentWizardProps> = ({ project, onClose, 
 	};
 
 	/* ── Styles ── */
-	const labelStyle: React.CSSProperties = {
-		fontSize: "11px",
-		color: "var(--text-muted)",
-		textTransform: "uppercase",
-		letterSpacing: "1px",
-		marginBottom: "6px",
-		display: "block",
-	};
-
 	const inputStyle: React.CSSProperties = {
 		width: "100%",
 		padding: "8px 10px",

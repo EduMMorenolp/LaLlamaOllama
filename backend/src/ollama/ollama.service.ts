@@ -107,7 +107,7 @@ export class OllamaService {
 	}
 
 	// --- Persistent Stats ---
-	private readonly statsFile = "/root/.ollama/lallama_stats.json";
+	private readonly statsFile = "./lallama_stats.json";
 	private stats = {
 		totalInputTokens: 0,
 		totalOutputTokens: 0,

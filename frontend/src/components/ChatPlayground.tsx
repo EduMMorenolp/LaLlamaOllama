@@ -215,13 +215,13 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 		const persistState: PlaygroundState = {
 			history: state.history,
 			selectedModel: state.selectedModel,
-			temperature: state.state.temperature,
+			temperature: state.temperature,
 			numCtx: state.numCtx,
 			totalTokensSession: state.totalTokensSession,
 			totalTimeSession: state.totalTimeSession,
 		};
 		localStorage.setItem(STORAGE_KEY, JSON.stringify(persistState));
-	}, [state.history, state.selectedModel, state.state.temperature, state.numCtx, state.totalTokensSession, state.totalTimeSession]);
+	}, [state.history, state.selectedModel, state.temperature, state.numCtx, state.totalTokensSession, state.totalTimeSession]);
 
 	// Sync selected model if models load after component
 	useEffect(() => {
@@ -355,7 +355,7 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 		} finally {
 			dispatch({ type: "SET_LOADING", payload: false });
 		}
-	}, [state.message, state.attachments, state.loading, state.selectedModel, state.state.temperature, state.numCtx, onSendMessage]);
+	}, [state.message, state.attachments, state.loading, state.selectedModel, state.temperature, state.numCtx, onSendMessage]);
 
 	const handlePickFiles = () => {
 		fileInputRef.current?.click();
@@ -702,7 +702,7 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 					<button
 						type="button"
 						className="btn-icon"
-						onClick={() => dispatch({ type: "SET_SHOW_SETTINGS", payload: !showSettings })}
+						onClick={() => dispatch({ type: "SET_SHOW_SETTINGS", payload: !state.showSettings })}
 						style={{ color: state.showSettings ? "var(--accent)" : "var(--text-muted)" }}
 						title="Configuracion"
 					>
@@ -780,7 +780,7 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 							max={2}
 							step={0.05}
 							value={state.temperature}
-							onChange={(e) => dispatch({ type: "SET_TEMPERATURE", payload: parseFloat(e.target.value }))}
+							onChange={(e) => dispatch({ type: "SET_TEMPERATURE", payload: parseFloat(e.target.value) })}
 							style={{ width: "100%", accentColor: "var(--accent)", cursor: "pointer" }}
 						/>
 						<div
@@ -812,12 +812,12 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 								size={11}
 								style={{ display: "inline", marginRight: "4px", verticalAlign: "middle" }}
 							/>
-							Contexto ({state.numCtx >= 1000 ? `${(numCtx / 1024).toFixed(0)}K` : numCtx})
+							Contexto ({state.numCtx >= 1000 ? `${(state.numCtx / 1024).toFixed(0)}K` : state.numCtx})
 						</label>
 						<select
 							id="chat-ctx"
 							value={state.numCtx}
-							onChange={(e) => dispatch({ type: "SET_NUM_CTX", payload: Number(e.target.value }))}
+							onChange={(e) => dispatch({ type: "SET_NUM_CTX", payload: Number(e.target.value) })}
 							className="model-selector-dropdown"
 							style={{ width: "100%" }}
 						>
