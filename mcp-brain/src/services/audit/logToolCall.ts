@@ -5,6 +5,7 @@ const SENSITIVE_KEYS = ["apikey", "api_key", "key", "secret", "token", "password
 
 /**
  * Sanitiza argumentos para el log: redacta valores sensibles y trunca strings largos.
+ * Limita a 10 campos para evitar sobrecarga en el log.
  */
 function sanitizeArgs(args: Record<string, unknown> | undefined): Record<string, string> {
 	if (!args) return {};
@@ -19,7 +20,8 @@ function sanitizeArgs(args: Record<string, unknown> | undefined): Record<string,
 			sanitized[k] = typeof v === "string" ? v : JSON.stringify(v);
 		}
 	}
-	return sanitized;
+	// Limitar a las primeras 10 entradas
+	return Object.fromEntries(Object.entries(sanitized).slice(0, 10));
 }
 
 export interface LogToolCallParams {
@@ -52,9 +54,9 @@ export async function logToolCall(dbService: DatabaseService, params: LogToolCal
 				now,
 				params.toolName,
 				params.agentIdentity,
-				JSON.stringify(sanitizedArgs),
+				JSON.stringify(sanitizedArgs).substring(0, 500),
 				params.resultStatus,
-				params.resultPreview.substring(0, 500),
+				params.resultPreview.substring(0, 200),
 				params.durationMs,
 				params.project || "unknown",
 			]

@@ -10,6 +10,8 @@ interface MemoryCandidate {
 	memory: Record<string, unknown>;
 }
 
+const MAX_CONTENT_LENGTH = 1000;
+
 export async function saveMemory(
 	dbService: DatabaseService,
 	project: string,
@@ -23,6 +25,11 @@ export async function saveMemory(
 	agent?: string
 ): Promise<{ memory: Memory; judgment_required: boolean; candidates?: MemoryCandidate[] }> {
 	const db = dbService.getDb();
+
+	// Truncate content to save tokens in storage and embeddings
+	if (content && content.length > MAX_CONTENT_LENGTH) {
+		content = content.slice(0, MAX_CONTENT_LENGTH) + `\n\n[...truncated from ${content.length} chars]`;
+	}
 
 	if (topicKey) {
 		const existing = await db.get(

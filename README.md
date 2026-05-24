@@ -2,7 +2,7 @@
 
 > **Panel de control local para modelos LLM de Ollama con seguridad avanzada, telemetría en tiempo real y memoria persistente.**
 
-[![Version](https://img.shields.io/badge/version-0.4.0-blue?style=flat-square)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.5.0-blue?style=flat-square)](./CHANGELOG.md)
 [![Docker](https://img.shields.io/badge/docker-compose-2496ED?style=flat-square&logo=docker)](./docker-compose.yml)
 
 ---
@@ -83,14 +83,14 @@ LaLlamaOllama/
 │       ├── database.ts         # SQLite + FTS5
 │       └── memory.ts           # Memory Service (embeddings, busqueda)
 │
-├── .opencode/agents/           # Agentes OpenCode (8 agentes)
-│   ├── orchestrator.md         # Orquestador principal
-│   ├── backend-dev.md          # Backend specialist
-│   ├── frontend-dev.md         # Frontend specialist
+├── .opencode/agents/           # Agentes OpenCode (8 agentes, optimizados ~59%)
+│   ├── orchestrator.md         # Orquestador centralizado
+│   ├── backend-dev.md          # Backend specialist (Express + MCP)
+│   ├── frontend-dev.md         # Frontend specialist (React + Vite)
 │   ├── docker-ops.md           # Docker specialist
 │   ├── documentation.md        # Documentation specialist
 │   ├── qa-verification.md      # QA verification specialist
-│   ├── add-mcp-tool.md         # MCP Tool creator
+│   ├── mcp-brain.md            # Servicio de memoria compartida MCP
 │   └── agent-creator.md        # Agent creator
 │
 ├── postman-collection/         # Coleccion de Postman
@@ -104,6 +104,17 @@ LaLlamaOllama/
 ```
 
 ---
+
+
+### Flujo de trabajo con orquestador
+
+El orquestador centralizado (orchestrator.md) coordina todo el ciclo de desarrollo:
+1. **Delega** tareas a los sub-agentes especializados (backend, frontend, docker, documentation, etc.)
+2. **Sub-agentes** ejecutan su trabajo y reportan resultados
+3. **QA verification** ejecuta una validacion al final del ciclo
+4. **Orquestador** guarda los resultados en el cerebro MCP (mem_save) y actualiza el CHANGELOG.md
+
+Este flujo centralizado asegura trazabilidad, memoria compartida entre sesiones y documentacion siempre actualizada.
 
 ## Tecnologias
 

@@ -7,3 +7,4 @@ export * as settings from "./settings/index.js";
 export * as templates from "./templates/index.js";
 export * from "./types.js";
 
+export * from "./normalizeProject.js";

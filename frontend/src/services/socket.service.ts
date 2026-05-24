@@ -1,7 +1,7 @@
 import { io } from "socket.io-client";
 import type { AccessLogEntry, PullProgressData } from "../types/api";
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3000";
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3016";
 
 export const socket = io(SOCKET_URL, {
 	autoConnect: true,

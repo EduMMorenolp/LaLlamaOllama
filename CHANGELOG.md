@@ -7,7 +7,34 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 
 ## [Unreleased]
 
-### 🧠 Evolución de mcp-brain y Auto-Sincronización MCP (2026-05-14)
+### 🤖 AI Agent Wizard — Generación Inteligente de Agentes con IA (2026-05-23)
+
+#### Añadido
+- **Nuevo endpoint `POST /api/agents/analyze-project`** en el backend (Express):
+  - Recibe modelo Ollama, estructura de proyecto (árbol de archivos) y archivos de configuración.
+  - Envía el análisis a la IA local y devuelve agentes OpenCode, rules y workflows generados automáticamente.
+  - Nuevo servicio `backend/src/services/agents.service.ts` con lógica de construcción de prompt y parseo de respuesta JSON.
+- **Nuevo endpoint `POST /api/projects/ensure`** en mcp-brain:
+  - Verifica si un proyecto existe en la base de datos del brain.
+  - Si no existe, crea una memoria semilla tipo `"project-created"` para registrarlo automáticamente.
+- **Nuevo componente `AIAgentWizard.tsx`** en el frontend:
+  - Modal wizard con 3 pasos: seleccionar modelo Ollama → nombre del proyecto → seleccionar carpeta.
+  - Usa la **File System Access API** (`showDirectoryPicker`) para leer la estructura del proyecto directamente desde el navegador.
+  - Lee automáticamente archivos de configuración clave (package.json, tsconfig, etc.).
+  - Envía la estructura al backend para análisis con IA.
+  - Muestra resultados: lista de archivos generados con previsualización, descarga individual, copia.
+  - Botón "Guardar como Templates" para persistir los archivos en el brain como templates reutilizables.
+  - Botón "✨ Crear Proyecto en Brain" para registrar el proyecto automáticamente.
+  - Todos los agentes generados incluyen conexión Brain MCP (`http://localhost:3015/sse`).
+- **Botón "AI Wizard"** en el Scaffold de Agentes (`BrainScaffold.tsx`):
+  - Nuevo botón junto al existente "Nuevo Template" que abre el modal del wizard.
+  - El componente `BrainScaffold` ahora acepta props `project` y `onToast` desde `BrainConsole`.
+
+#### Modificado
+- `frontend/src/components/BrainConsole.tsx` — pasa `project` y `addToast` a `BrainScaffold`.
+- `frontend/src/components/BrainScaffold.tsx` — acepta nuevas props, agrega botón AI Wizard.
+- `backend/src/main.ts` — agrega import, instanciación y ruta para `AgentsService`.
+- `mcp-brain/src/server/api.ts` — agrega endpoint `POST /api/projects/ensure`.
 
 #### Añadido
 - **Conciencia de Fase SDD (Spec-Driven Development):**
@@ -23,6 +50,23 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 - **Auto-Instalador y Sincronización MCP (Auto-Sync):**
   - Endpoint `POST /api/mcp/sync` en `api.ts` para localizar y actualizar configuraciones en **OpenCode AI**, **Antigravity AI**, **RooCode (VS Code)** y **Claude Desktop**.
   - Tarjetas UI en `BrainSettings.tsx` con tooltips de información (`ℹ️`) y botón de copia global al portapapeles (`📋`).
+
+### 🚀 Optimización de Tokens — Quick Wins (2026-05-23)
+
+#### Modificado
+- **Compresión de sesión en `ollama.service.ts`** — historial >6 mensajes se comprime en un solo mensaje de sistema tipo summary. Ahorro estimado: ~10K tokens/request.
+- **`getContext()` sin content por defecto** — nuevo flag `includeContent` (default `false`), límite reducido de 20 a 10. Ahorro estimado: ~8K tokens/call. Archivos: `mcp-brain/src/services/memories/getContext.ts`, `api.ts`, `mcp.ts`.
+- **Descripciones de MCP tools acortadas** — todas las descripciones reducidas de ~200-900 chars a ~50-80 chars en `mcp-brain/src/server/mcp.ts`.
+- **Compliance reminder plano** — reemplazado el bloque ASCII-art de `buildComplianceReminder()` por texto plano de una línea. Archivo: `mcp-brain/src/server/mcp.ts`.
+- **Truncación de content en saveMemory** — `content` se trunca a 1000 chars al guardar. Archivo: `mcp-brain/src/services/memories/saveMemory.ts`.
+- **JSON sin pretty-print** — reemplazadas 11 ocurrencias de `JSON.stringify(obj, null, 2)` por `JSON.stringify(obj)` en `mcp-brain/src/server/mcp.ts`. Ahorro: ~30% del payload en respuestas MCP.
+- **Audit log truncation** — argumentos limitados a 10 campos, snapshot a 500 chars, result_preview a 200 chars en `logToolCall.ts`. Añadido cleanup oportunista (1/100 llamadas elimina logs >30 días).
+- **Prompt caching en agents.service.ts** — caché del prompt compilado mediante hash MD5 de estructura+configs. Solo recompila si los inputs cambian. Archivo: `backend/src/services/agents.service.ts`.
+- **Workflows refactorizados** — creado `_steps-common.md` con pasos compartidos. Reducidos 3 workflows de dominio de ~475 líneas totales a ~180, referenciando pasos comunes.
+- **Eliminado lodash del frontend** — removidas dependencias `lodash` y `@types/lodash` de `frontend/package.json` (no se usaban en código fuente).
+- **Componentes compartidos TabButton + ModalLayout** — extraídos patrones duplicados de tabs en `BrainConsole.tsx` y overlay modal en `AIAgentWizard.tsx` a componentes reutilizables en `frontend/src/components/`.
+- **ChatPlayground useReducer** — refactorizados 10 `useState` en un solo `useReducer` con `chatReducer` (17 acciones tipadas). Reduce declaraciones de estado en ~70%.
+- **CSS eliminado** — `App.css` (Vite boilerplate, 42 líneas, no usado) eliminado.
 
 ### 🔄 Migración a SSE Remoto para mcp-brain y Sincronización Multi-IDE (2026-05-14)
 
@@ -119,6 +163,30 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 - **vite.config.ts**: Agregada configuracion de proxy para `/api`, `/v1`, `/sse` y `/socket.io` hacia `localhost:3000`
 - **Instalacion de dependencias**: `pnpm install` ejecutado en la raiz del proyecto
 
+#### Cambiado
+- **Modelo asignado al agente `documentation`**: Configurado `gemma4:e2b` como modelo exclusivo para el agente de documentación en `opencode.json`, reservando modelos con razonamiento (`deepseek-r1:8b`, `qwen2.5-coder:7b`) para agentes de código y orquestación.
+
+#### Mejorado
+- **README actualizado**: Badge de versión `0.4.0` → `0.5.0`, lista de agentes corregida (eliminado `add-mcp-tool.md`, agregado `mcp-brain.md`), nota de optimización ~59% de agentes, nuevo flujo del orquestador centralizado documentado.
+- **Prueba del agente `documentation` con `gemma4:e2b`**: El agente documentation se invocó exitosamente con el nuevo modelo asignado, analizó y actualizó el README sin errores.
+
+### 🔧 Normalización de proyectos, merge, dashboard y mejoras del brain (2026-05-23)
+
+#### Añadido
+- **normalizeProject() genérico**: Nueva función en `mcp-brain/src/services/normalizeProject.ts` que normaliza cualquier nombre de proyecto a slug consistente (lowercase, sin especiales, sin duplicados). Se aplica automáticamente en todos los handlers MCP y endpoints REST.
+- **Endpoint `POST /api/projects/merge`**: Permite fusionar dos proyectos en el brain (mueve memorias, directivas, sesiones y audit logs). Nueva función `mergeProjects.ts`.
+- **Cache de embeddings**: Map in-memory con TTL 5 minutos en `searchMemories.ts` para evitar re-embedding en búsquedas repetidas.
+- **Endpoint `GET /api/health`**: Health check del servicio mcp-brain.
+- **`mem_suggest_topic_key` con LLM**: Ahora intenta usar Ollama para sugerir topic keys semánticas, con fallback al slug actual si Ollama no está disponible.
+- **Dashboard BrainConsole**: Nuevos tabs "Explorador de Memorias" (búsqueda y eliminación de memorias) y "Fusionar Proyectos" (UI para merge). Indicador de health status del brain en el panel lateral.
+- **Orquestador con health check**: El flujo del orquestador ahora verifica disponibilidad del brain y maneja errores gracefulmente.
+- **Directivas inyectadas en instrucciones MCP**: Las directivas centrales ahora se cargan desde SQLite al iniciar el servidor y se inyectan en el campo `instructions` del protocolo MCP (tanto SSE como Stdio). Cualquier agente conectado vía SSE recibe automáticamente las reglas del proyecto.
+- **`mem_get_directives` tool**: Nueva herramienta MCP para consultar directivas centrales de cualquier proyecto. Los sub-agentes por `task()` reciben las directivas vía contexto del orquestador.
+
+#### Cambiado
+- **Fix typo `lallamasollama` → `lallamaollama`**: Corregido en 12 lugares de `api.ts` los defaults que tenían una 's' extra. También corregido en `BrainConsole.tsx`.
+- **Rutas Windows parametrizadas**: `CLAUDE_CONFIG_PATH` y `ROOCODE_CONFIG_PATH` ahora son configurables vía variables de entorno.
+- **Validación de `relation` en `mem_judge`**: Ahora solo acepta los 6 valores válidos (`related`, `compatible`, `scoped`, `conflicts_with`, `supersedes`, `not_conflict`). Validación runtime + enum en inputSchema.
 
 ### 🤖 Agentes especializados por dominio (AÑADIDO - 2026-05-12)
 

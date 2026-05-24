@@ -3,6 +3,40 @@ import { cosineSimilarity, embed } from "../llm/index.js";
 import { getGlobalSetting } from "../settings/index.js";
 import type { Memory } from "../types.js";
 
+// Embedding cache with 5-minute TTL
+interface EmbeddingCacheEntry {
+	vector: number[];
+	timestamp: number;
+}
+
+const embeddingCache = new Map<string, EmbeddingCacheEntry>();
+const EMBEDDING_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Periodically clean expired entries
+setInterval(() => {
+	const now = Date.now();
+	for (const [key, entry] of embeddingCache.entries()) {
+		if (now - entry.timestamp > EMBEDDING_CACHE_TTL) {
+			embeddingCache.delete(key);
+		}
+	}
+}, 60 * 1000); // Clean every minute
+
+async function getEmbeddingWithCache(text: string): Promise<number[]> {
+	const now = Date.now();
+	const cached = embeddingCache.get(text);
+	if (cached && (now - cached.timestamp) < EMBEDDING_CACHE_TTL) {
+		return cached.vector;
+	}
+	const emb = await embed(text);
+	if (emb && emb.length > 0) {
+		const vector = emb[0];
+		embeddingCache.set(text, { vector, timestamp: now });
+		return vector;
+	}
+	return [];
+}
+
 const searchHistory = new Map<string, number[]>();
 
 export async function searchMemories(
@@ -56,8 +90,7 @@ DIRECTIVA DE DELEGACIÓN: Detén la búsqueda actual. Evalúa cambiar de fase SD
 	} else if (mode === "semantic" || mode === "hybrid") {
 		let queryVector: number[] = [];
 		try {
-			const emb = await embed(query);
-			if (emb && emb.length > 0) queryVector = emb[0];
+			queryVector = await getEmbeddingWithCache(query);
 		} catch (err) {
 			console.error("[MemoryService] Semantic search failed. Falling back to lexical.", err);
 			if (mode === "hybrid") return searchMemories(dbService, query, project, "lexical", limit);

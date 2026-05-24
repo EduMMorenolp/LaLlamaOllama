@@ -108,7 +108,7 @@ const App: React.FC = () => {
 			let completionTokens = 0;
 
 			const response = await fetch(
-				`${import.meta.env.VITE_API_URL || "http://localhost:3000"}/v1/chat/completions`,
+				`${import.meta.env.VITE_API_URL || "http://localhost:3016"}/v1/chat/completions`,
 				{
 					method: "POST",
 					headers: {

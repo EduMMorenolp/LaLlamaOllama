@@ -15,7 +15,7 @@ import {
 	Zap,
 } from "lucide-react";
 import type React from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { OllamaModel } from "../types/api";
@@ -50,6 +50,64 @@ interface AttachmentFile {
 	truncated: boolean;
 }
 
+
+
+interface ChatState {
+    selectedModel: string;
+    message: string;
+    history: Message[];
+    temperature: number;
+    numCtx: number;
+    loading: boolean;
+    showSettings: boolean;
+    totalTokensSession: number;
+    totalTimeSession: number;
+    attachments: AttachmentFile[];
+}
+
+type ChatAction =
+    | { type: "SET_SELECTED_MODEL"; payload: string }
+    | { type: "SET_MESSAGE"; payload: string }
+    | { type: "ADD_MESSAGE"; payload: Message }
+    | { type: "UPDATE_LAST_MESSAGE"; payload: Partial<Message> }
+    | { type: "SET_HISTORY"; payload: Message[] }
+    | { type: "SET_TEMPERATURE"; payload: number }
+    | { type: "SET_NUM_CTX"; payload: number }
+    | { type: "SET_LOADING"; payload: boolean }
+    | { type: "SET_SHOW_SETTINGS"; payload: boolean }
+    | { type: "ADD_TOKENS"; payload: number }
+    | { type: "ADD_TIME"; payload: number }
+    | { type: "SET_ATTACHMENTS"; payload: AttachmentFile[] }
+    | { type: "ADD_ATTACHMENT"; payload: AttachmentFile }
+    | { type: "REMOVE_ATTACHMENT"; payload: string }
+    | { type: "LOAD_PERSISTED"; payload: Partial<ChatState> }
+    | { type: "CLEAR_HISTORY" };
+
+function chatReducer(state: ChatState, action: ChatAction): ChatState {
+    switch (action.type) {
+        case "SET_SELECTED_MODEL": return { ...state, selectedModel: action.payload };
+        case "SET_MESSAGE": return { ...state, message: action.payload };
+        case "ADD_MESSAGE": return { ...state, history: [...state.history, action.payload] };
+        case "UPDATE_LAST_MESSAGE": {
+            const h = [...state.history];
+            if (h.length > 0) h[h.length - 1] = { ...h[h.length - 1], ...action.payload };
+            return { ...state, history: h };
+        }
+        case "SET_HISTORY": return { ...state, history: action.payload };
+        case "SET_TEMPERATURE": return { ...state, temperature: action.payload };
+        case "SET_NUM_CTX": return { ...state, numCtx: action.payload };
+        case "SET_LOADING": return { ...state, loading: action.payload };
+        case "SET_SHOW_SETTINGS": return { ...state, showSettings: action.payload };
+        case "ADD_TOKENS": return { ...state, totalTokensSession: state.totalTokensSession + action.payload };
+        case "ADD_TIME": return { ...state, totalTimeSession: state.totalTimeSession + action.payload };
+        case "SET_ATTACHMENTS": return { ...state, attachments: action.payload };
+        case "ADD_ATTACHMENT": return { ...state, attachments: [...state.attachments, action.payload] };
+        case "REMOVE_ATTACHMENT": return { ...state, attachments: state.attachments.filter(a => a.id !== action.payload) };
+        case "LOAD_PERSISTED": return { ...state, ...action.payload };
+        case "CLEAR_HISTORY": return { ...state, history: [], totalTokensSession: 0, totalTimeSession: 0 };
+        default: return state;
+    }
+}
 const MAX_ATTACHMENT_SIZE_BYTES = 512 * 1024;
 const MAX_ATTACHMENT_CHARS = 12000;
 const MAX_ATTACHMENTS = 4;
@@ -135,16 +193,18 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 	};
 
 	const persistedState = loadPersistedState();
-	const [selectedModel, setSelectedModel] = useState(persistedState.selectedModel || models[0]?.name || "");
-	const [message, setMessage] = useState("");
-	const [history, setHistory] = useState<Message[]>(persistedState.history || []);
-	const [temperature, setTemperature] = useState(persistedState.temperature ?? 0.7);
-	const [numCtx, setNumCtx] = useState(persistedState.numCtx ?? 4096);
-	const [loading, setLoading] = useState(false);
-	const [showSettings, setShowSettings] = useState(false);
-	const [totalTokensSession, setTotalTokensSession] = useState(persistedState.totalTokensSession ?? 0);
-	const [totalTimeSession, setTotalTimeSession] = useState(persistedState.totalTimeSession ?? 0);
-	const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
+	const [state, dispatch] = useReducer(chatReducer, {
+		selectedModel: persistedState.selectedModel || models[0]?.name || "",
+		message: "",
+		history: persistedState.history || [],
+		temperature: persistedState.temperature ?? 0.7,
+		numCtx: persistedState.numCtx ?? 4096,
+		loading: false,
+		showSettings: false,
+		totalTokensSession: persistedState.totalTokensSession ?? 0,
+		totalTimeSession: persistedState.totalTimeSession ?? 0,
+		attachments: [],
+	});
 
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -152,21 +212,21 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 
 	// ─── PERSIST STATE TO LOCALSTORAGE ────────────────────────
 	useEffect(() => {
-		const state: PlaygroundState = {
-			history,
-			selectedModel,
-			temperature,
-			numCtx,
-			totalTokensSession,
-			totalTimeSession,
+		const persistState: PlaygroundState = {
+			history: state.history,
+			selectedModel: state.selectedModel,
+			temperature: state.temperature,
+			numCtx: state.numCtx,
+			totalTokensSession: state.totalTokensSession,
+			totalTimeSession: state.totalTimeSession,
 		};
-		localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-	}, [history, selectedModel, temperature, numCtx, totalTokensSession, totalTimeSession]);
+		localStorage.setItem(STORAGE_KEY, JSON.stringify(persistState));
+	}, [state.history, state.selectedModel, state.temperature, state.numCtx, state.totalTokensSession, state.totalTimeSession]);
 
 	// Sync selected model if models load after component
 	useEffect(() => {
-		if (!selectedModel && models.length > 0) setSelectedModel(models[0].name);
-	}, [models, selectedModel]);
+		if (!state.selectedModel && models.length > 0) dispatch({ type: "SET_SELECTED_MODEL", payload: models[0].name });
+	}, [models, state.selectedModel]);
 
 	// Auto-scroll
 	useEffect(() => {
@@ -175,7 +235,7 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 
 	// Auto-resize textarea
 	const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-		setMessage(e.target.value);
+		dispatch({ type: "SET_MESSAGE", payload: e.target.value });
 		const ta = textareaRef.current;
 		if (ta) {
 			ta.style.height = "auto";
@@ -184,14 +244,14 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 	};
 
 	const handleSend = useCallback(async () => {
-		if ((!message.trim() && attachments.length === 0) || loading || !selectedModel) return;
+		if ((!state.message.trim() && state.attachments.length === 0) || state.loading || !state.selectedModel) return;
 
-		const attachmentSummary = attachments.length
-			? `\n\n[Adjuntos: ${attachments.map((f) => f.name).join(", ")}]`
+		const attachmentSummary = state.attachments.length
+			? `\n\n[Adjuntos: ${state.attachments.map((f) => f.name).join(", ")}]`
 			: "";
-		const baseMessage = message.trim() || "Analiza los archivos adjuntos y responde en espanol.";
-		const attachmentPayload = attachments.length
-			? `\n\n=== ARCHIVOS ADJUNTOS ===\n${attachments
+		const baseMessage = state.message.trim() || "Analiza los archivos adjuntos y responde en espanol.";
+		const attachmentPayload = state.attachments.length
+			? `\n\n=== ARCHIVOS ADJUNTOS ===\n${state.attachments
 					.map(
 						(file, index) =>
 							`Archivo ${index + 1}: ${file.name}\nTipo: ${file.type || "text/plain"}\nTamano: ${file.size} bytes${file.truncated ? " (truncado)" : ""}\nContenido:\n${file.content}`
@@ -208,24 +268,24 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 			timestamp: Date.now(),
 		};
 
-		setHistory((prev) => [...prev, userMsg]);
-		setMessage("");
-		setAttachments([]);
+		dispatch({ type: "ADD_MESSAGE", payload: userMsg });
+		dispatch({ type: "SET_MESSAGE", payload: "" });
+		dispatch({ type: "SET_ATTACHMENTS", payload: [] });
 		if (fileInputRef.current) {
 			fileInputRef.current.value = "";
 		}
 		if (textareaRef.current) {
 			textareaRef.current.style.height = "auto";
 		}
-		setLoading(true);
+		dispatch({ type: "SET_LOADING", payload: true });
 
 		const start = Date.now();
 		const assistantId = Math.random().toString(36).slice(2);
 
 		try {
-			const response = await onSendMessage(selectedModel, promptWithAttachments, {
-				temperature,
-				num_ctx: numCtx,
+			const response = await onSendMessage(state.selectedModel, promptWithAttachments, {
+				temperature: state.temperature,
+				num_ctx: state.numCtx,
 			});
 
 			if (response.isStream) {
@@ -234,24 +294,20 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 					id: assistantId,
 					role: "assistant",
 					content: "", // Start empty, will update
-					model: selectedModel,
+					model: state.selectedModel,
 					timestamp: Date.now(),
 					latencyMs: 0,
 					inputTokens: 0,
 					outputTokens: 0,
 				};
-				setHistory((prev) => [...prev, assistantMsg]);
+				dispatch({ type: "ADD_MESSAGE", payload: assistantMsg });
 
 				// Consume the async generator
 				let fullContent = "";
 				if (response.stream) {
 					for await (const chunk of response.stream) {
 						fullContent = chunk.full_content;
-						setHistory((prev) => {
-							const last = { ...prev[prev.length - 1] };
-							last.content = fullContent;
-							return [...prev.slice(0, -1), last];
-						});
+						dispatch({ type: "UPDATE_LAST_MESSAGE", payload: { content: fullContent } });
 					}
 				}
 
@@ -260,16 +316,10 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 				const inputTok = response.prompt_eval_count || 0;
 				const outputTok = response.eval_count || 0;
 
-				setHistory((prev) => {
-					const last = { ...prev[prev.length - 1] };
-					last.latencyMs = latencyMs;
-					last.inputTokens = inputTok;
-					last.outputTokens = outputTok;
-					return [...prev.slice(0, -1), last];
-				});
+				dispatch({ type: "UPDATE_LAST_MESSAGE", payload: { latencyMs, inputTokens: inputTok, outputTokens: outputTok } });
 
-				setTotalTokensSession((prev) => prev + inputTok + outputTok);
-				setTotalTimeSession((prev) => prev + latencyMs);
+				dispatch({ type: "ADD_TOKENS", payload: inputTok + outputTok });
+				dispatch({ type: "ADD_TIME", payload: latencyMs });
 			} else {
 				// Non-streaming mode (fallback)
 				const latencyMs = Date.now() - start;
@@ -280,35 +330,32 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 					id: assistantId,
 					role: "assistant",
 					content: response.content || response.message?.content || response.text || "",
-					model: selectedModel,
+					model: state.selectedModel,
 					timestamp: Date.now(),
 					latencyMs,
 					inputTokens: inputTok,
 					outputTokens: outputTok,
 				};
 
-				setHistory((prev) => [...prev, assistantMsg]);
-				setTotalTokensSession((prev) => prev + inputTok + outputTok);
-				setTotalTimeSession((prev) => prev + latencyMs);
+				dispatch({ type: "ADD_MESSAGE", payload: assistantMsg });
+				dispatch({ type: "ADD_TOKENS", payload: inputTok + outputTok });
+				dispatch({ type: "ADD_TIME", payload: latencyMs });
 			}
 		} catch (err: unknown) {
 			const errorMessage = err instanceof Error ? err.message : "Sin respuesta del servidor";
-			setHistory((prev) => [
-				...prev,
-				{
-					id: Math.random().toString(36).slice(2),
-					role: "assistant",
-					content: `Error: ${errorMessage}`,
-					model: selectedModel,
-					timestamp: Date.now(),
-					latencyMs: Date.now() - start,
-					isError: true,
-				},
-			]);
+			dispatch({ type: "ADD_MESSAGE", payload: {
+				id: Math.random().toString(36).slice(2),
+				role: "assistant",
+				content: `Error: ${errorMessage}`,
+				model: state.selectedModel,
+				timestamp: Date.now(),
+				latencyMs: Date.now() - start,
+				isError: true,
+			} });
 		} finally {
-			setLoading(false);
+			dispatch({ type: "SET_LOADING", payload: false });
 		}
-	}, [message, attachments, loading, selectedModel, temperature, numCtx, onSendMessage]);
+	}, [state.message, state.attachments, state.loading, state.selectedModel, state.temperature, state.numCtx, onSendMessage]);
 
 	const handlePickFiles = () => {
 		fileInputRef.current?.click();
@@ -318,7 +365,7 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 		const picked = Array.from(e.target.files || []);
 		if (picked.length === 0) return;
 
-		const remainingSlots = Math.max(0, MAX_ATTACHMENTS - attachments.length);
+		const remainingSlots = Math.max(0, MAX_ATTACHMENTS - state.attachments.length);
 		const filesToProcess = picked.slice(0, remainingSlots);
 		const loadedFiles: AttachmentFile[] = [];
 
@@ -344,14 +391,14 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 		}
 
 		if (loadedFiles.length > 0) {
-			setAttachments((prev) => [...prev, ...loadedFiles]);
+			dispatch({ type: "SET_ATTACHMENTS", payload: [...state.attachments, ...loadedFiles] });
 		}
 
 		e.target.value = "";
 	};
 
 	const removeAttachment = (id: string) => {
-		setAttachments((prev) => prev.filter((file) => file.id !== id));
+		dispatch({ type: "REMOVE_ATTACHMENT", payload: id });
 	};
 
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -362,14 +409,12 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 	};
 
 	const clearChat = () => {
-		setHistory([]);
-		setTotalTokensSession(0);
-		setTotalTimeSession(0);
+		dispatch({ type: "CLEAR_HISTORY" });
 		// Clear persisted state
 		localStorage.removeItem(STORAGE_KEY);
 	};
 
-	const modelShortName = selectedModel.split(":")[0] || selectedModel;
+	const modelShortName = state.selectedModel.split(":")[0] || state.selectedModel;
 
 	// Suggestions for empty state
 	const suggestions = [
@@ -532,16 +577,16 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 						height: "38px",
 						borderRadius: "10px",
 						flexShrink: 0,
-						background: loading ? "rgba(79,140,255,0.15)" : "rgba(79,140,255,0.1)",
-						border: `1px solid ${loading ? "var(--accent)" : "rgba(79,140,255,0.2)"}`,
+						background: state.loading ? "rgba(79,140,255,0.15)" : "rgba(79,140,255,0.1)",
+						border: `1px solid ${state.loading ? "var(--accent)" : "rgba(79,140,255,0.2)"}`,
 						display: "flex",
 						alignItems: "center",
 						justifyContent: "center",
 						transition: "all 0.3s ease",
-						boxShadow: loading ? "0 0 20px rgba(79,140,255,0.3)" : "none",
+						boxShadow: state.loading ? "0 0 20px rgba(79,140,255,0.3)" : "none",
 					}}
 				>
-					{loading ? (
+					{state.loading ? (
 						<RefreshCw size={18} style={{ color: "var(--accent)", animation: "spin 1s linear infinite" }} />
 					) : (
 						<Bot size={18} style={{ color: "var(--accent)" }} />
@@ -570,16 +615,16 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 								borderRadius: "4px",
 								fontWeight: 800,
 								letterSpacing: "1px",
-								background: loading ? "rgba(245,158,11,0.15)" : "rgba(16,185,129,0.1)",
-								color: loading ? "#f59e0b" : "var(--success)",
-								border: `1px solid ${loading ? "rgba(245,158,11,0.3)" : "rgba(16,185,129,0.2)"}`,
+								background: state.loading ? "rgba(245,158,11,0.15)" : "rgba(16,185,129,0.1)",
+								color: state.loading ? "#f59e0b" : "var(--success)",
+								border: `1px solid ${state.loading ? "rgba(245,158,11,0.3)" : "rgba(16,185,129,0.2)"}`,
 							}}
 						>
-							{loading ? "PROCESANDO..." : "LISTO"}
+							{state.loading ? "PROCESANDO..." : "LISTO"}
 						</span>
 					</div>
 					<div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "2px" }}>
-						{loading ? (
+						{state.loading ? (
 							<TypingDots />
 						) : (
 							<span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
@@ -590,7 +635,7 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 				</div>
 
 				{/* Stats de sesion */}
-				{totalTokensSession > 0 && (
+				{state.totalTokensSession > 0 && (
 					<div style={{ display: "flex", gap: "16px", flexShrink: 0 }}>
 						<div style={{ textAlign: "center" }}>
 							<p
@@ -601,9 +646,9 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 									fontFamily: "var(--font-mono)",
 								}}
 							>
-								{totalTokensSession > 1000
-									? `${(totalTokensSession / 1000).toFixed(1)}K`
-									: totalTokensSession}
+								{state.totalTokensSession > 1000
+									? `${(state.totalTokensSession / 1000).toFixed(1)}K`
+									: state.totalTokensSession}
 							</p>
 							<p
 								style={{
@@ -625,7 +670,7 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 									fontFamily: "var(--font-mono)",
 								}}
 							>
-								{formatLatency(totalTimeSession)}
+								{formatLatency(state.totalTimeSession)}
 							</p>
 							<p
 								style={{
@@ -643,7 +688,7 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 
 				{/* Acciones */}
 				<div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
-					{history.length > 0 && (
+					{state.history.length > 0 && (
 						<button
 							type="button"
 							className="btn-icon"
@@ -657,8 +702,8 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 					<button
 						type="button"
 						className="btn-icon"
-						onClick={() => setShowSettings(!showSettings)}
-						style={{ color: showSettings ? "var(--accent)" : "var(--text-muted)" }}
+						onClick={() => dispatch({ type: "SET_SHOW_SETTINGS", payload: !state.showSettings })}
+						style={{ color: state.showSettings ? "var(--accent)" : "var(--text-muted)" }}
 						title="Configuracion"
 					>
 						<Settings2 size={18} />
@@ -667,7 +712,7 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 			</div>
 
 			{/* ── SETTINGS PANEL ────────────────────────────── */}
-			{showSettings && (
+			{state.showSettings && (
 				<div
 					style={{
 						padding: "16px 20px",
@@ -697,8 +742,8 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 						</label>
 						<select
 							id="chat-model-select"
-							value={selectedModel}
-							onChange={(e) => setSelectedModel(e.target.value)}
+							value={state.selectedModel}
+							onChange={(e) => dispatch({ type: "SET_SELECTED_MODEL", payload: e.target.value })}
 							className="model-selector-dropdown"
 							style={{ width: "100%" }}
 						>
@@ -726,7 +771,7 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 							}}
 						>
 							<Zap size={11} style={{ display: "inline", marginRight: "4px", verticalAlign: "middle" }} />
-							Temperatura ({temperature})
+							Temperatura ({state.temperature})
 						</label>
 						<input
 							id="chat-temp"
@@ -734,8 +779,8 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 							min={0}
 							max={2}
 							step={0.05}
-							value={temperature}
-							onChange={(e) => setTemperature(parseFloat(e.target.value))}
+							value={state.temperature}
+							onChange={(e) => dispatch({ type: "SET_TEMPERATURE", payload: parseFloat(e.target.value) })}
 							style={{ width: "100%", accentColor: "var(--accent)", cursor: "pointer" }}
 						/>
 						<div
@@ -767,12 +812,12 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 								size={11}
 								style={{ display: "inline", marginRight: "4px", verticalAlign: "middle" }}
 							/>
-							Contexto ({numCtx >= 1000 ? `${(numCtx / 1024).toFixed(0)}K` : numCtx})
+							Contexto ({state.numCtx >= 1000 ? `${(state.numCtx / 1024).toFixed(0)}K` : state.numCtx})
 						</label>
 						<select
 							id="chat-ctx"
-							value={numCtx}
-							onChange={(e) => setNumCtx(Number(e.target.value))}
+							value={state.numCtx}
+							onChange={(e) => dispatch({ type: "SET_NUM_CTX", payload: Number(e.target.value) })}
 							className="model-selector-dropdown"
 							style={{ width: "100%" }}
 						>
@@ -798,7 +843,7 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 				}}
 			>
 				{/* Empty state */}
-				{history.length === 0 && !loading && (
+				{state.history.length === 0 && !state.loading && (
 					<div
 						style={{
 							display: "flex",
@@ -838,7 +883,7 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 								<button
 									type="button"
 									key={s}
-									onClick={() => setMessage(s)}
+									onClick={() => dispatch({ type: "SET_MESSAGE", payload: s })}
 									style={{
 										padding: "10px 14px",
 										background: "rgba(255,255,255,0.03)",
@@ -864,7 +909,7 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 				)}
 
 				{/* Messages */}
-				{history.map((msg) => (
+				{state.history.map((msg) => (
 					<div key={msg.id} className={msg.role === "user" ? "chat-msg-user" : "chat-msg-bot"}>
 						<div
 							className={`${msg.role === "user" ? "bubble-user" : `bubble-bot${msg.isError ? " bubble-error" : ""}`}`}
@@ -931,7 +976,7 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 				))}
 
 				{/* Typing indicator */}
-				{loading && (
+				{state.loading && (
 					<div className="chat-msg-bot">
 						<div
 							className="bubble-bot"
@@ -939,7 +984,7 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 						>
 							<TypingDots />
 							<span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
-								{selectedModel.split(":")[0]} esta procesando...
+								{state.selectedModel.split(":")[0]} esta procesando...
 							</span>
 						</div>
 					</div>
@@ -965,7 +1010,7 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 					accept=".txt,.md,.json,.csv,.ts,.tsx,.js,.jsx,.py,.java,.go,.rs,.css,.html,.xml,.yaml,.yml,.log,text/*"
 				/>
 
-				{attachments.length > 0 && (
+				{state.attachments.length > 0 && (
 					<div
 						style={{
 							display: "flex",
@@ -974,7 +1019,7 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 							marginBottom: "10px",
 						}}
 					>
-						{attachments.map((file) => (
+						{state.attachments.map((file) => (
 							<div
 								key={file.id}
 								style={{
@@ -1046,18 +1091,18 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 						ref={textareaRef}
 						className="playground-textarea"
 						placeholder={`Habla con ${modelShortName || "el modelo"}... (⏎ enviar, Shift+⏎ nueva linea)`}
-						value={message}
+						value={state.message}
 						onChange={handleTextareaChange}
 						onKeyDown={handleKeyDown}
 						rows={1}
-						disabled={loading || models.length === 0}
+						disabled={state.loading || models.length === 0}
 					/>
 					<button
 						type="button"
 						onClick={handlePickFiles}
-						disabled={loading || models.length === 0 || attachments.length >= MAX_ATTACHMENTS}
+						disabled={state.loading || models.length === 0 || state.attachments.length >= MAX_ATTACHMENTS}
 						title={
-							attachments.length >= MAX_ATTACHMENTS
+							state.attachments.length >= MAX_ATTACHMENTS
 								? `Maximo ${MAX_ATTACHMENTS} adjuntos por mensaje`
 								: "Adjuntar archivo"
 						}
@@ -1069,13 +1114,13 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 							background: "rgba(255,255,255,0.06)",
 							border: "1px solid var(--border-light)",
 							cursor:
-								loading || models.length === 0 || attachments.length >= MAX_ATTACHMENTS
+								state.loading || models.length === 0 || state.attachments.length >= MAX_ATTACHMENTS
 									? "not-allowed"
 									: "pointer",
 							display: "flex",
 							alignItems: "center",
 							justifyContent: "center",
-							color: attachments.length > 0 ? "var(--accent)" : "var(--text-muted)",
+							color: state.attachments.length > 0 ? "var(--accent)" : "var(--text-muted)",
 							transition: "all 0.2s ease",
 						}}
 					>
@@ -1084,31 +1129,31 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 					<button
 						type="button"
 						onClick={handleSend}
-						disabled={loading || (!message.trim() && attachments.length === 0) || models.length === 0}
+						disabled={state.loading || (!state.message.trim() && state.attachments.length === 0) || models.length === 0}
 						style={{
 							width: "36px",
 							height: "36px",
 							borderRadius: "10px",
 							flexShrink: 0,
 							background:
-								(!message.trim() && attachments.length === 0) || loading
+								(!state.message.trim() && state.attachments.length === 0) || state.loading
 									? "rgba(255,255,255,0.06)"
 									: "var(--accent)",
 							border: "none",
 							cursor:
-								(!message.trim() && attachments.length === 0) || loading ? "not-allowed" : "pointer",
+								(!state.message.trim() && state.attachments.length === 0) || state.loading ? "not-allowed" : "pointer",
 							display: "flex",
 							alignItems: "center",
 							justifyContent: "center",
 							color: "white",
 							transition: "all 0.2s ease",
 							boxShadow:
-								(message.trim() || attachments.length > 0) && !loading
+								(state.message.trim() || state.attachments.length > 0) && !state.loading
 									? "0 4px 16px rgba(79,140,255,0.4)"
 									: "none",
 						}}
 					>
-						{loading ? (
+						{state.loading ? (
 							<RefreshCw size={16} style={{ animation: "spin 1s linear infinite" }} />
 						) : (
 							<Send size={16} />
@@ -1123,8 +1168,8 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 					<span style={{ fontSize: "10px", color: "var(--text-muted)" }}>Modelo:</span>
 					<div style={{ position: "relative", display: "flex", alignItems: "center" }}>
 						<select
-							value={selectedModel}
-							onChange={(e) => setSelectedModel(e.target.value)}
+							value={state.selectedModel}
+							onChange={(e) => dispatch({ type: "SET_SELECTED_MODEL", payload: e.target.value })}
 							style={{
 								background: "rgba(79,140,255,0.1)",
 								border: "1px solid rgba(79,140,255,0.3)",
@@ -1159,7 +1204,7 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 						/>
 					</div>
 					<span style={{ fontSize: "10px", color: "var(--text-muted)" }}>
-						Adjuntos: {attachments.length}/{MAX_ATTACHMENTS}
+						Adjuntos: {state.attachments.length}/{MAX_ATTACHMENTS}
 					</span>
 					<span style={{ fontSize: "10px", color: "var(--text-muted)", marginLeft: "auto" }}>
 						⌨ Shift+Enter = nueva linea

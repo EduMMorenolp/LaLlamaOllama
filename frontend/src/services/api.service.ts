@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3016";
 const API_KEY_STORAGE = "llama_master_key";
 
 let runtimeApiKey = typeof window !== "undefined" ? localStorage.getItem(API_KEY_STORAGE) || "" : "";
@@ -9,7 +9,7 @@ export const api = axios.create({
 	baseURL: API_BASE_URL,
 });
 
-const BRAIN_API_URL = import.meta.env.VITE_BRAIN_API_URL || "http://localhost:3001";
+const BRAIN_API_URL = import.meta.env.VITE_BRAIN_API_URL || "http://localhost:3015";
 export const brainApi = axios.create({
 	baseURL: BRAIN_API_URL,
 });

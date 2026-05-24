@@ -46,12 +46,13 @@
 			"mode": "subagent"
 		},
 		"documentation": {
-			"mode": "subagent"
+			"mode": "subagent",
+			"model": "gemma4:e2b"
 		},
 		"qa-verification": {
 			"mode": "subagent"
 		},
-		"add-mcp-tool": {
+		"mcp-brain": {
 			"mode": "subagent"
 		},
 		"agent-creator": {

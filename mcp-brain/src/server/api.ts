@@ -6,14 +6,27 @@ import express from "express";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import type { DatabaseService } from "../database/connection.js";
 import { analysis, memories, settings, templates } from "../services/index.js";
+import { normalizeProject } from "../services/normalizeProject.js";
+import { mergeProjects } from "../services/memories/mergeProjects.js";
 import { createMcpServer } from "./mcp.js";
 
 const PORT = process.env.BRAIN_PORT || 3015;
 
-export function startApiServer(dbService: DatabaseService) {
+export function startApiServer(dbService: DatabaseService, directives?: string) {
 	const app = express();
 	app.use(cors());
 	app.use(express.json());
+
+	// Health check
+	app.get("/api/health", (_req, res) => {
+		const startTime = process.uptime();
+		res.json({
+			status: "ok",
+			service: "mcp-brain",
+			version: "1.0.0",
+			uptime: Math.floor(startTime),
+		});
+	});
 
 	// Auto-Sync MCP (SSE / Docker-based)
 	app.post("/api/mcp/sync", async (req, res) => {
@@ -90,24 +103,26 @@ export function startApiServer(dbService: DatabaseService) {
 				}
 			} else if (target === "antigravity") {
 				const agPath = path.join(os.homedir(), ".gemini/antigravity/mcp_config.json");
-				updateMcpFile(agPath, "lallamasollama-brain", antigravityConfig);
+				updateMcpFile(agPath, "lallamaollama-brain", antigravityConfig);
 				return res.json({
 					success: true,
 					message: `¡Motor Antigravity AI sincronizado con éxito! (Docker MCP en ${hostProjectPath})`,
 				});
 			} else if (target === "claudedesktop") {
-				const cdPath = path.join(os.homedir(), "AppData/Roaming/Claude/claude_desktop_config.json");
-				updateMcpFile(cdPath, "lallamasollama-brain", claudeCompatSseConfig);
+				const claudeConfigPath = process.env.CLAUDE_CONFIG_PATH || path.join(os.homedir(), "AppData", "Roaming", "Claude", "claude_desktop_config.json");
+					const cdPath = claudeConfigPath;
+				updateMcpFile(cdPath, "lallamaollama-brain", claudeCompatSseConfig);
 				return res.json({
 					success: true,
 					message: "¡Claude Desktop sincronizado con éxito! (SSE remoto)",
 				});
 			} else if (target === "roocode") {
-				const rooPath = path.join(
-					os.homedir(),
-					"AppData/Roaming/Code/User/globalStorage/saoudrizwan.claude-dev/settings/claude_desktop_config.json"
-				);
-				updateMcpFile(rooPath, "lallamasollama-brain", claudeCompatSseConfig);
+				const rooConfigPath = process.env.ROOCODE_CONFIG_PATH || path.join(
+						os.homedir(),
+						"AppData", "Roaming", "Code", "User", "globalStorage", "saoudrizwan.claude-dev", "settings", "claude_desktop_config.json"
+					);
+					const rooPath = rooConfigPath;
+				updateMcpFile(rooPath, "lallamaollama-brain", claudeCompatSseConfig);
 				return res.json({
 					success: true,
 					message: "¡RooCode / Cline sincronizado con éxito en VS Code! (SSE remoto)",
@@ -116,13 +131,13 @@ export function startApiServer(dbService: DatabaseService) {
 				return res.json({
 					success: true,
 					message: `¡Copia y pega este bloque en los ajustes de ${target.toUpperCase()}:`,
-					config: { "lallamasollama-brain": claudeCompatSseConfig },
+					config: { "lallamaollama-brain": claudeCompatSseConfig },
 				});
 			} else if (target === "windsurf") {
 				return res.json({
 					success: true,
 					message: "¡Copia y pega este bloque en los ajustes de WINDSURF:",
-					config: { "lallamasollama-brain": claudeCompatSseConfig },
+					config: { "lallamaollama-brain": claudeCompatSseConfig },
 				});
 			} else {
 				return res.status(400).json({ error: "Destino no soportado." });
@@ -133,7 +148,7 @@ export function startApiServer(dbService: DatabaseService) {
 	});
 
 	app.get("/api/memory/stats", async (req, res) => {
-		const project = (req.query.project as string) || "lallamasollama";
+		const project = normalizeProject((req.query.project as string) || "lallamaollama");
 		try {
 			const stats = await memories.getStats(dbService, project);
 			res.json(stats);
@@ -144,7 +159,7 @@ export function startApiServer(dbService: DatabaseService) {
 
 	app.get("/api/memory/search", async (req, res) => {
 		const q = (req.query.q as string) || "";
-		const project = (req.query.project as string) || "lallamasollama";
+		const project = normalizeProject((req.query.project as string) || "lallamaollama");
 		const mode = (req.query.mode as "lexical" | "semantic" | "hybrid") || "hybrid";
 		try {
 			const results =
@@ -177,7 +192,7 @@ export function startApiServer(dbService: DatabaseService) {
 				SELECT DISTINCT project FROM core_directives
 			`);
 			const projects = Array.from(
-				new Set(["lallamasollama", ...rows.map((r: { project: string }) => r.project)])
+				new Set(["lallamaollama", ...rows.map((r: { project: string }) => normalizeProject(r.project))])
 			);
 			res.json(projects);
 		} catch (e: unknown) {
@@ -186,8 +201,8 @@ export function startApiServer(dbService: DatabaseService) {
 	});
 
 	app.delete("/api/projects/:name", async (req, res) => {
-		const projectName = req.params.name;
-		if (projectName === "lallamasollama") {
+		const projectName = normalizeProject(req.params.name);
+		if (projectName === "lallamaollama") {
 			return res.status(403).json({ error: "No se puede eliminar el proyecto principal." });
 		}
 		try {
@@ -203,9 +218,73 @@ export function startApiServer(dbService: DatabaseService) {
 		}
 	});
 
-	// Directives
+	// Ensure project exists (create if not)
+	app.post("/api/projects/ensure", async (req, res) => {
+		const rawName = (req.body.name as string) || "";
+		if (!rawName.trim()) {
+			return res.status(400).json({ error: "name is required" });
+		}
+		const projectName = normalizeProject(rawName);
+		try {
+			const db = dbService.getDb();
+			// Check if project already exists in memories or directives
+			const existing = await db.get(
+				`SELECT 1 FROM (
+					SELECT project FROM memories WHERE project = ?
+					UNION
+					SELECT project FROM core_directives WHERE project = ?
+				) LIMIT 1`,
+				[projectName, projectName]
+			);
+			if (existing) {
+				return res.json({ created: false, project: projectName });
+			}
+			// Create seed memory to register the project
+			const seedId = `mem_${Date.now()}_seed`;
+			const now = Date.now();
+			await dbService.enqueueWrite(async () => {
+				await db.run(
+					`INSERT INTO memories (id, project, type, title, content, tags, createdAt, updatedAt)
+					 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+					[
+						seedId,
+						projectName,
+						"project-created",
+						`Proyecto ${projectName} creado automáticamente`,
+						`**What**: Proyecto creado desde el AI Agent Wizard\n**Why**: Necesario para registrar agentes generados automáticamente\n**Where**: Proyecto: ${projectName}`,
+						"auto-generated",
+						now,
+						now,
+					]
+				);
+			});
+			return res.status(201).json({ created: true, project: projectName });
+		} catch (e: unknown) {
+			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+		}
+	});
+
+	// Merge projects
+	app.post("/api/projects/merge", async (req, res) => {
+	try {
+		const source = normalizeProject(req.body.source as string);
+		const target = normalizeProject(req.body.target as string);
+		if (!source || !target) {
+			return res.status(400).json({ error: "source and target are required" });
+		}
+		if (source === target) {
+			return res.status(400).json({ error: "source and target must be different projects" });
+		}
+		const result = await mergeProjects(dbService, source, target);
+		res.json(result);
+	} catch (e: unknown) {
+		res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+	}
+});
+
+		// Directives
 	app.get("/api/directives", async (req, res) => {
-		const project = (req.query.project as string) || "lallamasollama";
+		const project = normalizeProject((req.query.project as string) || "lallamaollama");
 		try {
 			const content = await settings.getCoreDirectives(dbService, project);
 			res.json({ project, content });
@@ -215,7 +294,8 @@ export function startApiServer(dbService: DatabaseService) {
 	});
 
 	app.post("/api/directives", async (req, res) => {
-		const { project = "lallamasollama", content } = req.body;
+		let { project = "lallamaollama", content } = req.body;
+			project = normalizeProject(project);
 		try {
 			await settings.updateCoreDirectives(dbService, project, content || "");
 			res.json({ success: true });
@@ -246,7 +326,7 @@ export function startApiServer(dbService: DatabaseService) {
 
 	// Consolidation
 	app.post("/api/memory/consolidate", async (req, res) => {
-		const project = (req.body.project as string) || "lallamasollama";
+		const project = normalizeProject((req.body.project as string) || "lallamaollama");
 		try {
 			const result = await analysis.consolidateMemories(dbService, project);
 			res.json(result);
@@ -332,7 +412,7 @@ export function startApiServer(dbService: DatabaseService) {
 
 	// --- MCP SSE Transport ---
 
-	const sseServer = createMcpServer(dbService);
+	const sseServer = createMcpServer(dbService, directives);
 	const sseTransports = new Map<string, SSEServerTransport>();
 
 	app.get("/sse", async (req, res) => {

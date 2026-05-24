@@ -1,4 +1,4 @@
-import { Activity, BookOpen, Brain, Database, Layers, Settings, Trash2 } from "lucide-react";
+import { Activity, BookOpen, Brain, Database, GitMerge, HeartPulse, Layers, RefreshCw, Search, Settings, Trash2 } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { brainApi } from "../services/api.service";
@@ -6,6 +6,9 @@ import { BrainAuditor } from "./BrainAuditor";
 import { BrainDirectives } from "./BrainDirectives";
 import { BrainScaffold } from "./BrainScaffold";
 import { BrainSettings } from "./BrainSettings";
+import { MemoryExplorer } from "./MemoryExplorer";
+import { ProjectMerger } from "./ProjectMerger";
+import { TabButton } from "./TabButton";
 
 interface BrainStats {
 	total: number;
@@ -19,15 +22,23 @@ interface Toast {
 	detail?: string;
 }
 
+interface HealthStatus {
+	status?: string;
+	online?: boolean;
+	[key: string]: unknown;
+}
+
 let toastCounter = 0;
 
 export const BrainConsole: React.FC = () => {
 	const [stats, setStats] = useState<BrainStats>({ total: 0, types: [] });
 	const [project, setProject] = useState("lallamaollama");
 	const [projectsList, setProjectsList] = useState<string[]>(["lallamaollama"]);
-	const [activeTab, setActiveTab] = useState<"auditor" | "directives" | "settings" | "scaffold">("auditor");
+	const [activeTab, setActiveTab] = useState<"auditor" | "directives" | "settings" | "scaffold" | "explorer" | "merge">("auditor");
 	const [toasts, setToasts] = useState<Toast[]>([]);
 	const [deletingProject, setDeletingProject] = useState(false);
+	const [health, setHealth] = useState<HealthStatus | null>(null);
+	const [healthLoading, setHealthLoading] = useState(false);
 
 	const addToast = useCallback((message: string, type: Toast["type"], detail?: string) => {
 		const id = ++toastCounter;
@@ -57,10 +68,24 @@ export const BrainConsole: React.FC = () => {
 		}
 	}, []);
 
+	const fetchHealth = useCallback(async () => {
+		setHealthLoading(true);
+		try {
+			const res = await brainApi.get("/api/health");
+			setHealth(res.data);
+		} catch (error) {
+			console.error("Error fetching brain health", error);
+			setHealth(null);
+		} finally {
+			setHealthLoading(false);
+		}
+	}, []);
+
 	useEffect(() => {
 		fetchStats();
 		fetchProjects();
-	}, [fetchStats, fetchProjects]);
+		fetchHealth();
+	}, [fetchStats, fetchProjects, fetchHealth]);
 
 	const handleAddProject = () => {
 		const name = window.prompt("Ingresa el nombre del nuevo proyecto:");
@@ -75,7 +100,7 @@ export const BrainConsole: React.FC = () => {
 	};
 
 	const handleDeleteProject = async () => {
-		if (project === "lallamasollama") {
+		if (project === "lallamaollama") {
 			addToast("No se puede eliminar el proyecto principal.", "error");
 			return;
 		}
@@ -94,7 +119,7 @@ export const BrainConsole: React.FC = () => {
 				`${deletedMemories} recuerdos y ${deletedDirectives} directivas borrados.`,
 			);
 			setProjectsList((prev) => prev.filter((p) => p !== project));
-			setProject("lallamasollama");
+			setProject("lallamaollama");
 			await fetchStats();
 		} catch (error: unknown) {
 			const msg =
@@ -113,6 +138,8 @@ export const BrainConsole: React.FC = () => {
 		error: { bg: "rgba(239, 68, 68, 0.12)", border: "rgba(239, 68, 68, 0.4)", icon: "✕" },
 		info: { bg: "rgba(79, 140, 255, 0.12)", border: "rgba(79, 140, 255, 0.4)", icon: "ℹ" },
 	};
+
+	const isOnline = health !== null && (health.status === "ok" || health.online === true);
 
 	return (
 		<div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
@@ -202,95 +229,32 @@ export const BrainConsole: React.FC = () => {
 			<div
 				style={{ display: "flex", gap: "12px", borderBottom: "1px solid var(--border)", paddingBottom: "12px" }}
 			>
-				<button
-					onClick={() => setActiveTab("auditor")}
-					type="button"
-					style={{
-						display: "flex",
-						alignItems: "center",
-						gap: "8px",
-						padding: "10px 20px",
-						borderRadius: "8px",
-						fontSize: "13px",
-						fontWeight: 600,
-						border: "none",
-						background: activeTab === "auditor" ? "rgba(79, 140, 255, 0.15)" : "transparent",
-						color: activeTab === "auditor" ? "var(--accent)" : "var(--text-dim)",
-						cursor: "pointer",
-						transition: "var(--transition)",
-					}}
-				>
-					<Brain size={16} /> Auditor de Memoria
-				</button>
-				<button
-					onClick={() => setActiveTab("directives")}
-					type="button"
-					style={{
-						display: "flex",
-						alignItems: "center",
-						gap: "8px",
-						padding: "10px 20px",
-						borderRadius: "8px",
-						fontSize: "13px",
-						fontWeight: 600,
-						border: "none",
-						background: activeTab === "directives" ? "rgba(79, 140, 255, 0.15)" : "transparent",
-						color: activeTab === "directives" ? "var(--accent)" : "var(--text-dim)",
-						cursor: "pointer",
-						transition: "var(--transition)",
-					}}
-				>
-					<BookOpen size={16} /> Directivas Centrales
-				</button>
-				<button
-					onClick={() => setActiveTab("settings")}
-					type="button"
-					style={{
-						display: "flex",
-						alignItems: "center",
-						gap: "8px",
-						padding: "10px 20px",
-						borderRadius: "8px",
-						fontSize: "13px",
-						fontWeight: 600,
-						border: "none",
-						background: activeTab === "settings" ? "rgba(79, 140, 255, 0.15)" : "transparent",
-						color: activeTab === "settings" ? "var(--accent)" : "var(--text-dim)",
-						cursor: "pointer",
-						transition: "var(--transition)",
-					}}
-				>
-					<Settings size={16} /> Ajustes Cognitivos
-				</button>
-				<button
-					onClick={() => setActiveTab("scaffold")}
-					type="button"
-					style={{
-						display: "flex",
-						alignItems: "center",
-						gap: "8px",
-						padding: "10px 20px",
-						borderRadius: "8px",
-						fontSize: "13px",
-						fontWeight: 600,
-						border: "none",
-						background: activeTab === "scaffold" ? "rgba(79, 140, 255, 0.15)" : "transparent",
-						color: activeTab === "scaffold" ? "var(--accent)" : "var(--text-dim)",
-						cursor: "pointer",
-						transition: "var(--transition)",
-					}}
-				>
-					<Layers size={16} /> Scaffold
-				</button>
+				<TabButton active={activeTab === "auditor"} onClick={() => setActiveTab("auditor")} icon={<Brain size={16} />} label="Auditor de Memoria" />
+				<TabButton active={activeTab === "explorer"} onClick={() => setActiveTab("explorer")} icon={<Search size={16} />} label="Explorador de Memorias" />
+				<TabButton active={activeTab === "directives"} onClick={() => setActiveTab("directives")} icon={<BookOpen size={16} />} label="Directivas Centrales" />
+				<TabButton active={activeTab === "merge"} onClick={() => setActiveTab("merge")} icon={<GitMerge size={16} />} label="Fusionar Proyectos" />
+				<TabButton active={activeTab === "settings"} onClick={() => setActiveTab("settings")} icon={<Settings size={16} />} label="Ajustes Cognitivos" />
+				<TabButton active={activeTab === "scaffold"} onClick={() => setActiveTab("scaffold")} icon={<Layers size={16} />} label="Scaffold" />
 			</div>
 
 			<div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: "24px", alignItems: "start" }}>
 				{/* Panel Principal dinámico */}
 				<div style={{ minWidth: 0 }}>
 					{activeTab === "auditor" && <BrainAuditor project={project} />}
+					{activeTab === "explorer" && <MemoryExplorer project={project} onToast={addToast} />}
 					{activeTab === "directives" && <BrainDirectives project={project} />}
+					{activeTab === "merge" && (
+						<ProjectMerger
+							projectsList={projectsList}
+							onToast={addToast}
+							onRefresh={() => {
+								fetchProjects();
+								fetchStats();
+							}}
+						/>
+					)}
 					{activeTab === "settings" && <BrainSettings project={project} />}
-					{activeTab === "scaffold" && <BrainScaffold />}
+					{activeTab === "scaffold" && <BrainScaffold project={project} onToast={addToast} />}
 				</div>
 
 				{/* Panel Lateral: KPIs y Estadísticas */}
@@ -421,22 +385,47 @@ export const BrainConsole: React.FC = () => {
 									>
 										Proyecto Target
 									</span>
-									<button
-										onClick={handleAddProject}
-										type="button"
-										style={{
-											fontSize: "10px",
-											background: "rgba(79, 140, 255, 0.2)",
-											color: "var(--accent)",
-											border: "none",
-											borderRadius: "4px",
-											padding: "2px 6px",
-											cursor: "pointer",
-											fontWeight: 600,
-										}}
-									>
-										+ Nuevo
-									</button>
+									<div style={{ display: "flex", gap: "4px" }}>
+										<button
+											onClick={() => {
+												fetchProjects();
+												fetchStats();
+											}}
+											type="button"
+											title="Refrescar lista de proyectos"
+											style={{
+												fontSize: "10px",
+												background: "rgba(255,255,255,0.08)",
+												color: "var(--text-dim)",
+												border: "none",
+												borderRadius: "4px",
+												padding: "2px 6px",
+												cursor: "pointer",
+												fontWeight: 600,
+												display: "flex",
+												alignItems: "center",
+												gap: "3px",
+											}}
+										>
+											<RefreshCw size={11} />
+										</button>
+										<button
+											onClick={handleAddProject}
+											type="button"
+											style={{
+												fontSize: "10px",
+												background: "rgba(79, 140, 255, 0.2)",
+												color: "var(--accent)",
+												border: "none",
+												borderRadius: "4px",
+												padding: "2px 6px",
+												cursor: "pointer",
+												fontWeight: 600,
+											}}
+										>
+											+ Nuevo
+										</button>
+									</div>
 								</div>
 								<select
 									value={project}
@@ -461,7 +450,7 @@ export const BrainConsole: React.FC = () => {
 								</select>
 
 								{/* Delete Project Button */}
-								{project !== "lallamasollama" && (
+								{project !== "lallamaollama" && (
 									<button
 										onClick={handleDeleteProject}
 										type="button"
@@ -511,7 +500,82 @@ export const BrainConsole: React.FC = () => {
 									</button>
 								)}
 							</div>
+														{/* Health Status Indicator */}
 							<div
+								style={{
+									display: "flex",
+									alignItems: "center",
+									justifyContent: "space-between",
+									padding: "10px 12px",
+									background: isOnline
+										? "rgba(34, 197, 94, 0.08)"
+										: "rgba(239, 68, 68, 0.08)",
+									border: isOnline
+										? "1px solid rgba(34, 197, 94, 0.25)"
+										: "1px solid rgba(239, 68, 68, 0.25)",
+									borderRadius: "8px",
+								}}
+							>
+								<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+									<HeartPulse
+										size={16}
+										style={{
+											color: isOnline
+												? "rgb(34, 197, 94)"
+												: "rgb(239, 68, 68)",
+										}}
+									/>
+									<div>
+										<div
+											style={{
+												fontSize: "11px",
+												fontWeight: 600,
+												color: isOnline
+													? "rgb(34, 197, 94)"
+													: "rgb(239, 68, 68)",
+											}}
+										>
+											{isOnline ? "Online" : "Offline"}
+										</div>
+										<div
+											style={{
+												fontSize: "9px",
+												color: "var(--text-muted)",
+												textTransform: "uppercase",
+												letterSpacing: "0.5px",
+											}}
+										>
+											Brain Health
+										</div>
+									</div>
+								</div>
+								{!isOnline && (
+									<button
+										type="button"
+										onClick={fetchHealth}
+										disabled={healthLoading}
+										title="Reintentar health check"
+										style={{
+											background: "rgba(239, 68, 68, 0.15)",
+											border: "1px solid rgba(239, 68, 68, 0.3)",
+											borderRadius: "4px",
+											padding: "4px 8px",
+											color: "rgb(239, 68, 68)",
+											cursor: "pointer",
+											display: "flex",
+											alignItems: "center",
+											gap: "4px",
+											fontSize: "10px",
+											fontWeight: 600,
+										}}
+									>
+										<RefreshCw size={12} className={healthLoading ? "animate-spin" : ""} />
+										Reintentar
+									</button>
+								)}
+							</div>
+
+<div
 								style={{
 									fontSize: "11px",
 									color: "var(--text-dim)",

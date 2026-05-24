@@ -36,6 +36,7 @@ import helmet from "helmet";
 import { Server as SocketServer } from "socket.io";
 import { AppModule } from "./app.module.js";
 import { MCP_TOOL_CATALOG } from "./ollama/ollama.tools.js";
+import { AgentsService } from "./services/agents.service.js";
 
 const app = express();
 app.use(cors()); // Habilitar CORS para desarrollo local del frontend
@@ -82,6 +83,7 @@ const server = new Server(
 const appModule = new AppModule();
 await appModule.bootstrap(server, io);
 await appModule.ollamaService.checkConnection();
+const agentsService = new AgentsService(appModule.ollamaService);
 
 // --- Auto-Pull de modelos al arranque ---
 // Configura en .env o docker-compose: OLLAMA_AUTO_PULL=llama3.2,qwen2.5-coder:7b
@@ -189,6 +191,21 @@ app.get("/api/models", authMiddleware, async (_req, res) => {
 	try {
 		const models = await appModule.ollamaService.listModels();
 		res.json({ models });
+	} catch (error: unknown) {
+		const message = error instanceof Error ? error.message : String(error);
+		res.status(500).json({ error: message });
+	}
+});
+
+// 1c. Analyze project and generate agents
+app.post("/api/agents/analyze-project", authMiddleware, async (req, res) => {
+	try {
+		const { model, projectName, structure, configFiles } = req.body;
+		if (!model || !projectName || !structure) {
+			return res.status(400).json({ error: "model, projectName y structure son obligatorios" });
+		}
+		const result = await agentsService.analyzeProject(model, projectName, structure, configFiles || {});
+		res.json(result);
 	} catch (error: unknown) {
 		const message = error instanceof Error ? error.message : String(error);
 		res.status(500).json({ error: message });
