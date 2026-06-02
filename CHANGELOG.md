@@ -7,6 +7,68 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 
 ## [Unreleased]
 
+### 🐛 Correcciones
+
+#### Frontend
+- **Fix TS6133 en AgentChat.tsx** — se eliminaron 3 variables no usadas (`AlertCircle`, `chatId`, `text`) que rompían el build de Docker con exit code 2 por `noUnusedLocals` habilitado en tsconfig. ([#37](https://github.com/...))
+
+### 🧠 Agent Engine — Servicio de Agente de Codificación Autónomo (2026-06-01)
+
+#### Añadido
+- **Nuevo servicio standalone `agent-engine/`** — agente de codificación autónomo inspirado en ARGenteIA-Project:
+  - **Agent Loop** (`src/agent/loop.ts`): core de razonamiento con OpenAI SDK, soporte de tool calling multi-turno (máx 10 iteraciones), compactación de contexto automática, streaming de respuestas.
+  - **Multi-provider Models** (`src/agent/models.ts`): soporte para Ollama (vía backend proxy), OpenAI y OpenRouter, con detección automática de proveedor.
+  - **System Prompt Builder** (`src/agent/prompt.ts`): genera system prompt dinámico con herramientas disponibles, directivas del proyecto y contexto reciente del brain.
+  - **Tool Registry** (`src/tools/registry.ts`): registro y ejecución de herramientas con enable/disable dinámico.
+  - **8 herramientas integradas**:
+    - `bash` — ejecución segura de comandos shell con detección de patrones destructivos.
+    - `read_file` — lectura de archivos con límite de tamaño y protección path traversal.
+    - `write_file` / `edit_file` — creación y edición de archivos con creación automática de directorios.
+    - `glob` — búsqueda de archivos por patrón glob (**, *, ?) sin dependencias externas.
+    - `grep` — búsqueda de contenido con regex, filtro por extensión, exclusión automática de binarios.
+    - `read_url` — fetch de URLs con límite de tamaño y User-Agent personalizado.
+    - `delegate` — recomendación de delegación a agentes OpenCode especializados.
+    - `memorize` / `recall` / `get_context` — persistencia y consulta de memoria vía mcp-brain REST.
+
+- **Gateway WebSocket + REST** (`src/gateway/server.ts`):
+  - Servidor Express con endpoints `/health` y `/api/tools`.
+  - Servidor WebSocket con protocolo de mensajes (8 tipos): user_message, assistant_chunk, assistant_done, tool_call, tool_result, cancel, get_status, list_tools.
+  - Broadcasting de chunks, tool calls y errores a todos los clientes conectados.
+
+- **Integración con mcp-brain** (`src/memory/brain-client.ts`):
+  - Cliente REST para guardar/consultar memorias, iniciar/finalizar sesiones, obtener directivas y stats.
+  - Timeout de 10s con manejo graceful de errores (no bloquea si brain no responde).
+
+- **Nuevos endpoints REST en mcp-brain** (`src/server/api.ts`):
+  - `POST /api/memory` — guardar memoria (para integración con agent-engine).
+  - `GET /api/memory/context` — obtener contexto reciente como texto plano.
+  - `POST /api/sessions` — iniciar sesión de trabajo.
+  - `PUT /api/sessions/:id` — finalizar sesión con resumen.
+
+- **Nuevo componente `AgentChat.tsx`** en frontend:
+  - Chat interactivo con WebSocket al agent-engine.
+  - Visualización de tool calls en tiempo real con estados (pending/done/error).
+  - Indicador de conexión (connected/connecting/disconnected).
+  - Botón de cancelación de respuesta en curso.
+  - Mensajes de sistema, usuario y asistente con timestamps.
+  - Auto-scroll y compactación visual.
+
+- **Nueva tab "Agent Engine"** en la barra lateral del dashboard:
+  - Botón de navegación con icono Bot en la sección de navegación principal.
+  - Integrado en `getSectionInfo()` y `renderContent()` de `App.tsx`.
+
+- **Servicio Docker `agent-engine`** en `docker-compose.yml`:
+  - Puerto `3020` (configurable via `ENGINE_PORT`).
+  - Variables de entorno: BACKEND_URL, BRAIN_URL, API_KEY, DEFAULT_MODEL, WORKSPACE_DIR.
+  - Bind mount de `docker.sock` y del proyecto completo como `/workspace`.
+  - Dependencias: backend y mcp-brain.
+
+#### Modificado
+- `mcp-brain/src/server/api.ts` — agregados 4 nuevos endpoints REST para soportar agent-engine.
+- `docker-compose.yml` — agregado servicio agent-engine con integración en red mcp-network.
+- `frontend/src/App.tsx` — agregada tab "Agent Engine" con su componente y navegación.
+- `.env.example` — agregadas variables ENGINE_PORT y DEFAULT_MODEL.
+
 ### 🤖 AI Agent Wizard — Generación Inteligente de Agentes con IA (2026-05-23)
 
 #### Añadido

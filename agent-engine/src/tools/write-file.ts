@@ -1,0 +1,131 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { type ToolContext, toolRegistry } from "./registry.js";
+
+export function registerWriteFileTool() {
+	toolRegistry.register({
+		spec: {
+			type: "function",
+			function: {
+				name: "write_file",
+				description:
+					"Create a new file or overwrite an existing file with new content. Use for creating new files or replacing entire file contents. For edits, use edit_file instead.",
+				parameters: {
+					type: "object",
+					properties: {
+						file_path: {
+							type: "string",
+							description: "Path to the file, relative to the workspace root",
+						},
+						content: {
+							type: "string",
+							description: "The full content to write to the file",
+						},
+					},
+					required: ["file_path", "content"],
+				},
+			},
+		},
+		handler: async (args: Record<string, unknown>, ctx: ToolContext) => {
+			const filePath = args.file_path as string;
+			const content = args.content as string;
+
+			if (!filePath) return "Error: file_path is required";
+			if (content === undefined || content === null) return "Error: content is required";
+
+			// Security: prevent path traversal
+			const resolvedPath = path.resolve(ctx.workspaceDir, filePath);
+			if (!resolvedPath.startsWith(path.resolve(ctx.workspaceDir))) {
+				return "Error: Path traversal detected. File must be within the workspace.";
+			}
+
+			try {
+				// Create parent directories if they don't exist
+				const dir = path.dirname(resolvedPath);
+				if (!fs.existsSync(dir)) {
+					fs.mkdirSync(dir, { recursive: true });
+				}
+
+				fs.writeFileSync(resolvedPath, content, "utf-8");
+				const size = Buffer.byteLength(content, "utf-8");
+				return `File written: ${filePath} (${size} bytes, ${content.split("\n").length} lines)`;
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : String(err);
+				return `Error writing file: ${msg}`;
+			}
+		},
+		enabled: true,
+	});
+}
+
+export function registerEditFileTool() {
+	toolRegistry.register({
+		spec: {
+			type: "function",
+			function: {
+				name: "edit_file",
+				description:
+					"Edit a file by replacing exact string occurrences. Uses exact string replacement (not regex). Best for targeted edits to existing files.",
+				parameters: {
+					type: "object",
+					properties: {
+						file_path: {
+							type: "string",
+							description: "Path to the file, relative to the workspace root",
+						},
+						old_string: {
+							type: "string",
+							description: "The exact text to replace (must exist in the file)",
+						},
+						new_string: {
+							type: "string",
+							description: "The new text to insert in place of old_string",
+						},
+					},
+					required: ["file_path", "old_string", "new_string"],
+				},
+			},
+		},
+		handler: async (args: Record<string, unknown>, ctx: ToolContext) => {
+			const filePath = args.file_path as string;
+			const oldString = args.old_string as string;
+			const newString = args.new_string as string;
+
+			if (!filePath) return "Error: file_path is required";
+			if (!oldString) return "Error: old_string is required";
+			if (newString === undefined) return "Error: new_string is required";
+
+			const resolvedPath = path.resolve(ctx.workspaceDir, filePath);
+			if (!resolvedPath.startsWith(path.resolve(ctx.workspaceDir))) {
+				return "Error: Path traversal detected. File must be within the workspace.";
+			}
+
+			try {
+				if (!fs.existsSync(resolvedPath)) {
+					return `Error: File not found: ${filePath}`;
+				}
+
+				const content = fs.readFileSync(resolvedPath, "utf-8");
+
+				if (!content.includes(oldString)) {
+					return `Error: old_string not found in ${filePath}`;
+				}
+
+				// Check for multiple occurrences
+				const occurrences = content.split(oldString).length - 1;
+				if (occurrences > 1) {
+					return `Error: Found ${occurrences} occurrences of old_string. The edit_file tool only supports single occurrences. Use write_file instead for this case.`;
+				}
+
+				const newContent = content.replace(oldString, newString);
+				fs.writeFileSync(resolvedPath, newContent, "utf-8");
+
+				return `File edited: ${filePath} (replacement applied)`;
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : String(err);
+				return `Error editing file: ${msg}`;
+			}
+		},
+		enabled: true,
+	});
+}

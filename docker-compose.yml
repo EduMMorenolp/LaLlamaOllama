@@ -74,6 +74,7 @@ services:
         - VITE_API_URL=http://localhost:${APP_PORT:-3016}
         - VITE_SOCKET_URL=http://localhost:${APP_PORT:-3016}
         - VITE_BRAIN_API_URL=http://localhost:${BRAIN_PORT:-3015}
+        - VITE_ENGINE_URL=http://localhost:${ENGINE_PORT:-3020}
     container_name: frontend
     ports:
       - "8080:80"
@@ -81,6 +82,7 @@ services:
       # inside docker the backend is reachable by service name
       - VITE_API_URL=http://localhost:${APP_PORT:-3016}
       - VITE_SOCKET_URL=http://localhost:${APP_PORT:-3016}
+      - VITE_ENGINE_URL=http://localhost:${ENGINE_PORT:-3020}
     networks:
       - mcp-network
     depends_on:
@@ -110,6 +112,30 @@ services:
       # - brain_data:/app/data
     depends_on:
       - ollama
+    networks:
+      - mcp-network
+    restart: no
+
+  agent-engine:
+    build:
+      context: ./agent-engine
+      dockerfile: Dockerfile
+    container_name: agent-engine
+    ports:
+      - "${ENGINE_PORT:-3020}:${ENGINE_PORT:-3020}"
+    environment:
+      - ENGINE_PORT=${ENGINE_PORT:-3020}
+      - BACKEND_URL=http://backend:3016
+      - BRAIN_URL=http://brain:3015
+      - API_KEY=${API_KEY:-super-secret-mcp-key}
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-llama3.2:3b}
+      - WORKSPACE_DIR=/workspace
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./:/workspace
+    depends_on:
+      - backend
+      - mcp-brain
     networks:
       - mcp-network
     restart: no
