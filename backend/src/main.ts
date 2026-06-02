@@ -39,8 +39,14 @@ import { MCP_TOOL_CATALOG } from "./ollama/ollama.tools.js";
 import { AgentsService } from "./services/agents.service.js";
 
 const app = express();
+
+// 1. PRIMERO: Body parsing con límite grande
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// 2. SEGUNDO: CORS
 app.use(cors()); // Habilitar CORS para desarrollo local del frontend
 
+// 3. TERCERO: Seguridad
 // --- Middleware de Seguridad (Fase 1) ---
 app.use(helmet());
 const limiter = rateLimit({
