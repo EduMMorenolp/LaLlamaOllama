@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { type ToolContext, toolRegistry } from "./registry.js";
+import { toolRegistry } from "./registry.js";
+import type { ToolContext } from "./types.js";
 
 export function registerGrepTool() {
 	toolRegistry.register({
@@ -70,13 +71,9 @@ export function registerGrepTool() {
 							if (entry.isDirectory()) {
 								walkDir(fullPath);
 							} else if (entry.isFile()) {
-								// Check file extension filter
 								if (include && !fileMatchesExt(entry.name, include)) continue;
-
-								// Skip binary files
 								if (isBinaryExt(entry.name)) continue;
 
-								// Check file size (skip > 5MB)
 								const stat = fs.statSync(fullPath);
 								if (stat.size > 5 * 1024 * 1024) continue;
 
@@ -94,7 +91,7 @@ export function registerGrepTool() {
 										}
 									}
 								} catch {
-									// Binary or unreadable file, skip
+									// Binary or unreadable file
 								}
 							}
 						}
@@ -122,7 +119,6 @@ export function registerGrepTool() {
 }
 
 function fileMatchesExt(name: string, pattern: string): boolean {
-	// Simple glob matching for extensions
 	const patterns = pattern.split(",").map((p) => p.trim());
 	for (const p of patterns) {
 		const regexStr = p.replace(/\./g, "\\.").replace(/\*/g, ".*");
@@ -132,39 +128,15 @@ function fileMatchesExt(name: string, pattern: string): boolean {
 }
 
 const BINARY_EXTS = new Set([
-	".png",
-	".jpg",
-	".jpeg",
-	".gif",
-	".ico",
-	".svg",
-	".woff",
-	".woff2",
-	".ttf",
-	".eot",
-	".mp3",
-	".mp4",
-	".avi",
-	".mov",
-	".zip",
-	".tar",
-	".gz",
-	".7z",
-	".rar",
-	".pdf",
-	".doc",
-	".docx",
-	".xls",
-	".xlsx",
-	".exe",
-	".dll",
-	".so",
-	".dylib",
-	".o",
-	".obj",
-	".pyc",
-	".class",
+	".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg",
+	".woff", ".woff2", ".ttf", ".eot",
+	".mp3", ".mp4", ".avi", ".mov",
+	".zip", ".tar", ".gz", ".7z", ".rar",
+	".pdf", ".doc", ".docx", ".xls", ".xlsx",
+	".exe", ".dll", ".so", ".dylib",
+	".o", ".obj", ".pyc", ".class",
 ]);
+
 function isBinaryExt(name: string): boolean {
 	const ext = path.extname(name).toLowerCase();
 	return BINARY_EXTS.has(ext);

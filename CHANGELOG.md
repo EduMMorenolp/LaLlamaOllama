@@ -7,6 +7,27 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 
 ## [Unreleased]
 
+### 🏗️ Arquitectura — Migración Agent Engine a Use Case Pattern + DI funcional (2026-06-02)
+
+#### Agent Engine
+- **Nueva estructura `services/`** con capas funcionales siguiendo el patrón de mcp-brain:
+  - `services/config.ts` — `AppConfig` interface + `loadConfig()` (desde env).
+  - `services/types.ts` — interfaces compartidas.
+  - `services/brain/` — `BrainClient` como dependencia fundamental (equivalente a `DatabaseService` en mcp-brain), con `saveMemory`, `searchMemories`, `getContext`.
+  - `services/agent/` — `runAgent()` (core loop multi-turno tool calling), `buildPrompt()`, `createClient()` (Ollama/OpenAI/OpenRouter).
+  - `services/tools/` — `ToolRegistry` singleton, `registerAllTools(brain)`, 8 herramientas (bash, read/write-file, glob, grep, read-url, delegate + memory-tools).
+  - `services/sessions/` — sesiones en memoria (`Map<string, SessionState>`), con `startSession`, `getSession`, `endSession`.
+  - `services/execution/` — logging de ejecuciones con `logExecution`, `getHistory`.
+  - `services/index.ts` — barrel principal con namespace exports.
+- **Nueva capa `server/`** reemplazando `gateway/server.ts`:
+  - `server/api.ts` — Express REST (health, tools list).
+  - `server/ws.ts` — WebSocket server como clase `WsServer`.
+  - `server/handlers.ts` — WebSocket message handlers separados.
+  - `server/cron.ts` — background jobs (cleanup cada 30min).
+- **`index.ts` bootstrap refactorizado**: `validateEnv()` → `loadConfig()` → `new BrainClient(config)` → `registerAllTools(brain)` → `startApiServer(config)` → `new WsServer(config, brain)`.
+- **Import fixes**: `ToolContext` movido de `registry.ts` a `types.ts`, actualizadas 7 herramientas.
+- **Directorios viejos eliminados**: `src/agent/`, `src/tools/`, `src/memory/`, `src/gateway/server.ts`.
+
 ### 🐛 Correcciones
 
 #### Frontend

@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { type ToolContext, toolRegistry } from "./registry.js";
+import { toolRegistry } from "./registry.js";
+import type { ToolContext } from "./types.js";
 
 export function registerReadFileTool() {
 	toolRegistry.register({
@@ -39,7 +40,6 @@ export function registerReadFileTool() {
 				return "Error: file_path is required";
 			}
 
-			// Security: prevent path traversal
 			const resolvedPath = path.resolve(ctx.workspaceDir, filePath);
 			if (!resolvedPath.startsWith(path.resolve(ctx.workspaceDir))) {
 				return "Error: Path traversal detected. File must be within the workspace.";
@@ -55,7 +55,6 @@ export function registerReadFileTool() {
 					return `Error: '${filePath}' is a directory, not a file`;
 				}
 
-				// Check file size (max 50MB)
 				if (stat.size > 50 * 1024 * 1024) {
 					return `Error: File too large (${(stat.size / 1024 / 1024).toFixed(1)}MB). Max: 50MB`;
 				}

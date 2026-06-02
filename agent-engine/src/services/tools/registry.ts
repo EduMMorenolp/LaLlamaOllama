@@ -1,29 +1,5 @@
-import { logger } from "../utils/logger.js";
-
-// ─── Types ────────────────────────────────────────────────────────────
-
-export interface ToolSpec {
-	type: "function";
-	function: {
-		name: string;
-		description: string;
-		parameters: Record<string, unknown>;
-	};
-}
-
-export interface ToolContext {
-	sessionId: string;
-	workspaceDir: string;
-	chatId?: string;
-}
-
-type ToolHandler = (args: Record<string, unknown>, context: ToolContext) => Promise<string>;
-
-interface ToolDefinition {
-	spec: ToolSpec;
-	handler: ToolHandler;
-	enabled: boolean;
-}
+import { logger } from "../../utils/logger.js";
+import type { ToolSpec, ToolContext, ToolDefinition } from "./types.js";
 
 // ─── Registry ─────────────────────────────────────────────────────────
 

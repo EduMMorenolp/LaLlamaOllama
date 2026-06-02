@@ -1,11 +1,8 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { type ToolContext, toolRegistry } from "./registry.js";
+import { toolRegistry } from "./registry.js";
+import type { ToolContext } from "./types.js";
 
-/**
- * Simple glob implementation without external dependencies.
- * Supports: *, **, ? patterns
- */
 function simpleGlob(pattern: string, baseDir: string): string[] {
 	const results: string[] = [];
 
@@ -18,7 +15,6 @@ function simpleGlob(pattern: string, baseDir: string): string[] {
 		const part = patternParts[idx];
 
 		if (part === "**") {
-			// Match everything recursively
 			match(patternParts, dir, idx + 1);
 			try {
 				const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -28,7 +24,7 @@ function simpleGlob(pattern: string, baseDir: string): string[] {
 					}
 				}
 			} catch {
-				// Permission denied, skip
+				// Permission denied
 			}
 		} else {
 			try {
@@ -44,7 +40,7 @@ function simpleGlob(pattern: string, baseDir: string): string[] {
 					}
 				}
 			} catch {
-				// Permission denied, skip
+				// Permission denied
 			}
 		}
 	}
@@ -110,7 +106,6 @@ export function registerGlobTool() {
 					return `No files found matching: ${pattern}`;
 				}
 
-				// Sort and limit
 				results.sort();
 				const limited = results.slice(0, 200);
 				let output = limited.join("\n");

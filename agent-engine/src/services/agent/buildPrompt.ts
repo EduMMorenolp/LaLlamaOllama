@@ -1,17 +1,16 @@
-import type { EnvConfig } from "../env.js";
-import type { ToolSpec } from "../tools/registry.js";
+import type { AppConfig } from "../config.js";
+import type { ToolSpec } from "../tools/types.js";
 
-/**
- * Construye el system prompt para el agente de codificación autónomo.
- */
 export function buildSystemPrompt(
-	env: EnvConfig,
+	config: AppConfig,
 	tools: ToolSpec[],
 	directives?: string,
 	context?: string,
 	activeModel?: string
 ): string {
-	const toolDescriptions = tools.map((t) => `  - ${t.function.name}: ${t.function.description}`).join("\n");
+	const toolDescriptions = tools
+		.map((t) => `  - ${t.function.name}: ${t.function.description}`)
+		.join("\n");
 
 	return `Eres un **agente de codificación autónomo** dentro del ecosistema LaLlamaOllama.
 
@@ -50,7 +49,7 @@ ${toolDescriptions || "  (ninguna herramienta disponible)"}
 - Usa TypeScript estricto, imports con extensión .js (NodeNext)
 
 ## Modelo activo
-${activeModel || env.defaultModel}
+${activeModel || config.defaultModel}
 
 ${directives ? `## Directivas del proyecto\n${directives}\n` : ""}
 ${context ? `## Contexto reciente del proyecto\n${context}\n` : ""}

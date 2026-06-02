@@ -1,5 +1,6 @@
 import axios from "axios";
-import { type ToolContext, toolRegistry } from "./registry.js";
+import { toolRegistry } from "./registry.js";
+import type { ToolContext } from "./types.js";
 
 export function registerReadUrlTool() {
 	toolRegistry.register({
@@ -32,7 +33,6 @@ export function registerReadUrlTool() {
 			if (!url) return "Error: url is required";
 
 			try {
-				// Basic URL validation
 				new URL(url);
 
 				const res = await axios.get(url, {

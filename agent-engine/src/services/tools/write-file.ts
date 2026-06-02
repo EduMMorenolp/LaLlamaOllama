@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { type ToolContext, toolRegistry } from "./registry.js";
+import { toolRegistry } from "./registry.js";
+import type { ToolContext } from "./types.js";
 
 export function registerWriteFileTool() {
 	toolRegistry.register({
@@ -33,14 +34,12 @@ export function registerWriteFileTool() {
 			if (!filePath) return "Error: file_path is required";
 			if (content === undefined || content === null) return "Error: content is required";
 
-			// Security: prevent path traversal
 			const resolvedPath = path.resolve(ctx.workspaceDir, filePath);
 			if (!resolvedPath.startsWith(path.resolve(ctx.workspaceDir))) {
 				return "Error: Path traversal detected. File must be within the workspace.";
 			}
 
 			try {
-				// Create parent directories if they don't exist
 				const dir = path.dirname(resolvedPath);
 				if (!fs.existsSync(dir)) {
 					fs.mkdirSync(dir, { recursive: true });
@@ -111,7 +110,6 @@ export function registerEditFileTool() {
 					return `Error: old_string not found in ${filePath}`;
 				}
 
-				// Check for multiple occurrences
 				const occurrences = content.split(oldString).length - 1;
 				if (occurrences > 1) {
 					return `Error: Found ${occurrences} occurrences of old_string. The edit_file tool only supports single occurrences. Use write_file instead for this case.`;

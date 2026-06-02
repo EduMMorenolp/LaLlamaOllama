@@ -1,52 +1,24 @@
-import type OpenAI from "openai";
-import type { EnvConfig } from "../env.js";
-import type { BrainClient } from "../memory/brain-client.js";
-import type { ToolSpec as RegistryToolSpec } from "../tools/registry.js";
-import { type ToolContext, toolRegistry } from "../tools/registry.js";
-import { logger } from "../utils/logger.js";
-import { createClient, getDefaultModelConfig, type ModelConfig } from "./models.js";
-import { buildSystemPrompt } from "./prompt.js";
+import OpenAI from "openai";
+import type { BrainClient } from "../brain/client.js";
+import type { ToolSpec as RegistryToolSpec } from "../tools/types.js";
+import { toolRegistry } from "../tools/registry.js";
+import { logger } from "../../utils/logger.js";
+import { createClient, getDefaultModelConfig } from "./createClient.js";
+import { buildSystemPrompt } from "./buildPrompt.js";
+import type { AgentOptions, AgentResult, SessionState } from "./types.js";
 
-// ─── Types ────────────────────────────────────────────────────────────
-
-export interface AgentOptions {
-	chatId: string;
-	userText: string;
-	attachments?: Array<{ name: string; type: string; data: string }>;
-	env: EnvConfig;
-	brain: BrainClient;
-	onChunk?: (text: string) => void;
-	onToolCall?: (toolName: string, args: Record<string, unknown>) => void;
-	onToolResult?: (toolName: string, result: string) => void;
-}
-
-export interface AgentResult {
-	text: string;
-	model: string;
-	usage?: {
-		promptTokens: number;
-		completionTokens: number;
-		totalTokens: number;
-	};
-	latencyMs: number;
-}
-
-// ─── Session state ────────────────────────────────────────────────────
-
-interface SessionState {
-	messages: Array<OpenAI.Chat.Completions.ChatCompletionMessageParam>;
-	toolContext: ToolContext;
-}
+// ─── Session state (in-memory, like mcp-brain's SQLite but simpler) ──
 
 const sessions = new Map<string, SessionState>();
 
-function getSession(chatId: string, env: EnvConfig): SessionState {
+function getSession(opts: AgentOptions): SessionState {
+	const { chatId, config } = opts;
 	if (!sessions.has(chatId)) {
 		sessions.set(chatId, {
 			messages: [],
 			toolContext: {
 				sessionId: chatId,
-				workspaceDir: env.workspaceDir,
+				workspaceDir: config.workspaceDir,
 				chatId,
 			},
 		});
@@ -57,11 +29,11 @@ function getSession(chatId: string, env: EnvConfig): SessionState {
 // ─── Main Agent Loop ──────────────────────────────────────────────────
 
 export async function runAgent(opts: AgentOptions): Promise<AgentResult> {
-	const { chatId, userText, env, brain, onChunk, onToolCall, onToolResult } = opts;
+	const { chatId, userText, config, brain, onToolCall, onToolResult } = opts;
 	const startTime = Date.now();
 
 	// 1. Get or create session state
-	const session = getSession(chatId, env);
+	const session = getSession(opts);
 
 	// 2. Load context from mcp-brain on first message
 	if (session.messages.length === 0) {
@@ -71,9 +43,9 @@ export async function runAgent(opts: AgentOptions): Promise<AgentResult> {
 			brain.getContext(10).catch(() => ""),
 		]);
 
-		const modelConfig = getDefaultModelConfig(env);
+		const modelConfig = getDefaultModelConfig(config);
 		const tools = toolRegistry.getSpecs();
-		const systemPrompt = buildSystemPrompt(env, tools, directives, context, modelConfig.model);
+		const systemPrompt = buildSystemPrompt(config, tools, directives, context, modelConfig.model);
 
 		session.messages.push({
 			role: "system",
@@ -82,9 +54,10 @@ export async function runAgent(opts: AgentOptions): Promise<AgentResult> {
 	}
 
 	// 3. Add user message
-	const userContent: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [{ type: "text", text: userText }];
+	const userContent: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
+		{ type: "text", text: userText },
+	];
 
-	// Handle image attachments
 	if (opts.attachments && opts.attachments.length > 0) {
 		for (const att of opts.attachments) {
 			if (att.type.startsWith("image/")) {
@@ -113,10 +86,10 @@ export async function runAgent(opts: AgentOptions): Promise<AgentResult> {
 	session.messages.push({ role: "user", content: userContent });
 
 	// 4. Get model config and client
-	const modelConfig = getDefaultModelConfig(env);
+	const modelConfig = getDefaultModelConfig(config);
 	const client = createClient(modelConfig);
 
-	// 5. Convert our tool specs to OpenAI format
+	// 5. Convert tool specs to OpenAI format
 	const openAiTools = toolRegistry.getSpecs().map((t: RegistryToolSpec) => ({
 		type: "function" as const,
 		function: {
@@ -126,7 +99,7 @@ export async function runAgent(opts: AgentOptions): Promise<AgentResult> {
 		},
 	}));
 
-	// 6. Agent loop: LLM calls + tool execution
+	// 6. Agent loop
 	let finalContent = "";
 	const totalUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 	const maxIterations = 10;
@@ -140,7 +113,6 @@ export async function runAgent(opts: AgentOptions): Promise<AgentResult> {
 			0
 		);
 		if (totalChars > 80000) {
-			// Remove early messages but keep system prompt
 			const systemMsg = session.messages[0];
 			const recentMsgs = session.messages.slice(-20);
 			session.messages = [systemMsg, ...recentMsgs];
@@ -161,16 +133,13 @@ export async function runAgent(opts: AgentOptions): Promise<AgentResult> {
 			const choice = response.choices[0];
 			const message = choice.message;
 
-			// Track usage
 			if (response.usage) {
 				totalUsage.promptTokens += response.usage.prompt_tokens || 0;
 				totalUsage.completionTokens += response.usage.completion_tokens || 0;
 				totalUsage.totalTokens += response.usage.total_tokens || 0;
 			}
 
-			// Check for tool calls
 			if (message.tool_calls && message.tool_calls.length > 0) {
-				// Add assistant message with tool calls
 				session.messages.push({
 					role: "assistant",
 					content: message.content || null,
@@ -181,7 +150,6 @@ export async function runAgent(opts: AgentOptions): Promise<AgentResult> {
 					})),
 				} as OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam);
 
-				// Process each tool call
 				for (const tc of message.tool_calls) {
 					const toolName = tc.function.name;
 					let args: Record<string, unknown>;
@@ -203,23 +171,18 @@ export async function runAgent(opts: AgentOptions): Promise<AgentResult> {
 
 					onToolResult?.(toolName, result);
 
-					// Add tool result message
 					session.messages.push({
 						role: "tool",
 						tool_call_id: tc.id,
 						content: result,
 					});
 				}
-
-				// Continue loop for next LLM call
 				continue;
 			}
 
-			// No tool calls - this is the final response
 			finalContent = message.content || "";
 			session.messages.push({ role: "assistant", content: finalContent });
 
-			// Limit history length
 			if (session.messages.length > 60) {
 				const systemMsg = session.messages[0];
 				session.messages = [systemMsg, ...session.messages.slice(-40)];
@@ -251,11 +214,9 @@ export async function runAgent(opts: AgentOptions): Promise<AgentResult> {
 		}
 	}
 
-	// Max iterations reached
 	const latency = Date.now() - startTime;
-	finalContent =
-		finalContent ||
-		"He llegado al límite de iteraciones. La tarea puede ser demasiado compleja o requiere muchos pasos. Considera dividirla en partes más pequeñas.";
+	finalContent = finalContent ||
+		"He llegado al límite de iteraciones. Considera dividir la tarea en partes más pequeñas.";
 	session.messages.push({ role: "assistant", content: finalContent });
 
 	return {
@@ -270,10 +231,11 @@ export async function runAgent(opts: AgentOptions): Promise<AgentResult> {
 	};
 }
 
-/**
- * Reset a session (clear history)
- */
 export function resetSession(chatId: string): void {
 	sessions.delete(chatId);
 	logger.agent(`[${chatId}] Session reset`);
+}
+
+export function getActiveSessions(): string[] {
+	return Array.from(sessions.keys());
 }

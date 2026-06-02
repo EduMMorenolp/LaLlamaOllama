@@ -1,33 +1,19 @@
 import "dotenv/config";
 
-export interface EnvConfig {
-	enginePort: number;
-	backendUrl: string;
-	brainUrl: string;
-	apiKey: string;
-	defaultModel: string;
-	workspaceDir: string;
-	webSearchApiKey?: string;
-	webSearchEngine?: string;
-}
-
-export function loadEnv(): EnvConfig {
-	const requiredVars = ["API_KEY"];
-	const missing = requiredVars.filter((key) => !process.env[key] || process.env[key]!.trim() === "");
+export function validateEnv(): void {
+	const requiredVariables = ["API_KEY"];
+	const missing = requiredVariables.filter(
+		(key) => !process.env[key] || process.env[key]!.trim() === ""
+	);
 
 	if (missing.length > 0) {
-		console.error(`❌ [FATAL] Missing required env vars: ${missing.join(", ")}`);
+		console.error(`\n\x1b[31m❌ [FATAL] Faltan variables de entorno requeridas en Agent Engine:\x1b[0m`);
+		for (const key of missing) {
+			console.error(`   \x1b[33m- ${key}\x1b[0m`);
+		}
+		console.error(
+			`\n\x1b[36mPor favor, define estas variables en tu archivo .env o en el docker-compose.yml\x1b[0m\n`
+		);
 		process.exit(1);
 	}
-
-	return {
-		enginePort: parseInt(process.env.ENGINE_PORT || "3020", 10),
-		backendUrl: process.env.BACKEND_URL || "http://localhost:3016",
-		brainUrl: process.env.BRAIN_URL || "http://localhost:3015",
-		apiKey: process.env.API_KEY!,
-		defaultModel: process.env.DEFAULT_MODEL || "llama3.2:3b",
-		workspaceDir: process.env.WORKSPACE_DIR || "/workspace",
-		webSearchApiKey: process.env.WEB_SEARCH_API_KEY,
-		webSearchEngine: process.env.WEB_SEARCH_ENGINE || "google",
-	};
 }

@@ -1,13 +1,6 @@
-import { type ToolContext, toolRegistry } from "./registry.js";
+import { toolRegistry } from "./registry.js";
+import type { ToolContext } from "./types.js";
 
-/**
- * La herramienta de delegación permite al agent-engine delegar sub-tareas
- * a agentes OpenCode existentes (orchestrator, backend-dev, frontend-dev, etc.)
- * usando el sistema de task() del orquestador.
- *
- * En el contexto actual, la delegación se implementa como una recomendación
- * al usuario, ya que la ejecución cruzada requiere integración con OpenCode.
- */
 export function registerDelegateTool() {
 	toolRegistry.register({
 		spec: {

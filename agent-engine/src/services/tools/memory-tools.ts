@@ -1,5 +1,6 @@
-import type { BrainClient } from "../memory/brain-client.js";
-import { type ToolContext, toolRegistry } from "./registry.js";
+import type { BrainClient } from "../brain/client.js";
+import { toolRegistry } from "./registry.js";
+import type { ToolContext } from "./types.js";
 
 export function registerMemoryTools(brain: BrainClient) {
 	toolRegistry.register({
@@ -22,8 +23,7 @@ export function registerMemoryTools(brain: BrainClient) {
 						},
 						type: {
 							type: "string",
-							description:
-								"Type of memory: 'feature', 'bug-fix', 'architecture', 'decision', 'discovery', or 'note'",
+							description: "Type of memory: 'feature', 'bug-fix', 'architecture', 'decision', 'discovery', or 'note'",
 							enum: ["feature", "bug-fix", "architecture", "decision", "discovery", "note"],
 						},
 						tags: {

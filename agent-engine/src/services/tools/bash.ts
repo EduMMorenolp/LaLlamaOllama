@@ -1,10 +1,10 @@
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
-import { type ToolContext, toolRegistry } from "./registry.js";
+import { toolRegistry } from "./registry.js";
+import type { ToolContext } from "./types.js";
 
 const execAsync = promisify(exec);
 
-// Comandos peligrosos que requieren confirmación
 const DANGEROUS_PATTERNS = [
 	/^rm\s+-rf\s+\/\s*$/,
 	/^mkfs\./,
@@ -61,7 +61,7 @@ export function registerBashTool() {
 				const { stdout, stderr } = await execAsync(command, {
 					timeout,
 					cwd: workdir,
-					maxBuffer: 10 * 1024 * 1024, // 10MB
+					maxBuffer: 10 * 1024 * 1024,
 				});
 
 				let result = "";
