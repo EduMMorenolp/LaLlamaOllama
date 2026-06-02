@@ -12,6 +12,16 @@ export interface AgentOptions {
 	onChunk?: (text: string) => void;
 	onToolCall?: (toolName: string, args: Record<string, unknown>) => void;
 	onToolResult?: (toolName: string, result: string) => void;
+	/** Called with status messages (e.g. for Telegram sending ⏳ indicators) */
+	onStatus?: (text: string) => void;
+	/** Called with typing indicator state */
+	onTyping?: (isTyping: boolean) => void;
+	/** Origin of the message (web | telegram) */
+	origin?: "web" | "telegram";
+	/** Telegram chat ID for direct replies */
+	telegramChatId?: number;
+	/** If true, skip persisting the user message to DB (already done by the channel) */
+	skipPersistUserMsg?: boolean;
 }
 
 export interface AgentResult {

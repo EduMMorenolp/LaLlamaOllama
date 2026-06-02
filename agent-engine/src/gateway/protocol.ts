@@ -12,6 +12,26 @@ export type WsMessageType =
 	| "get_status"
 	| "list_tools"
 	| "toggle_tool"
+	// Expert management
+	| "list_experts"
+	| "expert_update"
+	// User management
+	| "list_users"
+	| "user_register"
+	| "user_update"
+	| "user_delete"
+	| "identify"
+	// Chat management
+	| "list_chats"
+	| "chat_update"
+	| "switch_chat"
+	// Model management
+	| "list_models"
+	| "model_update"
+	// Tasks
+	| "list_tasks"
+	// Telegram settings
+	| "telegram_update"
 	// Server → Client
 	| "assistant_chunk"
 	| "assistant_done"
@@ -19,7 +39,8 @@ export type WsMessageType =
 	| "tool_result"
 	| "status"
 	| "error"
-	| "tools_list";
+	| "tools_list"
+	| "action_log";
 
 export interface UserMessagePayload {
 	chatId: string;

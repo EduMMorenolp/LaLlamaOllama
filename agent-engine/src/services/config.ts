@@ -5,6 +5,9 @@ export interface AppConfig {
 	apiKey: string;
 	defaultModel: string;
 	workspaceDir: string;
+	dbPath: string;
+	telegramBotToken: string;
+	telegramAllowedUsers: string[];
 }
 
 export function loadConfig(): AppConfig {
@@ -15,5 +18,8 @@ export function loadConfig(): AppConfig {
 		apiKey: process.env.API_KEY!,
 		defaultModel: process.env.DEFAULT_MODEL || "llama3.2:3b",
 		workspaceDir: process.env.WORKSPACE_DIR || "/workspace",
+		dbPath: process.env.DB_PATH || "./agent-engine.db",
+		telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || "",
+		telegramAllowedUsers: (process.env.TELEGRAM_ALLOWED_USERS || "").split(",").filter(Boolean),
 	};
 }

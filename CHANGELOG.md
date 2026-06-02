@@ -7,6 +7,39 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 
 ## [Unreleased]
 
+### 🤖 Telegram Gateway + Sub-Agent System + Dashboard Settings (2026-06-02)
+
+#### Agent Engine
+- **Nuevo SQLite local** (`better-sqlite3`) para datos operacionales:
+  - `services/db/connection.ts` — singleton con 5 tablas: users, sub_agents, messages, chats, models.
+  - `services/db/users.ts` — CRUD de usuarios (userId, telegram_id, telegram_user, timezone).
+  - `services/db/experts.ts` — CRUD de sub-agentes (name, model, system_prompt, tools[], experts[]).
+  - `services/db/chats.ts` — persistencia de chats con título, pin, última actividad.
+  - `services/db/messages.ts` — mensajes persistentes por chatId con origen (web/telegram).
+  - `services/db/models.ts` — CRUD de modelos guardados (name, apiKey, baseUrl).
+- **Nuevo Telegram Bot** (`services/telegram/`):
+  - `services/telegram/bot.ts` — start/stop bot, message handler con autorización por whitelist.
+  - `services/telegram/commands.ts` — 8 comandos: /start, /agentes, /crear_agente, /borrar_agente, /reset, /model, /status, /tools, /profile.
+  - `services/telegram/callbacks.ts` — manejo de callback_query para botones inline.
+  - Tags @AgentName para invocar sub-agentes directamente desde Telegram.
+  - Modo Orquestador automático si existe agente "orquestador".
+  - Persistencia de mensajes en SQLite local.
+- **runAgent.ts mejorado**: nuevos callbacks `onStatus` (⏳ indicadores progreso) y `onTyping`. Nuevos campos `origin`, `telegramChatId`, `skipPersistUserMsg`. Persistencia automática a SQLite.
+- **appConfig.ts**: nuevos campos `dbPath`, `telegramBotToken`, `telegramAllowedUsers`.
+- **Protocolo WebSocket extendido**: 17 nuevos tipos de mensaje (expert_update, user_register, chat_update, switch_chat, telegram_update, etc.).
+- **server/handlers.ts**: manejo completo de expertos, usuarios, chats, modelos y Telegram.
+- **server/api.ts**: nuevos endpoints REST `/api/experts`, `/api/users`, `/api/models`, `/api/stats`.
+
+#### Frontend
+- **AgentChat.tsx expandido a dashboard completo** con 3 tabs:
+  - **Chat** — el chat existente con tool calls en tiempo real.
+  - **Settings** — selector de modelo, token de Telegram (con save), toggles de herramientas.
+  - **Sub-Agents** — listado, creación (nombre + modelo + system prompt) y eliminación de agentes expertos.
+
+#### Builds verificados
+- `agent-engine`: ✅ TypeScript 0 errores (con better-sqlite3 + node-telegram-bot-api).
+- `frontend`: ✅ TypeScript + Vite production build 0 errores (646 KB JS).
+
 ### 🏗️ Arquitectura — Migración Agent Engine a Use Case Pattern + DI funcional (2026-06-02)
 
 #### Agent Engine

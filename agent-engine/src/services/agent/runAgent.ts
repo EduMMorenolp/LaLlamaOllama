@@ -7,7 +7,7 @@ import { createClient, getDefaultModelConfig } from "./createClient.js";
 import { buildSystemPrompt } from "./buildPrompt.js";
 import type { AgentOptions, AgentResult, SessionState } from "./types.js";
 
-// ─── Session state (in-memory, like mcp-brain's SQLite but simpler) ──
+// ─── Session state (in-memory) ──
 
 const sessions = new Map<string, SessionState>();
 
@@ -29,11 +29,31 @@ function getSession(opts: AgentOptions): SessionState {
 // ─── Main Agent Loop ──────────────────────────────────────────────────
 
 export async function runAgent(opts: AgentOptions): Promise<AgentResult> {
-	const { chatId, userText, config, brain, onToolCall, onToolResult } = opts;
+	const { chatId, userText, config, brain, onToolCall, onToolResult, onStatus, onTyping } = opts;
 	const startTime = Date.now();
+
+	// Notify typing/status
+	onTyping?.(true);
+	onStatus?.("Procesando tu solicitud...");
 
 	// 1. Get or create session state
 	const session = getSession(opts);
+
+	// 1b. Persist user message to local SQLite unless skipPersistUserMsg is set
+	if (!opts.skipPersistUserMsg) {
+		try {
+			const { saveMessage } = await import("../db/messages.js");
+			saveMessage({
+				userId: opts.origin === "telegram" ? `telegram-${opts.telegramChatId || chatId}` : chatId,
+				chatId,
+				role: "user",
+				content: userText,
+				origin: opts.origin || "web",
+			});
+		} catch {
+			// DB might not be available, continue without persistence
+		}
+	}
 
 	// 2. Load context from mcp-brain on first message
 	if (session.messages.length === 0) {
@@ -43,9 +63,23 @@ export async function runAgent(opts: AgentOptions): Promise<AgentResult> {
 			brain.getContext(10).catch(() => ""),
 		]);
 
-		const modelConfig = getDefaultModelConfig(config);
-		const tools = toolRegistry.getSpecs();
-		const systemPrompt = buildSystemPrompt(config, tools, directives, context, modelConfig.model);
+		// Check for general override in SQLite
+		let systemPrompt: string;
+		try {
+			const { getGeneralConfig } = await import("../db/experts.js");
+			const generalOverride = getGeneralConfig();
+			if (generalOverride) {
+				systemPrompt = generalOverride.system_prompt;
+			} else {
+				const modelConfig = getDefaultModelConfig(config);
+				const tools = toolRegistry.getSpecs();
+				systemPrompt = buildSystemPrompt(config, tools, directives, context, modelConfig.model);
+			}
+		} catch {
+			const modelConfig = getDefaultModelConfig(config);
+			const tools = toolRegistry.getSpecs();
+			systemPrompt = buildSystemPrompt(config, tools, directives, context, modelConfig.model);
+		}
 
 		session.messages.push({
 			role: "system",
@@ -104,6 +138,8 @@ export async function runAgent(opts: AgentOptions): Promise<AgentResult> {
 	const totalUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 	const maxIterations = 10;
 
+	onStatus?.("Iniciando razonamiento...");
+
 	for (let iteration = 0; iteration < maxIterations; iteration++) {
 		logger.agent(`[${chatId}] LLM call #${iteration + 1} (model: ${modelConfig.model})`);
 
@@ -160,6 +196,7 @@ export async function runAgent(opts: AgentOptions): Promise<AgentResult> {
 					}
 
 					onToolCall?.(toolName, args);
+					onStatus?.(`🧰 Usando herramienta: ${toolName}`);
 					logger.tool(`[${chatId}] Tool call: ${toolName}`, args);
 
 					let result: string;
@@ -189,6 +226,24 @@ export async function runAgent(opts: AgentOptions): Promise<AgentResult> {
 			}
 
 			const latency = Date.now() - startTime;
+
+			// Persist assistant response to SQLite
+			if (!opts.skipPersistUserMsg) {
+				try {
+					const { saveMessage } = await import("../db/messages.js");
+					saveMessage({
+						userId: opts.origin === "telegram" ? `telegram-${opts.telegramChatId || chatId}` : chatId,
+						chatId,
+						role: "assistant",
+						content: finalContent,
+						origin: opts.origin || "web",
+					});
+				} catch {
+					// DB might not be available
+				}
+			}
+
+			onTyping?.(false);
 			logger.agent(`[${chatId}] Response complete (${latency}ms)`);
 
 			return {
@@ -206,6 +261,7 @@ export async function runAgent(opts: AgentOptions): Promise<AgentResult> {
 			logger.error(`[${chatId}] LLM call failed: ${errorMsg}`);
 			const latency = Date.now() - startTime;
 
+			onTyping?.(false);
 			return {
 				text: `Lo siento, encontré un error al procesar tu solicitud:\n\n${errorMsg}`,
 				model: modelConfig.model,
@@ -218,6 +274,7 @@ export async function runAgent(opts: AgentOptions): Promise<AgentResult> {
 	finalContent = finalContent ||
 		"He llegado al límite de iteraciones. Considera dividir la tarea en partes más pequeñas.";
 	session.messages.push({ role: "assistant", content: finalContent });
+	onTyping?.(false);
 
 	return {
 		text: finalContent,

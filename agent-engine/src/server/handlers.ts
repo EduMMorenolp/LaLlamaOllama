@@ -6,15 +6,39 @@ import { toolRegistry } from "../services/tools/registry.js";
 import { logger } from "../utils/logger.js";
 import { createMessage } from "../gateway/protocol.js";
 import type { WsServer } from "./ws.js";
+import {
+	listExperts,
+	getExpert,
+	upsertExpert,
+	deleteExpert,
+} from "../services/db/experts.js";
+import { listAllUsers, upsertUser, deleteUser } from "../services/db/users.js";
+import {
+	createChat,
+	listChats,
+	listChannelChats,
+	getChat,
+	renameChat,
+	deleteChat as deleteDbChat,
+	togglePin,
+} from "../services/db/chats.js";
+import { getMessages } from "../services/db/messages.js";
+import { listModels, upsertModel, deleteModel } from "../services/db/models.js";
+import { startTelegram, stopTelegram, initTelegramDeps } from "../services/telegram/bot.js";
 
 export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 	const config = loadConfig();
 
+	// Initialize telegram deps
+	initTelegramDeps(config, brain);
+
 	return {
 		handleMessage(clientId: string, ws: WebSocket, msg: unknown) {
-			const { type, payload } = msg as { type: string; payload?: Record<string, unknown> };
+			const parsed = msg as { type: string; payload?: Record<string, unknown> };
+			const { type, payload } = parsed;
 
 			switch (type) {
+				// ─── Chat ────────────────────────────────────────────────
 				case "user_message": {
 					const chatId = (payload?.chatId as string) || clientId;
 					const text = (payload?.text as string) || "";
@@ -22,7 +46,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 						ws.send(createMessage("error", { message: "Empty message", code: "EMPTY" }));
 						return;
 					}
-					this.handleUserMessage(chatId, text);
+					this.handleUserMessage(chatId, text, clientId);
 					break;
 				}
 				case "cancel": {
@@ -36,13 +60,18 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					});
 					break;
 				}
+
+				// ─── Status / Tools ──────────────────────────────────────
 				case "get_status": {
-					ws.send(createMessage("status", {
-						status: "running",
-						model: config.defaultModel,
-						tools: toolRegistry.getToolNames(),
-						clients: wsServer.getClientCount(),
-					}));
+					ws.send(
+						createMessage("status", {
+							status: "running",
+							model: config.defaultModel,
+							tools: toolRegistry.getToolNames(),
+							clients: wsServer.getClientCount(),
+							telegramActive: !!process.env.TELEGRAM_BOT_TOKEN,
+						})
+					);
 					break;
 				}
 				case "list_tools": {
@@ -55,21 +84,203 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					const enabled = payload?.enabled as boolean;
 					if (name) {
 						const ok = toolRegistry.setEnabled(name, enabled);
-						ws.send(createMessage("status", {
-							message: `Tool "${name}" ${enabled ? "enabled" : "disabled"} (${ok ? "ok" : "not found"})`,
-						}));
+						ws.send(
+							createMessage("status", {
+								message: `Tool "${name}" ${enabled ? "enabled" : "disabled"} (${ok ? "ok" : "not found"})`,
+							})
+						);
 					}
 					break;
 				}
+
+				// ─── Expert Management ───────────────────────────────────
+				case "list_experts": {
+					const experts = listExperts();
+					ws.send(createMessage("list_experts", { experts }));
+					break;
+				}
+				case "expert_update": {
+					const action = payload?.action as string;
+					if (action === "upsert" && payload?.expert) {
+						upsertExpert(payload.expert as never);
+						ws.send(createMessage("list_experts", { experts: listExperts() }));
+					} else if (action === "delete" && payload?.name) {
+						deleteExpert(payload.name as string);
+						ws.send(createMessage("list_experts", { experts: listExperts() }));
+					}
+					break;
+				}
+
+				// ─── User Management ─────────────────────────────────────
+				case "list_users": {
+					ws.send(createMessage("list_users", { users: listAllUsers() }));
+					break;
+				}
+				case "identify": {
+					const userId = payload?.userId as string;
+					if (userId) {
+						logger.info(`👤 WebChat identified: ${clientId} -> ${userId}`);
+						ws.send(
+							createMessage("status", {
+								status: "identified",
+								userId,
+								model: config.defaultModel,
+							})
+						);
+						// Send chats for this user
+						ws.send(
+							createMessage("list_chats", {
+								chats: listChats(userId, undefined),
+								channelChats: listChannelChats(userId),
+							})
+						);
+						ws.send(createMessage("list_experts", { experts: listExperts() }));
+					}
+					break;
+				}
+				case "user_register": {
+					const userId = payload?.userId as string;
+					upsertUser(userId, {
+						name: payload?.name as string,
+						timezone: payload?.timezone as string,
+						telegram_user: payload?.telegram_user as string,
+						telegram_token: payload?.telegram_token as string,
+					} as never);
+					logger.info(`✅ User registered: ${userId}`);
+					ws.send(createMessage("list_users", { users: listAllUsers() }));
+					break;
+				}
+				case "user_update": {
+					const uId = payload?.userId as string;
+					upsertUser(uId, payload as never);
+					ws.send(createMessage("list_users", { users: listAllUsers() }));
+					break;
+				}
+				case "user_delete": {
+					const dId = payload?.userId as string;
+					deleteUser(dId);
+					logger.info(`🗑️ User deleted: ${dId}`);
+					ws.send(createMessage("list_users", { users: listAllUsers() }));
+					break;
+				}
+
+				// ─── Chat Management ─────────────────────────────────────
+				case "list_chats": {
+					const userId = payload?.userId as string;
+					if (userId) {
+						ws.send(
+							createMessage("list_chats", {
+								chats: listChats(userId, undefined),
+								channelChats: listChannelChats(userId),
+							})
+						);
+					}
+					break;
+				}
+				case "chat_update": {
+					const chatAction = payload?.action as string;
+					const chatUserId = clientId;
+					if (chatAction === "create") {
+						const newChat = createChat(
+							chatUserId,
+							(payload?.expertName as string) || null,
+							payload?.title as string
+						);
+						ws.send(
+							createMessage("assistant_done", {
+								chatId: newChat.id,
+								text: "Chat creado.",
+								model: "system",
+								latencyMs: 0,
+							})
+						);
+					} else if (chatAction === "rename" && payload?.chatId && payload?.title) {
+						renameChat(payload.chatId as string, payload.title as string);
+					} else if (chatAction === "delete" && payload?.chatId) {
+						deleteDbChat(payload.chatId as string);
+					} else if (chatAction === "pin" && payload?.chatId) {
+						togglePin(payload.chatId as string);
+					}
+					ws.send(
+						createMessage("list_chats", {
+							chats: listChats(chatUserId, undefined),
+							channelChats: listChannelChats(chatUserId),
+						})
+					);
+					break;
+				}
+				case "switch_chat": {
+					const swChatId = payload?.chatId as string;
+					if (swChatId) {
+						const storedMessages = getMessages(swChatId);
+						const chat = getChat(swChatId);
+						ws.send(
+							createMessage("assistant_done", {
+								chatId: swChatId,
+								history: storedMessages.map((m) => ({
+									role: m.role,
+									text: m.content,
+									origin: m.origin,
+								})),
+								expertName: chat?.expertName || null,
+								text: storedMessages.length === 0 ? "Este chat no tiene mensajes aún." : "",
+								model: "Sistema",
+							})
+						);
+					}
+					break;
+				}
+
+				// ─── Model Management ────────────────────────────────────
+				case "list_models": {
+					ws.send(createMessage("list_models", { models: listModels() }));
+					break;
+				}
+				case "model_update": {
+					const modelAction = payload?.action as string;
+					if (modelAction === "upsert" && payload?.modelConfig) {
+						upsertModel(payload.modelConfig as never);
+					} else if (modelAction === "delete" && payload?.name) {
+						deleteModel(payload.name as string);
+					}
+					ws.send(createMessage("list_models", { models: listModels() }));
+					break;
+				}
+
+				// ─── Telegram Settings ───────────────────────────────────
+				case "telegram_update": {
+					const token = payload?.botToken as string;
+					const enabled = payload?.enabled as boolean;
+					if (enabled && token) {
+						process.env.TELEGRAM_BOT_TOKEN = token;
+						startTelegram().catch((err) => {
+							logger.error(`Failed to start Telegram: ${err}`);
+						});
+					} else if (!enabled) {
+						stopTelegram().catch((err) => {
+							logger.error(`Failed to stop Telegram: ${err}`);
+						});
+					}
+					ws.send(
+						createMessage("status", {
+							message: `Telegram ${enabled ? "started" : "stopped"}`,
+							telegramActive: !!process.env.TELEGRAM_BOT_TOKEN,
+						})
+					);
+					break;
+				}
+
 				default:
-					ws.send(createMessage("error", {
-						message: `Unknown message type: ${type}`,
-						code: "UNKNOWN_TYPE",
-					}));
+					ws.send(
+						createMessage("error", {
+							message: `Unknown message type: ${type}`,
+							code: "UNKNOWN_TYPE",
+						})
+					);
 			}
 		},
 
-		async handleUserMessage(chatId: string, text: string) {
+		async handleUserMessage(chatId: string, text: string, clientId: string) {
 			logger.agent(`[${chatId}] Received: "${text.substring(0, 100)}..."`);
 
 			try {

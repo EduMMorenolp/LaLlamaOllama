@@ -7,6 +7,8 @@ import { toolRegistry } from "./services/tools/registry.js";
 import { startApiServer } from "./server/api.js";
 import { WsServer } from "./server/ws.js";
 import { startCronJobs } from "./server/cron.js";
+import { getDb } from "./services/db/connection.js";
+import { initTelegramDeps, startTelegram } from "./services/telegram/bot.js";
 import { logger } from "./utils/logger.js";
 
 async function bootstrap() {
@@ -24,7 +26,15 @@ async function bootstrap() {
 	logger.info(`[Config] Brain: ${config.brainUrl}`);
 	logger.info(`[Config] Model: ${config.defaultModel}`);
 
-	// 3. Create BrainClient (core dependency, like DatabaseService in mcp-brain)
+	// 3. Initialize local SQLite
+	try {
+		getDb(config.dbPath);
+		logger.info(`[DB] SQLite ready at: ${config.dbPath}`);
+	} catch (err) {
+		logger.warn(`[DB] SQLite init failed: ${err}`);
+	}
+
+	// 4. Create BrainClient (core dependency)
 	const brain = new BrainClient(config);
 	try {
 		const stats = await brain.getStats();
@@ -34,33 +44,43 @@ async function bootstrap() {
 		logger.warn("[Brain] Will retry on each memory operation");
 	}
 
-	// 4. Register all tools (injected with brain dependency)
+	// 5. Register all tools (injected with brain dependency)
 	registerAllTools(brain);
 	logger.info(`[Tools] ${toolRegistry.getToolNames().length} tools registered:`);
 	for (const name of toolRegistry.getToolNames()) {
 		logger.info(`  - ${name} (${toolRegistry.isEnabled(name) ? "enabled" : "disabled"})`);
 	}
 
-	// 5. Start servers (injected with dependencies)
+	// 6. Initialize Telegram dependencies
+	initTelegramDeps(config, brain);
 
-	// REST API (non-blocking)
+	// 7. Start Telegram bot if token configured
+	if (config.telegramBotToken) {
+		await startTelegram();
+	} else {
+		logger.info("[Telegram] No token configured. Skipping.");
+	}
+
+	// 8. Start servers
 	startApiServer(config);
-
-	// WebSocket server (non-blocking)
 	const wsServer = new WsServer(config, brain);
 
-	// Background jobs
+	// 9. Background jobs
 	startCronJobs(brain);
 
 	// Handle shutdown
-	process.on("SIGINT", () => {
+	process.on("SIGINT", async () => {
 		logger.info("Shutting down...");
+		const { stopTelegram } = await import("./services/telegram/bot.js");
+		await stopTelegram();
 		wsServer.close();
 		process.exit(0);
 	});
 
-	process.on("SIGTERM", () => {
+	process.on("SIGTERM", async () => {
 		logger.info("Shutting down...");
+		const { stopTelegram } = await import("./services/telegram/bot.js");
+		await stopTelegram();
 		wsServer.close();
 		process.exit(0);
 	});
