@@ -88,32 +88,29 @@ export async function runAgent(opts: AgentOptions): Promise<AgentResult> {
 	}
 
 	// 3. Add user message
-	const userContent: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
-		{ type: "text", text: userText },
-	];
+	let userContent = userText;
 
 	if (opts.attachments && opts.attachments.length > 0) {
+		const attachmentText: string[] = [];
 		for (const att of opts.attachments) {
 			if (att.type.startsWith("image/")) {
-				userContent.push({
-					type: "image_url",
-					image_url: { url: att.data, detail: "auto" },
-				});
-			} else if (att.type.startsWith("text/") || att.type === "application/json") {
+				attachmentText.push(`[Imagen adjunta: ${att.name}]`);
+				continue;
+			}
+
+			if (att.type.startsWith("text/") || att.type === "application/json") {
 				try {
 					const base64Content = att.data.split(",")[1] || "";
 					const decoded = Buffer.from(base64Content, "base64").toString("utf-8");
-					userContent.push({
-						type: "text",
-						text: `\n\n--- Attached file: ${att.name} ---\n${decoded}\n--- End file ---`,
-					});
+					attachmentText.push(`\n\n--- Attached file: ${att.name} ---\n${decoded}\n--- End file ---`);
 				} catch {
-					userContent.push({
-						type: "text",
-						text: `\n\n[Could not read attachment: ${att.name}]`,
-					});
+					attachmentText.push(`\n\n[Could not read attachment: ${att.name}]`);
 				}
 			}
+		}
+
+		if (attachmentText.length > 0) {
+			userContent += `\n\n=== ARCHIVOS ADJUNTOS ===${attachmentText.join("\n")}`;
 		}
 	}
 
