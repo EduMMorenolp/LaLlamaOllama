@@ -9,6 +9,8 @@ import { WsServer } from "./server/ws.js";
 import { startCronJobs } from "./server/cron.js";
 import { getDb } from "./services/db/connection.js";
 import { initTelegramDeps, startTelegram } from "./services/telegram/bot.js";
+import { setRuntimeContext } from "./services/runtime.js";
+import { initOrchestrator } from "./services/orchestrator/index.js";
 import { logger } from "./utils/logger.js";
 
 async function bootstrap() {
@@ -36,6 +38,7 @@ async function bootstrap() {
 
 	// 4. Create BrainClient (core dependency)
 	const brain = new BrainClient(config);
+	setRuntimeContext(config, brain);
 	try {
 		const stats = await brain.getStats();
 		logger.info(`[Brain] Connected. Stats: ${JSON.stringify(stats)}`);
@@ -43,6 +46,9 @@ async function bootstrap() {
 		logger.warn(`[Brain] Initial connection failed: ${err}`);
 		logger.warn("[Brain] Will retry on each memory operation");
 	}
+
+	// 4b. Initialize orchestrator/queue
+	initOrchestrator();
 
 	// 5. Register all tools (injected with brain dependency)
 	registerAllTools(brain);

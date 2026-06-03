@@ -23,5 +23,7 @@ export {
 } from "./chats.js";
 export type { StoredMessage } from "./messages.js";
 export { saveMessage, getMessages, getMessagesByUser } from "./messages.js";
+export type { StoredRun, RunEventRecord } from "./runs.js";
+export { createRun, updateRun, appendRunEvent, getRun, listRuns } from "./runs.js";
 export type { ModelEntry } from "./models.js";
 export { getModel, upsertModel, listModels, deleteModel } from "./models.js";

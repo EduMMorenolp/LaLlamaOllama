@@ -53,6 +53,29 @@ export function getDb(dbPath?: string): Database.Database {
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		);
 
+		CREATE TABLE IF NOT EXISTS runs (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			chatId TEXT NOT NULL,
+			userText TEXT NOT NULL,
+			origin TEXT DEFAULT 'web',
+			status TEXT NOT NULL DEFAULT 'queued',
+			model TEXT,
+			resultText TEXT,
+			errorText TEXT,
+			latencyMs INTEGER,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+
+		CREATE TABLE IF NOT EXISTS run_events (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			runId INTEGER NOT NULL,
+			type TEXT NOT NULL,
+			payload TEXT NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY(runId) REFERENCES runs(id) ON DELETE CASCADE
+		);
+
 		CREATE TABLE IF NOT EXISTS models (
 			name TEXT PRIMARY KEY,
 			displayName TEXT,
@@ -76,6 +99,9 @@ export function getDb(dbPath?: string): Database.Database {
 		CREATE INDEX IF NOT EXISTS idx_messages_chatId ON messages(chatId);
 		CREATE INDEX IF NOT EXISTS idx_chats_userId ON chats(userId);
 		CREATE INDEX IF NOT EXISTS idx_sub_agents_name ON sub_agents(name);
+		CREATE INDEX IF NOT EXISTS idx_runs_chatId ON runs(chatId);
+		CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status);
+		CREATE INDEX IF NOT EXISTS idx_run_events_runId ON run_events(runId);
 	`);
 
 	// ─── Migrations ───────────────────────────────────────────────────────
@@ -111,6 +137,26 @@ export function getDb(dbPath?: string): Database.Database {
 	}
 	try {
 		_db.exec("ALTER TABLE messages ADD COLUMN expertName TEXT");
+	} catch {
+		// already exists
+	}
+	try {
+		_db.exec("ALTER TABLE runs ADD COLUMN model TEXT");
+	} catch {
+		// already exists
+	}
+	try {
+		_db.exec("ALTER TABLE runs ADD COLUMN resultText TEXT");
+	} catch {
+		// already exists
+	}
+	try {
+		_db.exec("ALTER TABLE runs ADD COLUMN errorText TEXT");
+	} catch {
+		// already exists
+	}
+	try {
+		_db.exec("ALTER TABLE runs ADD COLUMN latencyMs INTEGER");
 	} catch {
 		// already exists
 	}

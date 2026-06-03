@@ -116,6 +116,15 @@ services:
       - mcp-network
     restart: no
 
+  redis:
+    image: redis:7-alpine
+    container_name: agent-engine-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - mcp-network
+    restart: no
+
   agent-engine:
     build:
       context: ./agent-engine
@@ -128,6 +137,7 @@ services:
       - ENGINE_PORT=${ENGINE_PORT:-3020}
       - BACKEND_URL=http://backend:3016
       - BRAIN_URL=http://brain:3015
+      - REDIS_URL=redis://redis:6379
       - API_KEY=${API_KEY:-super-secret-mcp-key}
       - DEFAULT_MODEL=${DEFAULT_MODEL:-llama3.2:3b}
       - WORKSPACE_DIR=/workspace
@@ -137,6 +147,7 @@ services:
     depends_on:
       - backend
       - mcp-brain
+      - redis
     networks:
       - mcp-network
     restart: no
