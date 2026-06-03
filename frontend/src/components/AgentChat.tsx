@@ -70,7 +70,20 @@ export const AgentChat: React.FC = () => {
 	// Connect WebSocket
 	useEffect(() => {
 		const engineUrl = import.meta.env.VITE_ENGINE_URL || "http://localhost:3020";
-		const wsUrl = engineUrl.replace("http", "ws");
+		const wsUrl = (() => {
+			try {
+				const url = new URL(engineUrl);
+				if (url.protocol === "http:") url.protocol = "ws:";
+				else if (url.protocol === "https:") url.protocol = "wss:";
+				if (url.protocol === "ws:" || url.protocol === "wss:") {
+					const port = Number(url.port || "3020");
+					url.port = String(Number.isFinite(port) ? port + 1 : 3021);
+				}
+				return url.toString();
+			} catch {
+				return "ws://localhost:3021";
+			}
+		})();
 
 		setConnectionStatus("connecting");
 

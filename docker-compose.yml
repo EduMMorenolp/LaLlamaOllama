@@ -123,6 +123,7 @@ services:
     container_name: agent-engine
     ports:
       - "${ENGINE_PORT:-3020}:${ENGINE_PORT:-3020}"
+      - "3021:3021"
     environment:
       - ENGINE_PORT=${ENGINE_PORT:-3020}
       - BACKEND_URL=http://backend:3016
