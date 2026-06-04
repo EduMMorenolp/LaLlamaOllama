@@ -89,6 +89,23 @@ services:
       - backend
     restart: no
 
+  agent-frontend:
+    build:
+      context: ./agent-frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_ENGINE_URL=http://localhost:${ENGINE_PORT:-3020}
+    container_name: agent-frontend
+    ports:
+      - "8081:80"
+    environment:
+      - VITE_ENGINE_URL=http://agent-engine:${ENGINE_PORT:-3020}
+    networks:
+      - mcp-network
+    depends_on:
+      - agent-engine
+    restart: no
+
   mcp-brain:
     build:
       context: ./mcp-brain

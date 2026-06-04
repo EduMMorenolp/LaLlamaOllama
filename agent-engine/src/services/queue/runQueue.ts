@@ -1,4 +1,4 @@
-import IORedis from "ioredis";
+import { Redis } from "ioredis";
 import { Queue, QueueEvents, Worker } from "bullmq";
 import type { AgentResult } from "../agent/types.js";
 import { logger } from "../../utils/logger.js";
@@ -19,15 +19,15 @@ export interface QueueAgentRunPayload {
 
 const queueName = "agent-engine-runs";
 
-let redisConnection: IORedis | null = null;
+let redisConnection: Redis | null = null;
 let runQueue: Queue | null = null;
 let runQueueEvents: QueueEvents | null = null;
 let runWorker: Worker | null = null;
 let queueReady = false;
 
-function createConnection(): IORedis {
+function createConnection(): Redis {
 	const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
-	return new IORedis(redisUrl, { maxRetriesPerRequest: null });
+	return new Redis(redisUrl, { maxRetriesPerRequest: null });
 }
 
 function forwardRunEvent(
@@ -84,17 +84,17 @@ export function ensureRunQueue(): boolean {
 	try {
 		redisConnection = createConnection();
 		runQueue = new Queue(queueName, {
-			connection: redisConnection,
+			connection: redisConnection as any,
 			defaultJobOptions: {
 				removeOnComplete: 50,
 				removeOnFail: 50,
 			},
 		});
-		runQueueEvents = new QueueEvents(queueName, { connection: redisConnection });
+		runQueueEvents = new QueueEvents(queueName, { connection: redisConnection as any });
 		runWorker = new Worker(
 			queueName,
 			async (job) => processQueuedRun(job.data as QueueAgentRunPayload),
-			{ connection: redisConnection, concurrency: 1 }
+			{ connection: redisConnection as any, concurrency: 1 }
 		);
 
 		runWorker.on("failed", (job, err) => {

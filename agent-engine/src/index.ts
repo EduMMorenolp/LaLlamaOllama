@@ -68,7 +68,7 @@ async function bootstrap() {
 	}
 
 	// 8. Start servers
-	startApiServer(config);
+	startApiServer(config, brain);
 	const wsServer = new WsServer(config, brain);
 
 	// 9. Background jobs

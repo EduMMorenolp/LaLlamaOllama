@@ -106,3 +106,35 @@ export function listRuns(limit = 20): StoredRun[] {
 		.prepare("SELECT * FROM runs ORDER BY created_at DESC LIMIT ?")
 		.all(limit) as StoredRun[];
 }
+
+export function listRunsByFilters(filters: {
+	status?: string;
+	limit?: number;
+	offset?: number;
+}): StoredRun[] {
+	const db = getDb();
+	const conditions: string[] = [];
+	const params: Array<string | number> = [];
+
+	if (filters.status) {
+		conditions.push("status = ?");
+		params.push(filters.status);
+	}
+
+	const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+	const limit = filters.limit ?? 50;
+	const offset = filters.offset ?? 0;
+
+	return db
+		.prepare(
+			`SELECT * FROM runs ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`
+		)
+		.all(...params, limit, offset) as StoredRun[];
+}
+
+export function getRunEvents(runId: number): RunEventRecord[] {
+	const db = getDb();
+	return db
+		.prepare("SELECT * FROM run_events WHERE runId = ? ORDER BY id ASC")
+		.all(runId) as RunEventRecord[];
+}

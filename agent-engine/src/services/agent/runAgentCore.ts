@@ -85,10 +85,10 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 				if (!opts.skipPersistUserMsg && stored.role === "user" && stored.content === userText) {
 					continue;
 				}
-				session.messages.push({
-					role: stored.role as OpenAI.Chat.Completions.ChatCompletionMessageParam["role"],
-					content: stored.content,
-				});
+			session.messages.push({
+				role: stored.role as OpenAI.Chat.Completions.ChatCompletionMessageParam["role"],
+				content: stored.content,
+			} as OpenAI.Chat.Completions.ChatCompletionMessageParam);
 			}
 		} catch {
 			// cached context is optional
