@@ -5,6 +5,9 @@ import https from "node:https";
 import type { AxiosInstance } from "axios";
 import axios from "axios";
 import type { Server as SocketServer } from "socket.io";
+import logger from "../utils/logger.js";
+
+const log = logger.child({ component: "ollama" });
 
 export interface OllamaModel {
 	name: string;
@@ -21,7 +24,9 @@ interface RequestLogEntry {
 
 interface SessionMessage {
 	role: string;
-	content: string;
+	content: string | null;
+	tool_calls?: Array<Record<string, unknown>>;
+	tool_call_id?: string;
 	[key: string]: unknown;
 }
 
@@ -82,7 +87,7 @@ export class OllamaService {
 				// Process next queued request
 				const nextFn = this.requestQueue.shift();
 				if (nextFn) {
-					this.enqueueRequest(nextFn).catch(console.error);
+					this.enqueueRequest(nextFn).catch((err: unknown) => log.error(err, "enqueueRequest error"));
 				}
 			}
 		}
@@ -99,7 +104,7 @@ export class OllamaService {
 					this.activeRequests--;
 					const next = this.requestQueue.shift();
 					if (next) {
-						this.enqueueRequest(next).catch(console.error);
+						this.enqueueRequest(next).catch((err: unknown) => log.error(err, "enqueueRequest error"));
 					}
 				}
 			});
@@ -142,11 +147,13 @@ export class OllamaService {
 		});
 
 		// Create axios client with keep-alive
+		const axiosTimeout = parseInt(process.env.OLLAMA_TIMEOUT || "300000", 10);
 		this.axiosClient = axios.create({
 			httpAgent: this.httpAgent,
 			httpsAgent: this.httpsAgent,
-			timeout: 120000, // 2 min timeout for long inference
+			timeout: axiosTimeout,
 		});
+		log.info({ timeout: axiosTimeout }, "Axios client created");
 
 		this.loadStats();
 		this.startAutoUnloadWatcher();
@@ -161,16 +168,9 @@ export class OllamaService {
 			const green = "\x1b[32m";
 			const reset = "\x1b[0m";
 
-			console.log(`
-        ${green}✅ Ollama Engine Connection Established${reset}
-        -----------------------------------
-        ${yellow}Host:${reset}     ${cyan}${this.baseUrl}${reset}
-        ${yellow}Driver:${reset}   ${cyan}Axios / REST${reset}
-        ${yellow}Modo:${reset}     ${cyan}${process.env.NODE_ENV || "development"}${reset}
-        -----------------------------------
-        `);
+			log.info({ host: this.baseUrl, mode: process.env.NODE_ENV || "development" }, "✅ Ollama Engine Connection Established");
 		} catch (_error) {
-			console.error("❌ No se pudo conectar al motor Ollama local");
+			log.error("❌ No se pudo conectar al motor Ollama local");
 		}
 	}
 
@@ -211,7 +211,7 @@ export class OllamaService {
 			if (this.autoUnloadMinutes <= 0) return;
 			const inactiveMins = (Date.now() - this.lastChatTime) / 60000;
 			if (inactiveMins >= this.autoUnloadMinutes) {
-				console.log(`[auto-unload] ${inactiveMins.toFixed(1)}min inactividad — liberando VRAM...`);
+				log.info({ inactiveMins: inactiveMins.toFixed(1) }, "auto-unload: liberando VRAM");
 				try {
 					await this.unloadModels();
 					if (this.io)
@@ -220,7 +220,7 @@ export class OllamaService {
 							message: `Auto-Unload: VRAM liberada por inactividad (${this.autoUnloadMinutes}min)`,
 						});
 				} catch (err) {
-					console.error("[auto-unload-error]", err);
+					log.error(err, "auto-unload error");
 					if (this.io)
 						this.io.emit("security-alert", {
 							type: "error",
@@ -360,7 +360,7 @@ export class OllamaService {
 			});
 			return response.data.embeddings || [];
 		} catch (error) {
-			console.error("[OllamaService] Error generating embeddings:", error);
+			log.error(error, "Error generating embeddings");
 			return [];
 		}
 	}
@@ -369,10 +369,47 @@ export class OllamaService {
 	 * Construye mensajes de sesión comprimiendo historial antiguo para ahorrar tokens.
 	 * Si hay >6 msgs en cache, resume los antiguos en un system msg y mantiene los últimos 5.
 	 */
-	private buildSessionMessages(
-		messages: SessionMessage[],
-		sessionId?: string
-	): SessionMessage[] {
+	private convertToOllamaMessages(messages: SessionMessage[]): SessionMessage[] {
+		const result: SessionMessage[] = [];
+
+		for (const msg of messages) {
+			if (msg.role === "assistant" && msg.tool_calls) {
+				const calls = msg.tool_calls.map((tc) => {
+					const fn = tc.function || tc;
+					let args = (fn as Record<string, unknown>).arguments;
+					if (typeof args === "string") {
+						try {
+							args = JSON.parse(args);
+						} catch {
+							args = {};
+						}
+					}
+					return { function: { name: (fn as Record<string, unknown>).name, arguments: args ?? {} } };
+				});
+				result.push({ role: "assistant", content: "", tool_calls: calls } as unknown as SessionMessage);
+			} else if (msg.role === "tool") {
+				const msgAny = msg as Record<string, unknown>;
+				const toolName =
+					msgAny.tool_name || msgAny.toolName || (typeof msgAny.name === "string" ? msgAny.name : undefined);
+				const ollamaMsg: Record<string, unknown> = {
+					role: "tool",
+					content: msg.content && typeof msg.content === "string" ? msg.content : "",
+				};
+				if (toolName) ollamaMsg.tool_name = toolName;
+				result.push(ollamaMsg as SessionMessage);
+			} else {
+				const ollamaMsg: SessionMessage = { role: msg.role, content: "" };
+				if (msg.content && typeof msg.content === "string") {
+					ollamaMsg.content = msg.content;
+				}
+				result.push(ollamaMsg);
+			}
+		}
+
+		return result;
+	}
+
+	private buildSessionMessages(messages: SessionMessage[], sessionId?: string): SessionMessage[] {
 		if (!sessionId) return messages;
 		const cached = this.sessionCache.get(sessionId) || [];
 		if (messages.length !== 1 || cached.length === 0) return messages;
@@ -400,9 +437,13 @@ export class OllamaService {
 		messages: SessionMessage[],
 		options: Record<string, unknown>,
 		keepAlive: string | number,
-		stream: boolean
+		stream: boolean,
+		tools?: Record<string, unknown>[]
 	): Record<string, unknown> {
-		const body: Record<string, unknown> = { model, messages, stream };
+		const body: Record<string, unknown> = { model, messages: this.convertToOllamaMessages(messages), stream };
+		if (tools && Array.isArray(tools) && tools.length > 0) {
+			body.tools = tools;
+		}
 		const mergedOptions = { ...options };
 		if (options.num_ctx === undefined) mergedOptions.num_ctx = this.globalNumCtx;
 		if (Object.keys(mergedOptions).length > 0) body.options = mergedOptions;
@@ -415,7 +456,8 @@ export class OllamaService {
 		messages: SessionMessage[],
 		options: Record<string, unknown> = {},
 		keep_alive: string | number = "5m",
-		sessionId?: string
+		sessionId?: string,
+		tools?: Record<string, unknown>[]
 	): Promise<ChatResponse> {
 		return this.enqueueRequest(async () => {
 			const finalMessages = this.buildSessionMessages(messages, sessionId);
@@ -424,7 +466,7 @@ export class OllamaService {
 
 			const response = await this.axiosClient.post(
 				`${this.baseUrl}/api/chat`,
-				this.buildOllamaBody(model, finalMessages, options, keep_alive, false)
+				this.buildOllamaBody(model, finalMessages, options, keep_alive, false, tools)
 			);
 
 			const durationMs = Date.now() - startMs;
@@ -447,7 +489,8 @@ export class OllamaService {
 		messages: SessionMessage[],
 		options: Record<string, unknown> = {},
 		keep_alive: string | number = "5m",
-		sessionId?: string
+		sessionId?: string,
+		tools?: Record<string, unknown>[]
 	): Promise<{ data: import("stream").Readable }> {
 		return this.enqueueRequest(async () => {
 			const finalMessages = this.buildSessionMessages(messages, sessionId);
@@ -455,7 +498,7 @@ export class OllamaService {
 
 			return this.axiosClient.post(
 				`${this.baseUrl}/api/chat`,
-				this.buildOllamaBody(model, finalMessages, options, keep_alive, true),
+				this.buildOllamaBody(model, finalMessages, options, keep_alive, true, tools),
 				{ responseType: "stream" }
 			);
 		});
@@ -555,7 +598,7 @@ export class OllamaService {
 					timeout: 30000,
 				});
 
-				console.log(`[delete] Model ${model} deleted successfully`);
+				log.info({ model }, "Model deleted successfully");
 				if (this.io) {
 					this.io.emit("security-alert", {
 						type: "info",
@@ -566,7 +609,7 @@ export class OllamaService {
 				this.modelDeletePending.delete(model);
 			}
 		} catch (e) {
-			console.error(`[delete-error] Failed to delete model ${model}:`, e);
+			log.error({ err: e, model }, "Failed to delete model");
 			if (this.io) {
 				this.io.emit("security-alert", {
 					type: "error",
@@ -590,11 +633,11 @@ export class OllamaService {
 		let cleanedFiles = 0;
 		try {
 			const blobsPath = "/root/.ollama/models/blobs";
-			console.log(`[cleanup] Starting safe workspace cleanup in ${blobsPath}`);
+			log.info({ blobsPath }, "Starting safe workspace cleanup");
 
 			if (fs.existsSync(blobsPath)) {
 				const files = fs.readdirSync(blobsPath);
-				console.log(`[cleanup] Found ${files.length} blob files to scan`);
+				log.info({ fileCount: files.length }, "Found blob files to scan");
 
 				for (const file of files) {
 					try {
@@ -610,20 +653,20 @@ export class OllamaService {
 							cleanedFiles++;
 						}
 					} catch (e) {
-						console.warn(`[cleanup] Error processing file ${file}:`, e);
+						log.warn({ err: e, file }, "Error processing file in cleanup");
 					}
 				}
 			}
 
 			const freedGb = (freed / 1024 ** 3).toFixed(2);
-			console.log(`[cleanup] Cleanup complete: freed ${freedGb} GB (${cleanedFiles} files)`);
+			log.info({ freedGb, cleanedFiles }, "Cleanup complete");
 
 			return {
 				freed: parseFloat(freedGb) as number,
 				details: `${cleanedFiles} blob files deleted, ${freedGb} GB freed`,
 			};
 		} catch (e) {
-			console.error("[cleanup-error]", e);
+			log.error(e, "Cleanup error");
 			throw e;
 		}
 	}
@@ -663,7 +706,7 @@ export class OllamaService {
 		} catch (e: unknown) {
 			const err = e as { code?: string; message?: string };
 			if (err?.code !== "ENOTFOUND" && err?.code !== "ECONNREFUSED" && err?.code !== "ETIMEDOUT") {
-				console.warn("[ngrok] Error inesperado:", err?.message || err?.code);
+				log.warn({ err }, "ngrok error inesperado");
 			}
 		}
 
@@ -769,7 +812,7 @@ export class OllamaService {
 		this.failedAttempts.set(ip, attempts);
 		if (attempts >= 5) {
 			this.banIp(ip);
-			console.warn(`IP ${ip} auto-baneada tras 5 intentos fallidos.`);
+			log.warn({ ip }, "IP auto-baneada tras 5 intentos fallidos");
 			if (this.io) {
 				this.io.emit("security-alert", {
 					type: "ban",
