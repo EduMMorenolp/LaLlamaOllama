@@ -26,6 +26,7 @@ import {
 import { getMessages } from "../services/db/messages.js";
 import { listModels, upsertModel, deleteModel } from "../services/db/models.js";
 import { startTelegram, stopTelegram, initTelegramDeps } from "../services/telegram/bot.js";
+import axios from "axios";
 
 export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 	const config = loadConfig();
@@ -44,6 +45,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 			case "user_message": {
 				const rawChatId = (payload?.chatId as string) || clientId;
 				const text = (payload?.text as string) || "";
+				const attachments = payload?.attachments as Array<{ name: string; type: string; data: string }> | undefined;
 				if (!text.trim()) {
 					ws.send(createMessage("error", { message: "Empty message", code: "EMPTY" }));
 					return;
@@ -63,7 +65,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					);
 				}
 
-				this.handleUserMessage(chatId, text, clientId);
+				this.handleUserMessage(chatId, text, clientId, attachments);
 				break;
 			}
 				case "cancel": {
@@ -110,6 +112,21 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					break;
 				}
 
+
+				// Ollama models
+				case "list_ollama_models": {
+					const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+					axios.get(`${ollamaUrl}/api/tags`, { timeout: 3000 })
+						.then((response) => {
+							const models = response.data?.models || [];
+							ws.send(createMessage("ollama_models", { models }));
+						})
+						.catch((err) => {
+							logger.warn("Could not fetch Ollama models: " + (err instanceof Error ? err.message : String(err)));
+							ws.send(createMessage("ollama_models", { models: [] }));
+						});
+					break;
+				}
 				// ─── Expert Management ───────────────────────────────────
 				case "list_experts": {
 					const experts = listExperts();
@@ -198,20 +215,14 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 				case "chat_update": {
 					const chatAction = payload?.action as string;
 					const chatUserId = userMap.get(clientId) ?? clientId;
+					let newChatId: string | undefined;
 					if (chatAction === "create") {
 						const newChat = createChat(
 							chatUserId,
 							(payload?.expertName as string) || null,
 							payload?.title as string
 						);
-						ws.send(
-							createMessage("assistant_done", {
-								chatId: newChat.id,
-								text: "Chat creado.",
-								model: "system",
-								latencyMs: 0,
-							})
-						);
+						newChatId = newChat.id;
 					} else if (chatAction === "rename" && payload?.chatId && payload?.title) {
 						renameChat(payload.chatId as string, payload.title as string);
 					} else if (chatAction === "delete" && payload?.chatId) {
@@ -223,6 +234,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 						createMessage("list_chats", {
 							chats: listChats(chatUserId, undefined),
 							channelChats: listChannelChats(chatUserId),
+							...(newChatId ? { activeChatId: newChatId } : {}),
 						})
 					);
 					break;
@@ -321,7 +333,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 			}
 		},
 
-		async handleUserMessage(chatId: string, text: string, clientId: string) {
+		async handleUserMessage(chatId: string, text: string, clientId: string, attachments?: Array<{ name: string; type: string; data: string }>) {
 			logger.agent(`[${chatId}] Received: "${text.substring(0, 100)}..."`);
 
 			try {
@@ -330,6 +342,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					userText: text,
 					config,
 					brain,
+					attachments,
 					onChunk: (chunk: string) =>
 						wsServer.sendToAll("assistant_chunk", { chatId, text: chunk }),
 					onToolCall: (toolName: string, args: Record<string, unknown>) =>
@@ -344,6 +357,14 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					model: result.model,
 					usage: result.usage,
 					latencyMs: result.latencyMs,
+				});
+
+
+				// Send updated chat list to all clients so sidebar refreshes with lastMessage
+				const userId = userMap.get(clientId) ?? clientId;
+				wsServer.sendToAll("list_chats", {
+					chats: listChats(userId, undefined),
+					channelChats: listChannelChats(userId),
 				});
 
 				// Auto-save to brain if meaningful
@@ -363,3 +384,4 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 		},
 	};
 }
+

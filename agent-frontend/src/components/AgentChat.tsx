@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Edit3, MessageSquare, Pin, PinOff, Plus, Save, Search, Send, StopCircle, Terminal, Trash2, Wrench } from "lucide-react";
+import { ChevronLeft, ChevronRight, Edit3, MessageSquare, Paperclip, Pin, PinOff, Plus, Save, Search, Send, StopCircle, Terminal, Trash2, Wrench, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { config } from "../config";
 
@@ -59,6 +59,8 @@ export const AgentChat: React.FC = () => {
 	const [totalPromptTokens, setTotalPromptTokens] = useState(0);
 	const [totalCompletionTokens, setTotalCompletionTokens] = useState(0);
 	const userId = "web-user";
+	const [attachments, setAttachments] = useState<Array<{ name: string; type: string; data: string }>>([]);
+	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	const scrollToBottom = () => {
 		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -204,8 +206,13 @@ export const AgentChat: React.FC = () => {
 		setIsProcessing(true);
 		setCurrentToolCalls([]);
 
-		sendWs("user_message", { chatId, text });
-	}, [input, currentChatId, sendWs]);
+		const payload: Record<string, unknown> = { chatId, text };
+		if (attachments.length > 0) {
+			payload.attachments = attachments;
+		}
+		sendWs("user_message", payload);
+		setAttachments([]);  // Clear attachments after sending
+	}, [input, currentChatId, sendWs, attachments]);
 
 	const handleCancel = () => {
 		sendWs("cancel", { chatId: currentChatId || "dashboard" });
@@ -246,6 +253,35 @@ export const AgentChat: React.FC = () => {
 	};
 
 	const handlePinChat = (chatId: string) => sendWs("chat_update", { action: "pin", chatId });
+
+	const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+		const files = e.target.files;
+		if (!files) return;
+		
+		const newAttachments: Array<{ name: string; type: string; data: string }> = [];
+		let loaded = 0;
+		
+		for (let i = 0; i < files.length; i++) {
+			const file = files[i];
+			const reader = new FileReader();
+			reader.onload = (ev) => {
+				const data = ev.target?.result as string;
+				newAttachments.push({ name: file.name, type: file.type, data });
+				loaded++;
+				if (loaded === files.length) {
+					setAttachments((prev) => [...prev, ...newAttachments]);
+				}
+			};
+			reader.readAsDataURL(file);
+		}
+		
+		// Reset input so same file can be selected again
+		e.target.value = "";
+	};
+
+	const removeAttachment = (index: number) => {
+		setAttachments((prev) => prev.filter((_, i) => i !== index));
+	};
 
 	const currentChat = chats.find((c) => c.id === currentChatId);
 
@@ -358,7 +394,47 @@ export const AgentChat: React.FC = () => {
 
 					{/* Input */}
 					<div style={{ padding: "12px 16px", borderTop: "1px solid var(--border-light)" }}>
+						{/* Hidden file input */}
+						<input
+							type="file"
+							ref={fileInputRef}
+							onChange={handleFileSelect}
+							multiple
+							style={{ display: "none" }}
+							accept=".txt,.json,.md,.csv,.xml,.yaml,.yml,.log,.js,.ts,.py,.java,.html,.css,.pdf,.png,.jpg,.jpeg,.gif,.svg,.webp"
+						/>
+						{/* Attachments chips */}
+						{attachments.length > 0 && (
+							<div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "8px" }}>
+								{attachments.map((att, i) => (
+									<div key={i} style={{
+										display: "flex", alignItems: "center", gap: "4px",
+										background: "rgba(79,140,255,0.1)", border: "1px solid rgba(79,140,255,0.2)",
+										borderRadius: "6px", padding: "4px 8px", fontSize: "11px",
+										color: "var(--accent)", maxWidth: "200px",
+									}}>
+										<span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+											{att.name}
+										</span>
+										<button type="button" onClick={() => removeAttachment(i)} style={{
+											background: "none", border: "none", color: "var(--text-muted)",
+											cursor: "pointer", padding: "1px", display: "flex",
+										}}>
+											<X size={12} />
+										</button>
+									</div>
+								))}
+							</div>
+						)}
 						<div style={{ display: "flex", gap: "8px", alignItems: "flex-end" }}>
+							<button type="button" onClick={() => fileInputRef.current?.click()} style={{
+								background: "none", border: "1px solid var(--border-light)", borderRadius: "8px",
+								color: "var(--text-muted)", cursor: "pointer", padding: "10px",
+								display: "flex", alignItems: "center", justifyContent: "center",
+								flexShrink: 0, opacity: isProcessing ? 0.5 : 1,
+							}} disabled={isProcessing} title="Adjuntar archivo">
+								<Paperclip size={18} />
+							</button>
 							<textarea
 								ref={inputRef}
 								value={input}

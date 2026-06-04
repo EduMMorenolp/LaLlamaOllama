@@ -37,6 +37,7 @@ export const Agentes: React.FC = () => {
     name: "", model: "", system_prompt: "", tools: [], temperature: 0.7,
   });
   const [showAgentForm, setShowAgentForm] = useState(false);
+  const [ollamaModels, setOllamaModels] = useState<string[]>([]);
 
   const sendWs = useCallback((type: string, payload?: Record<string, unknown>) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -54,6 +55,7 @@ export const Agentes: React.FC = () => {
       sendWs("get_status");
       sendWs("list_tools");
       sendWs("list_experts");
+      sendWs("list_ollama_models");
     };
 
     ws.onclose = () => setConnected(false);
@@ -92,6 +94,11 @@ export const Agentes: React.FC = () => {
           case "list_experts": {
             const experts = msg.payload?.experts as SubAgent[];
             if (experts) setAgents(experts);
+            break;
+          }
+          case "ollama_models": {
+            const models = msg.payload?.models as Array<{ name: string }> || [];
+            setOllamaModels(models.map((m: { name: string }) => m.name));
             break;
           }
         }
@@ -147,6 +154,14 @@ export const Agentes: React.FC = () => {
     marginBottom: "16px",
   };
 
+  const sectionCardGrid: React.CSSProperties = {
+    padding: "16px",
+    borderRadius: "8px",
+    background: "rgba(255,255,255,0.02)",
+    border: "1px solid var(--border-light)",
+    height: "100%",
+  };
+
   const sectionTitle: React.CSSProperties = {
     fontSize: "12px",
     fontWeight: 600,
@@ -158,8 +173,8 @@ export const Agentes: React.FC = () => {
   };
 
   return (
-    <div style={{ maxWidth: "700px", margin: "0 auto" }}>
-      {/* Connection status */}
+    <div style={{ maxWidth: "900px", margin: "0 auto" }}>
+      {/* Connection status ó full width */}
       <div style={sectionCard}>
         <label style={sectionTitle}>
           <Settings size={14} style={{ marginRight: "6px" }} />
@@ -176,90 +191,109 @@ export const Agentes: React.FC = () => {
         </div>
       </div>
 
-      {/* General Settings */}
-      <div style={sectionCard}>
-        <label style={sectionTitle}>
-          <Sliders size={14} style={{ marginRight: "6px" }} />
-          Configuraci√≥n General
-        </label>
-
-        <div style={{ marginBottom: "12px" }}>
-          <label style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>Modelo</label>
-          <input
-            type="text"
-            value={configModel}
-            onChange={(e) => setConfigModel(e.target.value)}
-            style={inputStyle}
-            placeholder="llama3.2:3b"
-          />
-        </div>
-
-        <div style={{ marginBottom: "12px" }}>
-          <label style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>
-            Temperatura: {configTemp.toFixed(1)}
+      {/* 2-column grid: General Config | Telegram */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
+        {/* General Settings */}
+        <div style={sectionCardGrid}>
+          <label style={sectionTitle}>
+            <Sliders size={14} style={{ marginRight: "6px" }} />
+            Configuracion General
           </label>
-          <input
-            type="range"
-            min="0"
-            max="2"
-            step="0.1"
-            value={configTemp}
-            onChange={(e) => setConfigTemp(parseFloat(e.target.value))}
-            style={{ width: "100%", accentColor: "var(--accent)" }}
-          />
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9px", color: "var(--text-dim)" }}>
-            <span>0 (preciso)</span>
-            <span>2 (creativo)</span>
+
+          <div style={{ marginBottom: "12px" }}>
+            <label style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>Modelo</label>
+            <select
+              value={configModel}
+              onChange={(e) => setConfigModel(e.target.value)}
+              style={{
+                ...inputStyle,
+                appearance: "none",
+                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%23666' stroke-width='2'%3E%3Cpath d='M2 4l4 4 4-4'/%3E%3C/svg%3E")`,
+                backgroundRepeat: "no-repeat",
+                backgroundPosition: "right 12px center",
+                paddingRight: "32px",
+                cursor: "pointer",
+              }}
+            >
+              {ollamaModels.length === 0 && <option value="">Cargando modelos...</option>}
+              {ollamaModels.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+            {ollamaModels.length === 0 && (
+              <div style={{ fontSize: "10px", color: "var(--warning)", marginTop: "4px" }}>
+                No se pudieron cargar los modelos. ?Ollama esta corriendo?
+              </div>
+            )}
           </div>
-        </div>
 
-        <div style={{ marginBottom: "12px" }}>
-          <label style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>
-            L√≠mite de historial: {configHistoryLimit} mensajes
-          </label>
-          <input
-            type="number"
-            min={5}
-            max={100}
-            value={configHistoryLimit}
-            onChange={(e) => setConfigHistoryLimit(parseInt(e.target.value, 10) || 10)}
-            style={inputStyle}
-          />
-        </div>
+          <div style={{ marginBottom: "12px" }}>
+            <label style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>
+              Temperatura: {configTemp.toFixed(1)}
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="2"
+              step="0.1"
+              value={configTemp}
+              onChange={(e) => setConfigTemp(parseFloat(e.target.value))}
+              style={{ width: "100%", accentColor: "var(--accent)" }}
+            />
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9px", color: "var(--text-dim)" }}>
+              <span>0 (preciso)</span>
+              <span>2 (creativo)</span>
+            </div>
+          </div>
 
-        <button type="button" onClick={handleSaveGeneralConfig} style={actionBtnStyle}>
-          <Save size={14} style={{ marginRight: "4px" }} /> Guardar Configuraci√≥n
-        </button>
-      </div>
+          <div style={{ marginBottom: "12px" }}>
+            <label style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>
+              Limite de historial: {configHistoryLimit} mensajes
+            </label>
+            <input
+              type="number"
+              min={5}
+              max={100}
+              value={configHistoryLimit}
+              onChange={(e) => setConfigHistoryLimit(parseInt(e.target.value, 10) || 10)}
+              style={inputStyle}
+            />
+          </div>
 
-      {/* Telegram */}
-      <div style={sectionCard}>
-        <label style={sectionTitle}>Telegram Bot</label>
-        <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
-          <input
-            type="password"
-            value={telegramToken}
-            onChange={(e) => setTelegramToken(e.target.value)}
-            placeholder="123456:ABC-DEF..."
-            style={{ ...inputStyle, flex: 1 }}
-          />
-          <button type="button" onClick={handleTelegramSave} style={actionBtnStyle}>
-            <Save size={14} style={{ marginRight: "4px" }} /> Guardar
+          <button type="button" onClick={handleSaveGeneralConfig} style={actionBtnStyle}>
+            <Save size={14} style={{ marginRight: "4px" }} /> Guardar Configuracion
           </button>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <span style={{
-            width: "8px", height: "8px", borderRadius: "50%",
-            background: telegramEnabled ? "var(--success)" : "var(--error)",
-            display: "inline-block",
-          }} />
-          <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-            {telegramEnabled ? "Bot activo" : "Bot inactivo"}
-          </span>
+
+        {/* Telegram */}
+        <div style={sectionCardGrid}>
+          <label style={sectionTitle}>Telegram Bot</label>
+          <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+            <input
+              type="password"
+              value={telegramToken}
+              onChange={(e) => setTelegramToken(e.target.value)}
+              placeholder="123456:ABC-DEF..."
+              style={{ ...inputStyle, flex: 1 }}
+            />
+            <button type="button" onClick={handleTelegramSave} style={actionBtnStyle}>
+              <Save size={14} style={{ marginRight: "4px" }} /> Guardar
+            </button>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span style={{
+              width: "8px", height: "8px", borderRadius: "50%",
+              background: telegramEnabled ? "var(--success)" : "var(--error)",
+              display: "inline-block",
+            }} />
+            <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+              {telegramEnabled ? "Bot activo" : "Bot inactivo"}
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* Tools */}
+      {/* Tools ó full width */}
       <div style={sectionCard}>
         <label style={sectionTitle}>Herramientas ({tools.length})</label>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
@@ -285,7 +319,7 @@ export const Agentes: React.FC = () => {
         </div>
       </div>
 
-      {/* Sub-Agents */}
+      {/* Sub-Agents ó full width */}
       <div style={sectionCard}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
           <label style={{ ...sectionTitle, marginBottom: 0 }}>Sub-Agents ({agents.length})</label>
@@ -319,7 +353,24 @@ export const Agentes: React.FC = () => {
             </div>
             <div style={{ marginBottom: "8px" }}>
               <label style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>Modelo</label>
-              <input type="text" value={newAgent.model} onChange={(e) => setNewAgent({ ...newAgent, model: e.target.value })} style={inputStyle} placeholder={configModel} />
+              <select
+                value={newAgent.model || configModel}
+                onChange={(e) => setNewAgent({ ...newAgent, model: e.target.value })}
+                style={{
+                  ...inputStyle,
+                  appearance: "none",
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%23666' stroke-width='2'%3E%3Cpath d='M2 4l4 4 4-4'/%3E%3C/svg%3E")`,
+                  backgroundRepeat: "no-repeat",
+                  backgroundPosition: "right 12px center",
+                  paddingRight: "32px",
+                  cursor: "pointer",
+                }}
+              >
+                <option value="">Default ({configModel})</option>
+                {ollamaModels.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
             </div>
             <div style={{ marginBottom: "8px" }}>
               <label style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>System Prompt</label>

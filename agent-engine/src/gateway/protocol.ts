@@ -36,6 +36,8 @@ export type WsMessageType =
 	| "get_general_config"
 	| "general_config_update"
 	| "general_config"
+	// Ollama models
+	| "list_ollama_models"
 	// Server → Client
 	| "assistant_chunk"
 	| "assistant_done"
@@ -44,7 +46,8 @@ export type WsMessageType =
 	| "status"
 	| "error"
 	| "tools_list"
-	| "action_log";
+	| "action_log"
+	| "ollama_models";
 
 export interface UserMessagePayload {
 	chatId: string;

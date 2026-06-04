@@ -56,6 +56,21 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 - `agent-engine`: ✅ TypeScript 0 errores.
 - `agent-frontend`: ✅ TypeScript + Vite production build 0 errores (251 KB JS).
 
+### 📎 File Upload + Chat Persistence + Model Selector + Grid Layout (2026-06-04)
+
+#### Agent Frontend
+- **Subida de archivos en Chat** — botón 📎 Paperclip junto al textarea, selector de archivos múltiple, lectura como base64 vía `FileReader.readAsDataURL()`, envío por WebSocket como `attachments` en `user_message`.
+- **Chips de archivos adjuntos** — barra de archivos seleccionados con nombre y botón X para remover, mostrada entre el input y el textarea.
+- **Select de modelos Ollama** — reemplazado input manual de texto por `<select>` dropdown que lista modelos disponibles desde Ollama vía nuevo WS `list_ollama_models`.
+- **Grid 2-columnas en Agentes** — General Config y Telegram ahora lado a lado en CSS grid, max-width ampliado a 900px, cards con altura completa (`height: 100%`).
+
+#### Agent Engine
+- **Attachments forwarding** — `handlers.ts` ahora extrae `attachments` del payload `user_message` y los pasa a `handleUserMessage` → `runAgent` (el core ya procesaba texto/JSON/imágenes).
+- **Fix: chat_create ahora envía activeChatId** — el frontend cambia inmediatamente al nuevo chat al crearlo. Eliminado el mensaje "Chat creado." que aparecía como respuesta del asistente.
+- **Sidebar refrescado post-respuesta** — después de cada `assistant_done`, se envía `list_chats` actualizado a todos los clientes para que el sidebar muestre el último mensaje.
+- **Nuevo WS `list_ollama_models`** — handler que consulta `http://localhost:11434/api/tags` vía axios y retorna la lista de modelos instalados en Ollama.
+- **Nuevos tipos protocolo** — `list_ollama_models` (C→S) y `ollama_models` (S→C) en `protocol.ts`.
+
 ### 🤖 Telegram Gateway + Sub-Agent System + Dashboard Settings (2026-06-02)
 
 #### Agent Engine
