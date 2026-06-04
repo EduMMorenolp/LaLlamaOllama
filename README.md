@@ -59,38 +59,6 @@ LaLlamaOllama es un **ecosistema completo** para ejecutar, gestionar y orquestar
 
 ---
 
-## Arquitectura
-
-```
-                    ┌─────────────────────────────────────────────────┐
-                    │                 Agent Frontend                   │
-                    │         (React 19 + Vite 7 · puerto 8081)       │
-                    │   Chat │ Agentes │ Tareas │ Conocimiento         │
-                    │   Conexión │ Memoria                            │
-                    └──────────────┬──────────────────────────────────┘
-                                   │ WebSocket
-                    ┌──────────────▼──────────────────────────────────┐
-                    │              Agent Engine                        │
-                    │         (Express 4 + TypeScript · puerto 3020)  │
-                    │  ┌─────────┐ ┌──────────┐ ┌────────────────┐   │
-                    │  │ Chat WS │ │ REST API │ │ Tool Registry   │   │
-                    │  └─────────┘ └──────────┘ │ (8 tools)       │   │
-                    │                           └────────────────┘   │
-                    └──────────────┬──────────────────────────────────┘
-                                   │ HTTP / SSE
-         ┌─────────────────────────┼────────────────────────────┐
-         │                         │                            │
-┌────────▼────────┐   ┌────────────▼──────────┐   ┌────────────▼──────────┐
-│     Backend     │   │      MCP Brain         │   │       Ollama          │
-│  Express + MCP  │   │  SQLite + FTS5 + Vec   │   │   LLM Runtime         │
-│  · puerto 3016  │   │  · puerto 3015         │   │   · puerto 11434      │
-│  Ollama proxy   │   │  Memoria persistente   │   │   Modelos locales     │
-│  Seguridad      │   │  Búsqueda semántica    │   │                      │
-└─────────────────┘   └────────────────────────┘   └──────────────────────┘
-```
-
----
-
 ## Stack Tecnológico
 
 | Capa | Tecnología |
