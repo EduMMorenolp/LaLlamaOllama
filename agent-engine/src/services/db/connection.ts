@@ -160,6 +160,11 @@ export function getDb(dbPath?: string): Database.Database {
 	} catch {
 		// already exists
 	}
+	try {
+		_db.exec("ALTER TABLE sub_agents ADD COLUMN history_limit INTEGER DEFAULT 10");
+	} catch {
+		// already exists
+	}
 
 	logger.info(`[DB] SQLite initialized: ${resolvedPath}`);
 	return _db;

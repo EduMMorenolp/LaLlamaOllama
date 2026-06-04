@@ -34,6 +34,21 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 
 	const session = getSession(opts);
 
+	let generalModel = config.defaultModel;
+	let generalTemperature = 0.7;
+	let generalHistoryLimit = 10;
+	try {
+		const { getGeneralConfig } = await import("../db/experts.js");
+		const g = getGeneralConfig();
+		if (g) {
+			if (g.model) generalModel = g.model;
+			if (g.temperature != null) generalTemperature = g.temperature;
+			if (g.history_limit != null) generalHistoryLimit = g.history_limit;
+		}
+	} catch {
+		// use defaults
+	}
+
 	if (!opts.skipPersistUserMsg) {
 		try {
 			const { saveMessage } = await import("../db/messages.js");
@@ -51,10 +66,7 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 
 	if (session.messages.length === 0) {
 		logger.agent(`[${chatId}] New session, loading brain context...`);
-		const [directives, context] = await Promise.all([
-			brain.getDirectives().catch(() => ""),
-			brain.getContext(10).catch(() => ""),
-		]);
+		const directives = await brain.getDirectives().catch(() => "");
 
 		let systemPrompt: string;
 		try {
@@ -63,14 +75,10 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 			if (generalOverride) {
 				systemPrompt = generalOverride.system_prompt;
 			} else {
-				const modelConfig = getDefaultModelConfig(config);
-				const tools = toolRegistry.getSpecs();
-				systemPrompt = buildSystemPrompt(config, tools, directives, context, modelConfig.model);
+				systemPrompt = buildSystemPrompt(config, generalModel);
 			}
 		} catch {
-			const modelConfig = getDefaultModelConfig(config);
-			const tools = toolRegistry.getSpecs();
-			systemPrompt = buildSystemPrompt(config, tools, directives, context, modelConfig.model);
+			systemPrompt = buildSystemPrompt(config, generalModel);
 		}
 
 		session.messages.push({
@@ -78,8 +86,14 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 			content: systemPrompt,
 		});
 
+		if (directives) {
+			session.messages.push({
+				role: "system",
+				content: `## Directivas del proyecto\n${directives}`,
+			});
+		}
 		try {
-			const recentMessages = getMessages(chatId, 20);
+			const recentMessages = getMessages(chatId, generalHistoryLimit);
 			for (const stored of recentMessages) {
 				if (stored.role === "system") continue;
 				if (!opts.skipPersistUserMsg && stored.role === "user" && stored.content === userText) {
@@ -124,6 +138,7 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 	session.messages.push({ role: "user", content: userContent });
 
 	const modelConfig = getDefaultModelConfig(config);
+	modelConfig.model = generalModel;
 	const client = createClient(modelConfig);
 
 	const openAiTools = toolRegistry.getSpecs().map((t: RegistryToolSpec) => ({
@@ -163,7 +178,7 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 				tool_choice: "auto",
 				stream: false,
 				max_tokens: 4096,
-				temperature: 0.3,
+				temperature: generalTemperature,
 			});
 
 			const choice = response.choices[0];

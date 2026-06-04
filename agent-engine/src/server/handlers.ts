@@ -11,6 +11,7 @@ import {
 	getExpert,
 	upsertExpert,
 	deleteExpert,
+	getGeneralConfig,
 } from "../services/db/experts.js";
 import { listAllUsers, upsertUser, deleteUser } from "../services/db/users.js";
 import {
@@ -28,6 +29,7 @@ import { startTelegram, stopTelegram, initTelegramDeps } from "../services/teleg
 
 export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 	const config = loadConfig();
+	const userMap = new Map<string, string>();
 
 	// Initialize telegram deps
 	initTelegramDeps(config, brain);
@@ -39,16 +41,31 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 
 			switch (type) {
 				// ─── Chat ────────────────────────────────────────────────
-				case "user_message": {
-					const chatId = (payload?.chatId as string) || clientId;
-					const text = (payload?.text as string) || "";
-					if (!text.trim()) {
-						ws.send(createMessage("error", { message: "Empty message", code: "EMPTY" }));
-						return;
-					}
-					this.handleUserMessage(chatId, text, clientId);
-					break;
+			case "user_message": {
+				const rawChatId = (payload?.chatId as string) || clientId;
+				const text = (payload?.text as string) || "";
+				if (!text.trim()) {
+					ws.send(createMessage("error", { message: "Empty message", code: "EMPTY" }));
+					return;
 				}
+
+				let chatId = rawChatId;
+				if (!getChat(rawChatId)) {
+					const userId = userMap.get(clientId) ?? clientId;
+					const newChat = createChat(userId, null, text.substring(0, 40));
+					chatId = newChat.id;
+					ws.send(
+						createMessage("list_chats", {
+							chats: listChats(userId, undefined),
+							channelChats: listChannelChats(userId),
+							activeChatId: chatId,
+						})
+					);
+				}
+
+				this.handleUserMessage(chatId, text, clientId);
+				break;
+			}
 				case "cancel": {
 					const chatId = (payload?.chatId as string) || clientId;
 					logger.agent(`[${chatId}] Cancel requested`);
@@ -119,6 +136,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 				case "identify": {
 					const userId = payload?.userId as string;
 					if (userId) {
+						userMap.set(clientId, userId);
 						logger.info(`👤 WebChat identified: ${clientId} -> ${userId}`);
 						ws.send(
 							createMessage("status", {
@@ -179,7 +197,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 				}
 				case "chat_update": {
 					const chatAction = payload?.action as string;
-					const chatUserId = clientId;
+					const chatUserId = userMap.get(clientId) ?? clientId;
 					if (chatAction === "create") {
 						const newChat = createChat(
 							chatUserId,
@@ -244,6 +262,29 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 						deleteModel(payload.name as string);
 					}
 					ws.send(createMessage("list_models", { models: listModels() }));
+					break;
+				}
+
+				// ─── General Config ─────────────────────────────────────
+				case "get_general_config": {
+					const gc = getGeneralConfig() as Record<string, unknown> | null;
+					ws.send(createMessage("general_config", gc || {}));
+					break;
+				}
+				case "general_config_update": {
+					const cfg = payload as Record<string, unknown>;
+					upsertExpert({
+						name: "__general__",
+						model: (cfg.model as string) || "",
+						system_prompt: (cfg.system_prompt as string) || "",
+						tools: [],
+						experts: [],
+						temperature: (cfg.temperature as number) ?? 0.7,
+						history_limit: (cfg.history_limit as number) ?? 10,
+					});
+					const updated = getGeneralConfig() as Record<string, unknown> | null;
+					ws.send(createMessage("general_config", updated || {}));
+					ws.send(createMessage("status", { model: cfg.model as string }));
 					break;
 				}
 

@@ -32,6 +32,10 @@ export type WsMessageType =
 	| "list_tasks"
 	// Telegram settings
 	| "telegram_update"
+	// General config
+	| "get_general_config"
+	| "general_config_update"
+	| "general_config"
 	// Server → Client
 	| "assistant_chunk"
 	| "assistant_done"

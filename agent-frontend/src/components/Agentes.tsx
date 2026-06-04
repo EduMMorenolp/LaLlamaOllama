@@ -1,4 +1,4 @@
-import { Plus, Save, Settings, Trash2, X } from "lucide-react";
+import { Plus, Save, Settings, Sliders, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { config } from "../config";
 
@@ -10,12 +10,22 @@ interface SubAgent {
   temperature: number;
 }
 
+interface GeneralConfig {
+  model: string;
+  temperature: number;
+  history_limit: number;
+  system_prompt: string;
+}
+
 export const Agentes: React.FC = () => {
   const wsRef = useRef<WebSocket | null>(null);
   const [connected, setConnected] = useState(false);
 
-  // Default Model
-  const [model, setModel] = useState("llama3.2:3b");
+  // General config
+  const [configModel, setConfigModel] = useState("llama3.2:3b");
+  const [configTemp, setConfigTemp] = useState(0.7);
+  const [configHistoryLimit, setConfigHistoryLimit] = useState(10);
+
   const [telegramToken, setTelegramToken] = useState("");
   const [telegramEnabled, setTelegramEnabled] = useState(false);
   const [tools, setTools] = useState<string[]>([]);
@@ -40,6 +50,7 @@ export const Agentes: React.FC = () => {
 
     ws.onopen = () => {
       setConnected(true);
+      sendWs("get_general_config");
       sendWs("get_status");
       sendWs("list_tools");
       sendWs("list_experts");
@@ -52,8 +63,15 @@ export const Agentes: React.FC = () => {
       try {
         const msg = JSON.parse(event.data);
         switch (msg.type) {
+          case "general_config": {
+            const gc = msg.payload as GeneralConfig;
+            if (gc?.model) setConfigModel(gc.model);
+            if (gc?.temperature != null) setConfigTemp(gc.temperature);
+            if (gc?.history_limit != null) setConfigHistoryLimit(gc.history_limit);
+            break;
+          }
           case "status":
-            if (msg.payload?.model) setModel(msg.payload.model as string);
+            if (msg.payload?.model) setConfigModel(msg.payload.model as string);
             if (msg.payload?.telegramActive !== undefined) {
               setTelegramEnabled(msg.payload.telegramActive as boolean);
             }
@@ -83,6 +101,14 @@ export const Agentes: React.FC = () => {
     return () => ws.close();
   }, []);
 
+  const handleSaveGeneralConfig = () => {
+    sendWs("general_config_update", {
+      model: configModel,
+      temperature: configTemp,
+      history_limit: configHistoryLimit,
+    });
+  };
+
   const handleTelegramSave = () => {
     sendWs("telegram_update", { botToken: telegramToken, enabled: telegramEnabled });
   };
@@ -98,7 +124,7 @@ export const Agentes: React.FC = () => {
       action: "upsert",
       expert: {
         name: newAgent.name.trim(),
-        model: newAgent.model || model,
+        model: newAgent.model || configModel,
         system_prompt: newAgent.system_prompt,
         tools: newAgent.tools,
         temperature: newAgent.temperature,
@@ -146,23 +172,64 @@ export const Agentes: React.FC = () => {
             display: "inline-block",
           }} />
           {connected ? "Conectado" : "Desconectado"}
-          {model && <span style={{ color: "var(--accent)", fontFamily: "monospace", fontSize: "12px" }}>{model}</span>}
+          {configModel && <span style={{ color: "var(--accent)", fontFamily: "monospace", fontSize: "12px" }}>{configModel}</span>}
         </div>
       </div>
 
-      {/* Default Model */}
+      {/* General Settings */}
       <div style={sectionCard}>
-        <label style={sectionTitle}>Modelo por Defecto</label>
-        <input
-          type="text"
-          value={model}
-          onChange={(e) => setModel(e.target.value)}
-          style={inputStyle}
-          placeholder="llama3.2:3b"
-        />
-        <div style={{ fontSize: "11px", color: "var(--text-dim)", marginTop: "6px" }}>
-          Modelo para razonamiento del agente (ej: llama3.2:3b, gpt-4, openrouter/...)
+        <label style={sectionTitle}>
+          <Sliders size={14} style={{ marginRight: "6px" }} />
+          Configuración General
+        </label>
+
+        <div style={{ marginBottom: "12px" }}>
+          <label style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>Modelo</label>
+          <input
+            type="text"
+            value={configModel}
+            onChange={(e) => setConfigModel(e.target.value)}
+            style={inputStyle}
+            placeholder="llama3.2:3b"
+          />
         </div>
+
+        <div style={{ marginBottom: "12px" }}>
+          <label style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>
+            Temperatura: {configTemp.toFixed(1)}
+          </label>
+          <input
+            type="range"
+            min="0"
+            max="2"
+            step="0.1"
+            value={configTemp}
+            onChange={(e) => setConfigTemp(parseFloat(e.target.value))}
+            style={{ width: "100%", accentColor: "var(--accent)" }}
+          />
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9px", color: "var(--text-dim)" }}>
+            <span>0 (preciso)</span>
+            <span>2 (creativo)</span>
+          </div>
+        </div>
+
+        <div style={{ marginBottom: "12px" }}>
+          <label style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>
+            Límite de historial: {configHistoryLimit} mensajes
+          </label>
+          <input
+            type="number"
+            min={5}
+            max={100}
+            value={configHistoryLimit}
+            onChange={(e) => setConfigHistoryLimit(parseInt(e.target.value, 10) || 10)}
+            style={inputStyle}
+          />
+        </div>
+
+        <button type="button" onClick={handleSaveGeneralConfig} style={actionBtnStyle}>
+          <Save size={14} style={{ marginRight: "4px" }} /> Guardar Configuración
+        </button>
       </div>
 
       {/* Telegram */}
@@ -252,7 +319,7 @@ export const Agentes: React.FC = () => {
             </div>
             <div style={{ marginBottom: "8px" }}>
               <label style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>Modelo</label>
-              <input type="text" value={newAgent.model} onChange={(e) => setNewAgent({ ...newAgent, model: e.target.value })} style={inputStyle} placeholder={model} />
+              <input type="text" value={newAgent.model} onChange={(e) => setNewAgent({ ...newAgent, model: e.target.value })} style={inputStyle} placeholder={configModel} />
             </div>
             <div style={{ marginBottom: "8px" }}>
               <label style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>System Prompt</label>

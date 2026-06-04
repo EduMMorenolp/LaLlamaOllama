@@ -4,10 +4,17 @@ import { config } from "../config";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
+interface TokenUsage {
+	promptTokens: number;
+	completionTokens: number;
+	totalTokens: number;
+}
+
 interface ChatMessage {
 	role: "user" | "assistant" | "tool" | "system";
 	content: string;
 	timestamp: Date;
+	usage?: TokenUsage;
 }
 
 interface ToolCallInfo {
@@ -49,6 +56,8 @@ export const AgentChat: React.FC = () => {
 	const [renamingChat, setRenamingChat] = useState<string | null>(null);
 	const [renameValue, setRenameValue] = useState("");
 	const [model, setModel] = useState("");
+	const [totalPromptTokens, setTotalPromptTokens] = useState(0);
+	const [totalCompletionTokens, setTotalCompletionTokens] = useState(0);
 	const userId = "web-user";
 
 	const scrollToBottom = () => {
@@ -103,12 +112,14 @@ export const AgentChat: React.FC = () => {
 
 			case "list_chats": {
 				const chatList = msg.payload?.chats as ChatEntry[];
+				const activeChatId = msg.payload?.activeChatId as string | undefined;
 				if (chatList) {
 					setChats(chatList);
-					if (!currentChatId && chatList.length > 0) {
+					if (activeChatId) {
+						setCurrentChatId(activeChatId);
+					} else if (!currentChatId && chatList.length > 0) {
 						const first = chatList[0];
 						setCurrentChatId(first.id);
-						sendWs("switch_chat", { chatId: first.id });
 					}
 				}
 				break;
@@ -116,6 +127,12 @@ export const AgentChat: React.FC = () => {
 
 			case "assistant_done": {
 				const chatId = msg.payload?.chatId as string;
+				const usage = msg.payload?.usage as TokenUsage | undefined;
+
+				if (usage) {
+					setTotalPromptTokens((p) => p + usage.promptTokens);
+					setTotalCompletionTokens((p) => p + usage.completionTokens);
+				}
 
 				if (msg.payload?.history) {
 					const history = msg.payload?.history as Array<{ role: string; text: string }>;
@@ -131,7 +148,7 @@ export const AgentChat: React.FC = () => {
 				if (chatId === currentChatId || !currentChatId) {
 					setMessages((prev) => [
 						...prev,
-						{ role: "assistant", content: text, timestamp: new Date() },
+						{ role: "assistant", content: text, timestamp: new Date(), usage },
 					]);
 				}
 				setCurrentToolCalls([]);
@@ -180,7 +197,9 @@ export const AgentChat: React.FC = () => {
 		if (!text || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
 
 		const chatId = currentChatId || "dashboard";
-		setMessages((prev) => [...prev, { role: "user", content: text, timestamp: new Date() }]);
+		const promptEstimate = Math.ceil(text.length / 4);
+		setMessages((prev) => [...prev, { role: "user", content: text, timestamp: new Date(), usage: { promptTokens: promptEstimate, completionTokens: 0, totalTokens: promptEstimate } }]);
+		setTotalPromptTokens((p) => p + promptEstimate);
 		setInput("");
 		setIsProcessing(true);
 		setCurrentToolCalls([]);
@@ -264,6 +283,11 @@ export const AgentChat: React.FC = () => {
 				{model && (
 					<span style={{ fontSize: "11px", color: "var(--accent)", fontFamily: "var(--font-mono)" }}>
 						· {model}
+					</span>
+				)}
+				{(totalPromptTokens > 0 || totalCompletionTokens > 0) && (
+					<span style={{ fontSize: "10px", color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
+						Σ {totalPromptTokens + totalCompletionTokens}
 					</span>
 				)}
 				<span style={{ flex: 1 }} />
@@ -475,8 +499,11 @@ const MessageBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
 			}}>
 				{message.content}
 			</div>
-			<div style={{ fontSize: "10px", color: "var(--text-dim)", marginTop: "4px", padding: "0 4px" }}>
-				{message.timestamp.toLocaleTimeString()}
+			<div style={{ fontSize: "10px", color: "var(--text-dim)", marginTop: "4px", padding: "0 4px", display: "flex", gap: "8px" }}>
+				<span>{message.timestamp.toLocaleTimeString()}</span>
+				{!isUser && message.usage && (
+					<span>{message.usage.promptTokens}▲ / {message.usage.completionTokens}▼</span>
+				)}
 			</div>
 		</div>
 	);

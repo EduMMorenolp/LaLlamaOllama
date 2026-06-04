@@ -7,6 +7,55 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 
 ## [Unreleased]
 
+### 🎨 Agent Frontend: Dashboard multi-sección + Chat persistente + Conocimiento (2026-06-04)
+
+#### Agent Frontend (nuevo)
+- **Nuevo proyecto standalone `agent-frontend/`** — React 19 + Vite 7 + TypeScript, puerto 8081.
+- **Dashboard de 6 secciones** con navegación lateral glassmorphism:
+  - **Chat** — chat multi-conversación con WebSocket, sidebar colapsable con búsqueda, crear/renombrar/eliminar/fijar chats.
+  - **Agentes** — Configuración General (modelo, temperatura slider 0–2, límite de historial 5–100), Telegram Bot, Tools toggles, CRUD de sub-agentes con WS propio.
+  - **Tareas** — listado de ejecuciones con filtros por estado, modal de detalle con línea de tiempo de eventos.
+  - **Conocimiento** — subida de archivos con chunking automático e indexación al MCP Brain, panel de búsqueda semántica.
+  - **Conexión** — estado WebSocket, CRUD de proveedores de modelos, información del MCP Brain.
+  - **Memoria** — búsqueda en el Brain (semántico/lexical/híbrido), estadísticas, modal de detalle.
+- **view-header eliminado en Chat** — máximo espacio para mensajes; solo barra compacta de 8px con estado, modelo, contador de tokens.
+- **Token counter** — muestra `▲prompt / ▼output` por mensaje y total `Σ` en la barra de estado.
+- **Auto-creación de chat** al enviar el primer mensaje si no hay chat seleccionado.
+- **Contenedor Docker** en `docker-compose.yml` (puerto 8081).
+
+#### Agent Engine
+- **Nuevos endpoints REST**:
+  - `GET /api/runs` — listado de ejecuciones con filtros (status, chatId, origin, limit).
+  - `GET /api/runs/:id` — detalle de ejecución con eventos.
+  - `GET /api/knowledge` — listar documentos indexados.
+  - `POST /api/knowledge` — subir archivo, chunkear, embedear y guardar como memoria `knowledge` en el Brain.
+  - `DELETE /api/knowledge/:id` — eliminar documento del Brain.
+- **Nuevo servicio `services/knowledge/index.ts`** — chunking por párrafos, lectura de archivos (txt, json, md), indexación vía REST al MCP Brain.
+- **Nuevas funciones DB** `listRunsByFilters()` y `getRunEvents()` en `services/db/runs.ts`.
+- **Fix: persistencia de chats** — los chats se creaban con `clientId` (WS connection ID volátil) como `userId` en vez del `userId` real del identify. Agregado `userMap<clientId → userId>` que se consulta en todas las operaciones de chat.
+- **Fix: auto-creación de chat en primer mensaje** — si el chatId no existe en la DB, se crea automáticamente con el texto del primer mensaje como título.
+
+#### Refactor
+- **Conexión y Agentes**: eliminada duplicación de Telegram y Tools. Conexión queda solo con Estado WS, Modelos CRUD y MCP Brain. Agentes mantiene Status, Default Model, Telegram, Tools, Sub-Agents.
+- **buildPrompt.ts reducido de ~60 a 4 líneas**: eliminado stack del proyecto, descripciones de tools (redundantes con OpenAI function calling API), reglas de formato, directivas y contexto. Ahorro estimado: 500-1000+ tokens/request.
+- **Directives y context como mensajes system separados**: ya no se hornean en el system prompt. Se inyectan como mensajes `system` adicionales que pueden trimerase independientemente.
+
+#### Configuración General persistente
+- **Nuevo campo `history_limit`** en tabla `sub_agents` (migración automática).
+- **WS messages**: `get_general_config` / `general_config_update` para leer y guardar configuración.
+- **`runAgentCore.ts`**: lee `model`, `temperature` e `history_limit` del experto `__general__` en DB. Ya no usa hardcoded `temperature: 0.3` ni `getMessages(chatId, 10)`.
+- **UI en Agentes**: slider de temperatura, input de límite de historial, modelo persistente con botón Guardar.
+
+#### Optimización de tokens
+- `temperature: 0.3` → `0.7` (más variación, menos patrones fijos).
+- Eliminado `brain.getContext(10)` del primer mensaje de sesión (ahorra 200-800 tokens).
+- Historial reducido de 20 a 10 mensajes (configurable vía general config).
+- Prompt modificado: "Usa herramientas solo si el usuario pide explícitamente... Para conversación normal, responde directamente sin preámbulos ni disculpas."
+
+#### Builds verificados
+- `agent-engine`: ✅ TypeScript 0 errores.
+- `agent-frontend`: ✅ TypeScript + Vite production build 0 errores (251 KB JS).
+
 ### 🤖 Telegram Gateway + Sub-Agent System + Dashboard Settings (2026-06-02)
 
 #### Agent Engine
