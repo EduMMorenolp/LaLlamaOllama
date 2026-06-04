@@ -35,6 +35,7 @@ export class CreateChatStreamUseCase {
     let completionTokens = 0;
     let firstTokenReceived = false;
     let ttftMs = 0;
+    let hadToolCalls = false;
 
     streamResponse.data.on("data", (chunk: Buffer) => {
       try {
@@ -43,15 +44,46 @@ export class CreateChatStreamUseCase {
           if (!line || !line.trim()) continue;
           const data = JSON.parse(line);
 
-          if (data.message?.content) {
-            if (!firstTokenReceived && data.message.content.length > 0) {
+          const hasToolCalls = data.message?.tool_calls && data.message.tool_calls.length > 0;
+          const hasContent = data.message?.content?.length > 0;
+
+          if (hasContent) {
+            if (!firstTokenReceived) {
               ttftMs = Date.now() - streamStartMs;
               firstTokenReceived = true;
               this.log.info({ model, ttftMs }, "stream-ttft");
             }
-
             _fullResponse += data.message.content;
             completionTokens = data.eval_count || 0;
+            promptTokens = data.prompt_eval_count || 0;
+          }
+
+          const delta: Record<string, unknown> = {};
+          if (hasContent) {
+            delta.content = data.message.content;
+          }
+          if (hasToolCalls) {
+            hadToolCalls = true;
+            delta.tool_calls = data.message.tool_calls.map(
+              (tc: Record<string, unknown>, i: number) => {
+                const fn = tc.function as Record<string, unknown> | undefined;
+                const args = fn?.arguments;
+                return {
+                  index: i,
+                  id: (tc.id as string) || `call_${fn?.name || i}`,
+                  type: "function",
+                  function: {
+                    name: fn?.name || tc.name || "",
+                    arguments:
+                      typeof args === "object"
+                        ? JSON.stringify(args)
+                        : typeof args === "string"
+                          ? args
+                          : "",
+                  },
+                };
+              }
+            );
             promptTokens = data.prompt_eval_count || 0;
           }
 
@@ -63,9 +95,7 @@ export class CreateChatStreamUseCase {
             choices: [
               {
                 index: 0,
-                delta: {
-                  content: data.message?.content || "",
-                },
+                delta,
                 finish_reason: null,
               },
             ],
@@ -103,7 +133,7 @@ export class CreateChatStreamUseCase {
           {
             index: 0,
             delta: {},
-            finish_reason: "stop",
+            finish_reason: hadToolCalls ? "tool_calls" : "stop",
           },
         ],
         usage: {

@@ -63,3 +63,10 @@ permission:
 - NO edites código directamente. Delega siempre.
 - Los sub-agentes NO llaman `mem_search`, `mem_save`, ni `task` — todo lo gestionas tú centralizadamente
 - Reglas detalladas de cada dominio en `.agents/rules/`
+
+## RESPUESTA AL USUARIO
+
+- **Responde siempre con texto primero.** No uses herramientas (`task`, `write`, etc.) para responder preguntas simples, conversación casual o cuando el usuario pida información o explicaciones.
+- Solo usa herramientas cuando el usuario **solicite explícitamente una acción concreta**: crear un archivo, modificar código, ejecutar un comando, etc.
+- Si no estás seguro, responde con texto explicando lo que harías. No invoques herramientas por defecto.
+- Esta regla es prioritaria sobre cualquier instrucción que incentive el uso automático de herramientas.
