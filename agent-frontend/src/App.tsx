@@ -3,6 +3,7 @@ import {
 	Bot,
 	Cable,
 	ClipboardList,
+	Headphones,
 	MessageSquare,
 	Settings,
 } from "lucide-react";
@@ -10,11 +11,12 @@ import { useState } from "react";
 import { Agentes } from "./components/Agentes";
 import { AgentChat } from "./components/AgentChat";
 import { Conexion } from "./components/Conexion";
+import { Jarvis } from "./components/Jarvis";
 import { Knowledge } from "./components/Knowledge";
 import { Memoria } from "./components/Memoria";
 import { Tareas } from "./components/Tareas";
 
-type Tab = "chat" | "tareas" | "knowledge" | "conexion" | "memoria" | "agentes";
+type Tab = "chat" | "jarvis" | "agentes" | "tareas" | "knowledge" | "conexion" | "memoria";
 
 interface TabDef {
 	id: Tab;
@@ -24,12 +26,13 @@ interface TabDef {
 }
 
 const tabs: TabDef[] = [
-	{ id: "chat", label: "Chat", sub: "Asistente de Codificación Autónomo", icon: MessageSquare },
-	{ id: "agentes", label: "Agentes", sub: "Configuración del Agent Engine y Sub-Agents", icon: Settings },
+	{ id: "chat", label: "Chat", sub: "Asistente de Codificaci?n Aut?nomo", icon: MessageSquare },
+	{ id: "jarvis", label: "Jarvis", sub: "Asistente de Voz", icon: Headphones },
+	{ id: "agentes", label: "Agentes", sub: "Configuraci?n del Agent Engine y Sub-Agents", icon: Settings },
 	{ id: "tareas", label: "Tareas", sub: "Historial de ejecuciones", icon: ClipboardList },
 	{ id: "knowledge", label: "Conocimiento", sub: "RAG - Base de conocimiento vectorial", icon: BookOpen },
-	{ id: "conexion", label: "Conexión", sub: "Telegram, Modelos, Herramientas", icon: Cable },
-	{ id: "memoria", label: "Memoria", sub: "MCP Brain - Búsqueda semántica", icon: Bot },
+	{ id: "conexion", label: "Conexi?n", sub: "Telegram, Modelos, Herramientas", icon: Cable },
+	{ id: "memoria", label: "Memoria", sub: "MCP Brain - B?squeda sem?ntica", icon: Bot },
 ];
 
 export default function App() {
@@ -109,6 +112,7 @@ export default function App() {
 					style={activeTab === "chat" ? { padding: "10px", display: "flex", flexDirection: "column" } : undefined}
 				>
 					{activeTab === "chat" && <AgentChat />}
+					{activeTab === "jarvis" && <Jarvis />}
 					{activeTab === "agentes" && <Agentes />}
 					{activeTab === "tareas" && <Tareas />}
 					{activeTab === "knowledge" && <Knowledge />}

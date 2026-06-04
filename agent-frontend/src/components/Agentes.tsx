@@ -38,11 +38,15 @@ export const Agentes: React.FC = () => {
   });
   const [showAgentForm, setShowAgentForm] = useState(false);
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const sendWs = useCallback((type: string, payload?: Record<string, unknown>) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type, payload: payload || {} }));
+      return true;
     }
+    return false;
   }, []);
 
   useEffect(() => {
@@ -67,9 +71,14 @@ export const Agentes: React.FC = () => {
         switch (msg.type) {
           case "general_config": {
             const gc = msg.payload as GeneralConfig;
-            if (gc?.model) setConfigModel(gc.model);
+            if (gc?.model != null) setConfigModel(gc.model || "");
             if (gc?.temperature != null) setConfigTemp(gc.temperature);
             if (gc?.history_limit != null) setConfigHistoryLimit(gc.history_limit);
+            if (saving) {
+              setSaving(false);
+              setSaveMessage({ type: "success", text: "ConfiguraciÃ³n guardada correctamente" });
+              setTimeout(() => setSaveMessage(null), 2500);
+            }
             break;
           }
           case "status":
@@ -105,15 +114,25 @@ export const Agentes: React.FC = () => {
       } catch { /* ignore */ }
     };
 
-    return () => ws.close();
+    return () => {
+        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+            ws.close();
+        }
+    };
   }, []);
 
   const handleSaveGeneralConfig = () => {
-    sendWs("general_config_update", {
+    setSaveMessage(null);
+    const sent = sendWs("general_config_update", {
       model: configModel,
       temperature: configTemp,
       history_limit: configHistoryLimit,
     });
+    if (sent) {
+      setSaving(true);
+    } else {
+      setSaveMessage({ type: "error", text: "No hay conexiÃ³n con el servidor. Verifica que el Agent Engine estÃ© corriendo." });
+    }
   };
 
   const handleTelegramSave = () => {
@@ -174,7 +193,7 @@ export const Agentes: React.FC = () => {
 
   return (
     <div style={{ maxWidth: "900px", margin: "0 auto" }}>
-      {/* Connection status — full width */}
+      {/* Connection status ï¿½ full width */}
       <div style={sectionCard}>
         <label style={sectionTitle}>
           <Settings size={14} style={{ marginRight: "6px" }} />
@@ -260,9 +279,24 @@ export const Agentes: React.FC = () => {
             />
           </div>
 
-          <button type="button" onClick={handleSaveGeneralConfig} style={actionBtnStyle}>
-            <Save size={14} style={{ marginRight: "4px" }} /> Guardar Configuracion
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <button type="button" onClick={handleSaveGeneralConfig} disabled={saving} style={{
+              ...actionBtnStyle,
+              opacity: saving ? 0.6 : 1,
+              cursor: saving ? "wait" : "pointer",
+            }}>
+              <Save size={14} style={{ marginRight: "4px" }} />
+              {saving ? "Guardando..." : "Guardar Configuracion"}
+            </button>
+            {saveMessage && (
+              <span style={{
+                fontSize: "11px", fontWeight: 500,
+                color: saveMessage.type === "success" ? "var(--success)" : "var(--error)",
+              }}>
+                {saveMessage.text}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Telegram */}
@@ -293,7 +327,7 @@ export const Agentes: React.FC = () => {
         </div>
       </div>
 
-      {/* Tools — full width */}
+      {/* Tools ï¿½ full width */}
       <div style={sectionCard}>
         <label style={sectionTitle}>Herramientas ({tools.length})</label>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
@@ -319,7 +353,7 @@ export const Agentes: React.FC = () => {
         </div>
       </div>
 
-      {/* Sub-Agents — full width */}
+      {/* Sub-Agents ï¿½ full width */}
       <div style={sectionCard}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
           <label style={{ ...sectionTitle, marginBottom: 0 }}>Sub-Agents ({agents.length})</label>

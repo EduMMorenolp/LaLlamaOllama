@@ -1,4 +1,4 @@
-import { type WebSocket } from "ws";
+﻿import { type WebSocket } from "ws";
 import { runAgent } from "../services/agent/runAgent.js";
 import type { BrainClient } from "../services/brain/client.js";
 import { loadConfig } from "../services/config.js";
@@ -41,7 +41,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 			const { type, payload } = parsed;
 
 			switch (type) {
-				// ─── Chat ────────────────────────────────────────────────
+				// â”€â”€â”€ Chat â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 			case "user_message": {
 				const rawChatId = (payload?.chatId as string) || clientId;
 				const text = (payload?.text as string) || "";
@@ -73,14 +73,14 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					logger.agent(`[${chatId}] Cancel requested`);
 					wsServer.sendToAll("assistant_done", {
 						chatId,
-						text: "⏹️ Conversación cancelada.",
+						text: "â¹ï¸ ConversaciÃ³n cancelada.",
 						model: "system",
 						latencyMs: 0,
 					});
 					break;
 				}
 
-				// ─── Status / Tools ──────────────────────────────────────
+				// â”€â”€â”€ Status / Tools â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 				case "get_status": {
 					ws.send(
 						createMessage("status", {
@@ -115,8 +115,11 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 
 				// Ollama models
 				case "list_ollama_models": {
-					const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
-					axios.get(`${ollamaUrl}/api/tags`, { timeout: 3000 })
+					const backendUrl = config.backendUrl;
+					axios.get(`${backendUrl}/api/models`, {
+						timeout: 3000,
+						headers: { 'X-API-Key': config.apiKey }
+					})
 						.then((response) => {
 							const models = response.data?.models || [];
 							ws.send(createMessage("ollama_models", { models }));
@@ -127,7 +130,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 						});
 					break;
 				}
-				// ─── Expert Management ───────────────────────────────────
+				// â”€â”€â”€ Expert Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 				case "list_experts": {
 					const experts = listExperts();
 					ws.send(createMessage("list_experts", { experts }));
@@ -145,7 +148,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					break;
 				}
 
-				// ─── User Management ─────────────────────────────────────
+				// â”€â”€â”€ User Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 				case "list_users": {
 					ws.send(createMessage("list_users", { users: listAllUsers() }));
 					break;
@@ -154,7 +157,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					const userId = payload?.userId as string;
 					if (userId) {
 						userMap.set(clientId, userId);
-						logger.info(`👤 WebChat identified: ${clientId} -> ${userId}`);
+						logger.info(`ðŸ‘¤ WebChat identified: ${clientId} -> ${userId}`);
 						ws.send(
 							createMessage("status", {
 								status: "identified",
@@ -181,7 +184,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 						telegram_user: payload?.telegram_user as string,
 						telegram_token: payload?.telegram_token as string,
 					} as never);
-					logger.info(`✅ User registered: ${userId}`);
+					logger.info(`âœ… User registered: ${userId}`);
 					ws.send(createMessage("list_users", { users: listAllUsers() }));
 					break;
 				}
@@ -194,12 +197,12 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 				case "user_delete": {
 					const dId = payload?.userId as string;
 					deleteUser(dId);
-					logger.info(`🗑️ User deleted: ${dId}`);
+					logger.info(`ðŸ—‘ï¸ User deleted: ${dId}`);
 					ws.send(createMessage("list_users", { users: listAllUsers() }));
 					break;
 				}
 
-				// ─── Chat Management ─────────────────────────────────────
+				// â”€â”€â”€ Chat Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 				case "list_chats": {
 					const userId = payload?.userId as string;
 					if (userId) {
@@ -253,7 +256,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 									origin: m.origin,
 								})),
 								expertName: chat?.expertName || null,
-								text: storedMessages.length === 0 ? "Este chat no tiene mensajes aún." : "",
+								text: storedMessages.length === 0 ? "Este chat no tiene mensajes aÃºn." : "",
 								model: "Sistema",
 							})
 						);
@@ -261,7 +264,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					break;
 				}
 
-				// ─── Model Management ────────────────────────────────────
+				// â”€â”€â”€ Model Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 				case "list_models": {
 					ws.send(createMessage("list_models", { models: listModels() }));
 					break;
@@ -277,7 +280,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					break;
 				}
 
-				// ─── General Config ─────────────────────────────────────
+				// â”€â”€â”€ General Config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 				case "get_general_config": {
 					const gc = getGeneralConfig() as Record<string, unknown> | null;
 					ws.send(createMessage("general_config", gc || {}));
@@ -285,10 +288,14 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 				}
 				case "general_config_update": {
 					const cfg = payload as Record<string, unknown>;
+					// Preserve existing system_prompt if not provided in the update
+					const existing_gc = getGeneralConfig() as Record<string, unknown> | null;
+					const existingPrompt = existing_gc?.system_prompt as string | undefined;
+					const systemPrompt = (cfg.system_prompt as string) || existingPrompt || "";
 					upsertExpert({
 						name: "__general__",
 						model: (cfg.model as string) || "",
-						system_prompt: (cfg.system_prompt as string) || "",
+						system_prompt: systemPrompt,
 						tools: [],
 						experts: [],
 						temperature: (cfg.temperature as number) ?? 0.7,
@@ -300,7 +307,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					break;
 				}
 
-				// ─── Telegram Settings ───────────────────────────────────
+				// â”€â”€â”€ Telegram Settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 				case "telegram_update": {
 					const token = payload?.botToken as string;
 					const enabled = payload?.enabled as boolean;

@@ -56,6 +56,13 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 - `agent-engine`: ✅ TypeScript 0 errores.
 - `agent-frontend`: ✅ TypeScript + Vite production build 0 errores (251 KB JS).
 
+### 🎙️ Nueva sección Jarvis: Asistente de Voz (2026-06-04)
+
+#### Agent Frontend
+- **Nuevo tab "Jarvis"** en la barra lateral entre Chat y Agentes.
+- **Nuevo componente Jarvis.tsx** — botón "Iniciar Jarvis" que solicita permiso de micrófono vía `getUserMedia`, maneja estados (idle/requesting/granted/denied/unavailable), errores (NotAllowedError, NotFoundError), y botón "Detener Jarvis" para liberar el stream.
+- **Indicador visual** animado cuando está escuchando, con glow effect y color verde.
+
 ### 📎 File Upload + Chat Persistence + Model Selector + Grid Layout (2026-06-04)
 
 #### Agent Frontend
@@ -68,8 +75,20 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 - **Attachments forwarding** — `handlers.ts` ahora extrae `attachments` del payload `user_message` y los pasa a `handleUserMessage` → `runAgent` (el core ya procesaba texto/JSON/imágenes).
 - **Fix: chat_create ahora envía activeChatId** — el frontend cambia inmediatamente al nuevo chat al crearlo. Eliminado el mensaje "Chat creado." que aparecía como respuesta del asistente.
 - **Sidebar refrescado post-respuesta** — después de cada `assistant_done`, se envía `list_chats` actualizado a todos los clientes para que el sidebar muestre el último mensaje.
-- **Nuevo WS `list_ollama_models`** — handler que consulta `http://localhost:11434/api/tags` vía axios y retorna la lista de modelos instalados en Ollama.
+- **Nuevo WS `list_ollama_models`** — handler que consulta el backend (`/api/models`) con API key y retorna la lista de modelos instalados en Ollama.
 - **Nuevos tipos protocolo** — `list_ollama_models` (C→S) y `ollama_models` (S→C) en `protocol.ts`.
+
+### 🐛 Fixes: System prompt vacío + Tool listing + WS errors + Modelos Docker (2026-06-04)
+
+#### Agent Engine
+- **Fix: system prompt vacío** — `general_config_update` guardaba `system_prompt: ""` al no enviarlo desde el frontend, sobrescribiendo el prompt del build. Ahora preserva el existente si no se provee.
+- **Fix: fallback de system prompt** — `runAgentCore.ts` ahora usa `generalOverride?.system_prompt` (optional chaining), cayendo a `buildSystemPrompt()` si está vacío.
+- **Tool names en contexto** — se agrega mensaje system con la lista de herramientas disponibles (`toolRegistry.getToolNames()`) para que el modelo pueda responder cuando le pregunten.
+- **Fix: list_ollama_models desde Docker** — cambiado de `localhost:11434/api/tags` (inaccesible desde contenedor) a `backendUrl/api/models` con header `X-API-Key`.
+- **Mejora buildPrompt** — instrucciones más directas: sin disclaimers, permite listar herramientas, sin preámbulos ni disculpas.
+
+#### Agent Frontend
+- **Fix: WS "closed before connection established"** — ambos componentes (AgentChat, Agentes) ahora verifican `readyState` antes de cerrar WebSocket en cleanup de useEffect, evitando error en React StrictMode.
 
 ### 🤖 Telegram Gateway + Sub-Agent System + Dashboard Settings (2026-06-02)
 

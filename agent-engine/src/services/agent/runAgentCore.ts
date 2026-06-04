@@ -72,7 +72,7 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 		try {
 			const { getGeneralConfig } = await import("../db/experts.js");
 			const generalOverride = getGeneralConfig();
-			if (generalOverride) {
+			if (generalOverride?.system_prompt) {
 				systemPrompt = generalOverride.system_prompt;
 			} else {
 				systemPrompt = buildSystemPrompt(config, generalModel);
@@ -90,6 +90,15 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 			session.messages.push({
 				role: "system",
 				content: `## Directivas del proyecto\n${directives}`,
+			});
+		}
+
+		// Inform about available tools
+		const toolNames = toolRegistry.getToolNames();
+		if (toolNames.length > 0) {
+			session.messages.push({
+				role: "system",
+				content: `## Herramientas disponibles\nPuedes usar estas herramientas cuando el usuario lo solicite:\n${toolNames.map((n: string) => `- ${n}`).join("\n")}\n\nResponde siempre en español.`,
 			});
 		}
 		try {

@@ -98,7 +98,11 @@ export const AgentChat: React.FC = () => {
 			} catch { /* ignore */ }
 		};
 
-		return () => ws.close();
+		return () => {
+			if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+				ws.close();
+			}
+		};
 	}, []);
 
 	const handleWsMessage = (msg: { type: string; payload?: Record<string, unknown> }) => {
