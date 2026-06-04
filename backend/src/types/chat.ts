@@ -5,7 +5,8 @@ export const MessageSchema = z.object({
   content: z.string().nullable(),
   tool_calls: z.array(z.record(z.unknown())).optional(),
   tool_call_id: z.string().optional(),
-});
+  name: z.string().optional(),
+}).passthrough();
 
 export const ChatOptionsSchema = z.object({
   temperature: z.number().min(0).max(2).optional(),
