@@ -2,952 +2,209 @@ import "dotenv/config";
 
 // --- Validación de Variables de Entorno ---
 const validateEnv = () => {
-	const cyan = "\x1b[36m";
-	const yellow = "\x1b[33m";
-	const red = "\x1b[31m";
-	const reset = "\x1b[0m";
+  const cyan = "\x1b[36m";
+  const yellow = "\x1b[33m";
+  const red = "\x1b[31m";
+  const reset = "\x1b[0m";
 
-	const requiredVariables = ["API_KEY"];
-	const missing = requiredVariables.filter((key) => !process.env[key] || process.env[key].trim() === "");
+  const requiredVariables = ["API_KEY"];
+  const missing = requiredVariables.filter((key) => !process.env[key] || process.env[key].trim() === "");
 
-	if (missing.length > 0) {
-		console.error(`\n${red}❌ [FATAL] Faltan variables de entorno requeridas en el Backend:${reset}`);
-		missing.forEach((key) => {
-			console.error(`   ${yellow}- ${key}${reset}`);
-		});
-		console.error(
-			`\n${cyan}Por favor, define estas variables en tu archivo .env o en el docker-compose.yml${reset}\n`
-		);
-		process.exit(1);
-	}
+  if (missing.length > 0) {
+    console.error(`\n${red}❌ [FATAL] Faltan variables de entorno requeridas en el Backend:${reset}`);
+    missing.forEach((key) => {
+      console.error(`   ${yellow}- ${key}${reset}`);
+    });
+    console.error(
+      `\n${cyan}Por favor, define estas variables en tu archivo .env o en el docker-compose.yml${reset}\n`
+    );
+    process.exit(1);
+  }
 };
 validateEnv();
 
 import { createServer } from "node:http";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
-import axios from "axios";
-import * as cheerio from "cheerio";
 import cors from "cors";
-import Docker from "dockerode";
-import express, { type Request, type Response } from "express";
+import express from "express";
 import { rateLimit } from "express-rate-limit";
 import helmet from "helmet";
 import { Server as SocketServer } from "socket.io";
 import { AppModule } from "./app.module.js";
-import { MCP_TOOL_CATALOG } from "./ollama/ollama.tools.js";
 import { AgentsService } from "./services/agents.service.js";
 import logger from "./utils/logger.js";
+import { createAuthMiddleware, createMcpAuthMiddleware } from "./middleware/auth.middleware.js";
+import { createSecurityMiddleware } from "./middleware/security.middleware.js";
+import { createErrorHandler } from "./middleware/error-handler.js";
+import { createAllRoutes } from "./routes/index.js";
 
 const log = logger.child({ component: "main" });
-const sendError = (res: Response, status: number, message: string, type = "server_error") => {
-	res.status(status).json({ error: { message, type } });
-};
 
 const app = express();
 
-// 1. PRIMERO: Body parsing con límite grande
+// 1. Body parsing
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
-// 2. SEGUNDO: CORS
-app.use(cors()); // Habilitar CORS para desarrollo local del frontend
 
-// 3. TERCERO: Seguridad
-// --- Middleware de Seguridad (Fase 1) ---
+// 2. CORS
+app.use(cors());
+
+// 3. Seguridad
 app.use(helmet());
+
+// 4. AppModule (servicios)
+const appModule = new AppModule();
+
 const limiter = rateLimit({
-	windowMs: 15 * 60 * 1000,
-	max: 15000,
-	standardHeaders: true,
-	legacyHeaders: false,
-	skip: (req) => {
-		const ip = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "";
-		const isLocal = ip === "::1" || ip === "127.0.0.1" || ip.includes("127.0.0.1");
-		const apiKey = req.headers["x-api-key"] || req.headers.authorization?.toString().replace("Bearer ", "");
-		const isValidKey = appModule.authService.validate(apiKey as string);
-		return isLocal || isValidKey;
-	},
+  windowMs: 15 * 60 * 1000,
+  max: 15000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => {
+    const ip = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "";
+    const isLocal = ip === "::1" || ip === "127.0.0.1" || ip.includes("127.0.0.1");
+    const apiKey = req.headers["x-api-key"] || req.headers.authorization?.toString().replace("Bearer ", "");
+    const isValidKey = appModule.authService.validate(apiKey as string);
+    return isLocal || isValidKey;
+  },
 });
 app.use(limiter);
 
-app.use(express.json());
 const port = process.env.APP_PORT || 3000;
 const httpServer = createServer(app);
 const io = new SocketServer(httpServer, {
-	cors: {
-		origin: "*", // En producción se debe restringir
-	},
+  cors: { origin: "*" },
 });
 
 const server = new Server(
-	{
-		name: "lallama-station-mcp",
-		version: "1.0.0",
-	},
-	{
-		capabilities: {
-			tools: {},
-		},
-	}
+  {
+    name: "lallama-station-mcp",
+    version: "1.0.0",
+  },
+  {
+    capabilities: { tools: {} },
+  }
 );
 
-// Módulo de la aplicación (Estilo NestJS)
-const appModule = new AppModule();
 await appModule.bootstrap(server, io);
 await appModule.ollamaService.checkConnection();
 const agentsService = new AgentsService(appModule.ollamaService);
 
 // --- Auto-Pull de modelos al arranque ---
-// Configura en .env o docker-compose: OLLAMA_AUTO_PULL=llama3.2,qwen2.5-coder:7b
 (async () => {
-	const autoPullEnv = process.env.OLLAMA_AUTO_PULL?.trim();
-	if (!autoPullEnv) return;
+  const autoPullEnv = process.env.OLLAMA_AUTO_PULL?.trim();
+  if (!autoPullEnv) return;
 
-	const requested = autoPullEnv
-		.split(",")
-		.map((m) => m.trim())
-		.filter(Boolean);
+  const requested = autoPullEnv
+    .split(",")
+    .map((m) => m.trim())
+    .filter(Boolean);
 
-	if (requested.length === 0) return;
+  if (requested.length === 0) return;
 
-	const cyan = "\x1b[36m";
-	const yellow = "\x1b[33m";
-	const reset = "\x1b[0m";
-	log.info({ models: requested }, "auto-pull: modelos configurados");
+  const cyan = "\x1b[36m";
+  const yellow = "\x1b[33m";
+  const reset = "\x1b[0m";
+  log.info({ models: requested }, "auto-pull: modelos configurados");
 
-	// Esperar 3 segundos para que Ollama esté listo antes de empezar
-	await new Promise<void>((resolve) => setTimeout(resolve, 3000));
+  await new Promise<void>((resolve) => setTimeout(resolve, 3000));
 
-	const existing = await appModule.ollamaService.listModels();
-	const existingNames = new Set(existing.map((m) => m.name));
+  const existing = await appModule.ollamaService.listModels();
+  const existingNames = new Set(existing.map((m) => m.name));
 
-	for (const model of requested) {
-		if (existingNames.has(model)) {
-			log.info({ model }, "auto-pull: ya disponible, omitiendo");
-			continue;
-		}
-		log.info({ model }, "auto-pull: descargando");
-		appModule.ollamaService.pullModel(model).catch((err: unknown) => {
-			const message = err instanceof Error ? err.message : String(err);
-			log.error({ model, message }, "auto-pull: error al descargar");
-		});
-	}
+  for (const model of requested) {
+    if (existingNames.has(model)) {
+      log.info({ model }, "auto-pull: ya disponible, omitiendo");
+      continue;
+    }
+    log.info({ model }, "auto-pull: descargando");
+    appModule.ollamaService.pullModel(model).catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      log.error({ model, message }, "auto-pull: error al descargar");
+    });
+  }
 })();
 
-// --- Middleware de Seguridad Avanzada (Fase 2) ---
-const securityMiddleware = (req: Request, res: Response, next: (err?: unknown) => void) => {
-	const ip = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "unknown";
-
-	if (appModule.ollamaService.isBlacklisted(ip)) {
-		return sendError(res, 403, "Forbidden: Your IP is blacklisted", "permission_error");
-	}
-	next();
-};
+// --- Middlewares ---
+const authMiddleware = createAuthMiddleware(appModule.authService, appModule.ollamaService);
+const securityMiddleware = createSecurityMiddleware(appModule.ollamaService);
+const mcpAuthMiddleware = createMcpAuthMiddleware(appModule.authService);
 
 app.use(securityMiddleware);
 
-const authMiddleware = (req: Request, res: Response, next: (err?: unknown) => void) => {
-	if (!appModule.authService.isOllamaAuthEnabled()) {
-		return next();
-	}
-
-	const ip = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "unknown";
-	const apiKey = req.headers["x-api-key"] || req.headers.authorization?.toString().replace("Bearer ", "");
-
-	const action = `${req.method} ${req.path}`;
-	// Omitir logging de endpoints de polling interno para no saturar el panel de seguridad
-	const isPolling =
-		req.method === "GET" &&
-		["/api/status", "/api/status/fast", "/api/engine-stats", "/api/hardware"].includes(req.path);
-
-	if (appModule.authService.validate(apiKey as string)) {
-		if (!isPolling) {
-			appModule.ollamaService.logRequest(ip, action, "Success");
-		}
-		next();
-	} else {
-		appModule.ollamaService.logRequest(ip, action, "Unauthorized");
-		appModule.ollamaService.reportFailedAuth(ip);
-		sendError(res, 401, "Unauthorized: Invalid API Key", "authentication_error");
-	}
-};
-
-const withAuthConfig = <T extends Record<string, unknown>>(payload: T) => ({
-	...payload,
-	auth: appModule.authService.getSettings(),
-});
-
-// --- Rutas de Compatibilidad OpenAI ---
-
-// 1. Listar modelos (OpenAI Format)
-app.get("/v1/models", authMiddleware, async (_req, res) => {
-	try {
-		const models = await appModule.ollamaService.listModels();
-		res.json({
-			object: "list",
-			data: models.map((m) => ({
-				id: m.name,
-				object: "model",
-				created: Math.floor(Date.now() / 1000),
-				owned_by: "ollama",
-			})),
-		});
-	} catch (error: unknown) {
-		const message = error instanceof Error ? error.message : String(error);
-		sendError(res, 500, message);
-	}
-});
-
-// 1b. Listar modelos con datos completos (para el Dashboard)
-app.get("/api/models", authMiddleware, async (_req, res) => {
-	try {
-		const models = await appModule.ollamaService.listModels();
-		res.json({ models });
-	} catch (error: unknown) {
-		const message = error instanceof Error ? error.message : String(error);
-		sendError(res, 500, message);
-	}
-});
-
-// 1c. Analyze project and generate agents
-app.post("/api/agents/analyze-project", authMiddleware, async (req, res) => {
-	try {
-		const { model, projectName, structure, configFiles } = req.body;
-		if (!model || !projectName || !structure) {
-			return sendError(res, 400, "model, projectName y structure son obligatorios", "invalid_request_error");
-		}
-		const result = await agentsService.analyzeProject(model, projectName, structure, configFiles || {});
-		res.json(result);
-	} catch (error: unknown) {
-		const message = error instanceof Error ? error.message : String(error);
-		sendError(res, 500, message);
-	}
-});
-
-// 2. Chat Completions (OpenAI Format) - with streaming support
-app.post("/v1/chat/completions", authMiddleware, async (req, res) => {
-	const { model, messages, stream = false, temperature, num_ctx, top_p, top_k, tools } = req.body;
-
-	if (!model || !Array.isArray(messages)) {
-		return sendError(res, 400, "model y messages son obligatorios", "invalid_request_error");
-	}
-
-	try {
-		if (stream === true) {
-			// Streaming mode: send SSE chunks
-			res.setHeader("Content-Type", "text/event-stream");
-			res.setHeader("Cache-Control", "no-cache");
-			res.setHeader("Connection", "keep-alive");
-
-			try {
-				const streamStartMs = Date.now();
-				const streamResponse = await appModule.ollamaService.chatStream(
-					model,
-					messages,
-					{
-						temperature,
-						num_ctx,
-						top_p,
-						top_k,
-					},
-					"5m",
-					undefined,
-					tools
-				);
-
-				let _fullResponse = "";
-				let promptTokens = 0;
-				let completionTokens = 0;
-				let firstTokenReceived = false;
-				let ttftMs = 0;
-
-				streamResponse.data.on("data", (chunk: Buffer) => {
-					try {
-						const lines = chunk.toString().split("\n");
-						for (const line of lines) {
-							if (!line || !line.trim()) continue;
-							const data = JSON.parse(line);
-
-							if (data.message?.content) {
-								// Track TTFT (time to first token)
-								if (!firstTokenReceived && data.message.content.length > 0) {
-									ttftMs = Date.now() - streamStartMs;
-									firstTokenReceived = true;
-									log.info({ model, ttftMs }, "stream-ttft");
-								}
-
-								_fullResponse += data.message.content;
-								completionTokens = data.eval_count || 0;
-								promptTokens = data.prompt_eval_count || 0;
-							}
-
-							// Send as SSE chunk (OpenAI compatible format)
-							const sseData = {
-								id: `chatcmpl-${Date.now()}`,
-								object: "chat.completion.chunk",
-								created: Math.floor(Date.now() / 1000),
-								model,
-								choices: [
-									{
-										index: 0,
-										delta: {
-											content: data.message?.content || "",
-										},
-										finish_reason: null,
-									},
-								],
-							};
-							res.write(`data: ${JSON.stringify(sseData)}\n\n`);
-						}
-					} catch (_e) {
-						// ignore parse errors in streaming
-					}
-				});
-
-				streamResponse.data.on("end", () => {
-					const totalDurationMs = Date.now() - streamStartMs;
-					const tokensPerSec = completionTokens > 0 ? (completionTokens / totalDurationMs) * 1000 : 0;
-
-					// Record metrics
-					if (ttftMs > 0) {
-						const stats = appModule.ollamaService.getStats();
-						if (!Array.isArray(stats.ttftHistory)) stats.ttftHistory = [];
-						stats.ttftHistory.push(ttftMs);
-						if (stats.ttftHistory.length > 100) stats.ttftHistory.shift(); // Keep last 100
-
-						if (!Array.isArray(stats.tokensPerSecHistor)) stats.tokensPerSecHistor = [];
-						stats.tokensPerSecHistor.push(tokensPerSec);
-						if (stats.tokensPerSecHistor.length > 100) stats.tokensPerSecHistor.shift();
-					}
-
-					log.info({ model, totalDurationMs, tokensPerSec: tokensPerSec.toFixed(2), ttftMs }, "stream-final");
-
-					// Send final chunk with finish_reason
-					const finalData = {
-						id: `chatcmpl-${Date.now()}`,
-						object: "chat.completion.chunk",
-						created: Math.floor(Date.now() / 1000),
-						model,
-						choices: [
-							{
-								index: 0,
-								delta: {},
-								finish_reason: "stop",
-							},
-						],
-						usage: {
-							prompt_tokens: promptTokens,
-							completion_tokens: completionTokens,
-							total_tokens: promptTokens + completionTokens,
-						},
-					};
-					res.write(`data: ${JSON.stringify(finalData)}\n\n`);
-					res.write("data: [DONE]\n\n");
-					res.end();
-				});
-
-				streamResponse.data.on("error", (err: Error) => {
-					log.error(err, "stream-error");
-					res.write(`data: ${JSON.stringify({ error: { message: err.message, type: "server_error" } })}\n\n`);
-					res.end();
-				});
-			} catch (err: unknown) {
-				const message = err instanceof Error ? err.message : String(err);
-				log.error({ message }, "stream-catch");
-				res.write(`data: ${JSON.stringify({ error: { message, type: "server_error" } })}\n\n`);
-				res.end();
-			}
-		} else {
-			// Non-streaming mode (original behavior)
-			const response = await appModule.ollamaService.chat(
-				model,
-				messages,
-				{
-					temperature,
-					num_ctx,
-					top_p,
-					top_k,
-				},
-				"5m",
-				undefined,
-				tools
-			);
-			const promptTokens = response.prompt_eval_count || 0;
-			const completionTokens = response.eval_count || 0;
-
-			res.json({
-				id: `chatcmpl-${Date.now()}`,
-				object: "chat.completion",
-				created: Math.floor(Date.now() / 1000),
-				model: model,
-				choices: [
-					{
-						index: 0,
-						message: response.message,
-						finish_reason: "stop",
-					},
-				],
-				usage: {
-					prompt_tokens: promptTokens,
-					completion_tokens: completionTokens,
-					total_tokens: promptTokens + completionTokens,
-				},
-			});
-		}
-	} catch (error: unknown) {
-		const message = error instanceof Error ? error.message : String(error);
-		log.error({ message, stack: error instanceof Error ? error.stack : undefined }, "chat-error");
-		sendError(res, 500, message);
-	}
-});
-
-// --- Endpoints de Telemetría y Gestión (Fase 5) ---
-
-// Endpoint status rápido (bajo costo, sin GPU/ngrok)
-app.get("/api/status/fast", authMiddleware, async (_req, res) => {
-	try {
-		const status = await appModule.ollamaService.getFastStatus();
-		let brainRunning = false;
-		try {
-			const container = docker.getContainer(BRAIN_CONTAINER);
-			const info = await container.inspect();
-			brainRunning = info.State?.Running === true;
-		} catch {
-			brainRunning = false;
-		}
-		res.json(withAuthConfig({ ...status, brainRunning }));
-	} catch (error: unknown) {
-		const message = error instanceof Error ? error.message : String(error);
-		sendError(res, 500, message);
-	}
-});
-
-// Endpoint status completo (costoso, incluye todo)
-app.get("/api/status/full", authMiddleware, async (_req, res) => {
-	try {
-		const status = await appModule.ollamaService.getServerStatus();
-		let brainRunning = false;
-		try {
-			const container = docker.getContainer(BRAIN_CONTAINER);
-			const info = await container.inspect();
-			brainRunning = info.State?.Running === true;
-		} catch {
-			brainRunning = false;
-		}
-		res.json(withAuthConfig({ ...status, brainRunning }));
-	} catch (error: unknown) {
-		const message = error instanceof Error ? error.message : String(error);
-		sendError(res, 500, message);
-	}
-});
-
-// Backward compatibility: /api/status redirige a /fast por defecto
-app.get("/api/status", authMiddleware, async (_req, res) => {
-	try {
-		const status = await appModule.ollamaService.getServerStatus();
-		let brainRunning = false;
-		try {
-			const container = docker.getContainer(BRAIN_CONTAINER);
-			const info = await container.inspect();
-			brainRunning = info.State?.Running === true;
-		} catch {
-			brainRunning = false;
-		}
-		res.json(withAuthConfig({ ...status, brainRunning }));
-	} catch (error: unknown) {
-		const message = error instanceof Error ? error.message : String(error);
-		sendError(res, 500, message);
-	}
-});
-
-// --- Auth Settings (toggle API Key enforcement) ---
-
-app.get("/api/auth/settings", authMiddleware, (_req, res) => {
-	res.json(appModule.authService.getSettings());
-});
-
-app.post("/api/auth/ollama", authMiddleware, (req, res) => {
-	const { enabled } = req.body;
-	if (typeof enabled !== "boolean") {
-		return sendError(res, 400, "enabled debe ser boolean", "invalid_request_error");
-	}
-	appModule.authService.setOllamaAuthEnabled(enabled);
-	res.json(appModule.authService.getSettings());
-});
-
-app.post("/api/auth/mcp", authMiddleware, (req, res) => {
-	const { enabled } = req.body;
-	if (typeof enabled !== "boolean") {
-		return sendError(res, 400, "enabled debe ser boolean", "invalid_request_error");
-	}
-	appModule.authService.setMcpAuthEnabled(enabled);
-	res.json(appModule.authService.getSettings());
-});
-
-app.get("/api/auth/mcp/tools", authMiddleware, (_req, res) => {
-	const permissions = appModule.authService.getMcpToolPermissions();
-	const byName = new Map(permissions.map((item) => [item.name, item.enabled]));
-	const ALL_TOOLS_CATALOG = [...MCP_TOOL_CATALOG];
-	const tools = ALL_TOOLS_CATALOG.map((tool) => ({
-		name: tool.name,
-		description: tool.description,
-		enabled: byName.get(tool.name) ?? true,
-	}));
-	res.json({ tools });
-});
-
-app.post("/api/auth/mcp/tools/:name", authMiddleware, (req, res) => {
-	const { name } = req.params;
-	const { enabled } = req.body;
-
-	if (typeof enabled !== "boolean") {
-		return sendError(res, 400, "enabled debe ser boolean", "invalid_request_error");
-	}
-
-	const knownTool = [...MCP_TOOL_CATALOG].some((tool) => tool.name === name);
-	if (!knownTool) {
-		return sendError(res, 404, `Tool ${name} no existe`, "not_found");
-	}
-
-	const updated = appModule.authService.setMcpToolEnabled(name, enabled);
-	if (!updated) {
-		return sendError(res, 404, `Tool ${name} no existe`, "not_found");
-	}
-
-	res.json({
-		name,
-		enabled,
-		mcpTools: appModule.authService.getMcpToolPermissions(),
-	});
-});
-
-app.post("/api/unload", authMiddleware, async (_req, res) => {
-	try {
-		await appModule.ollamaService.unloadModels();
-		res.json({ message: "VRAM freed successfully" });
-	} catch (error: unknown) {
-		const message = error instanceof Error ? error.message : String(error);
-		sendError(res, 500, message);
-	}
-});
-
-app.post("/api/ban", authMiddleware, async (req, res) => {
-	const { ip } = req.body;
-	if (!ip) return sendError(res, 400, "IP is required", "invalid_request_error");
-	appModule.ollamaService.banIp(ip);
-	res.json({ message: `IP ${ip} banned` });
-});
-
-app.post("/api/unban", authMiddleware, async (req, res) => {
-	const { ip } = req.body;
-	if (!ip) return sendError(res, 400, "IP is required", "invalid_request_error");
-	appModule.ollamaService.unbanIp(ip);
-	res.json({ message: `IP ${ip} unbanned` });
-});
-
-app.post("/api/pull", authMiddleware, async (req, res) => {
-	const { model } = req.body;
-	if (!model) return sendError(res, 400, "Model is required", "invalid_request_error");
-	try {
-		// No esperamos a que termine, pullModel emite via socket el progreso
-		appModule.ollamaService.pullModel(model).catch((err) => {
-			log.error({ err, model }, "Error pulling model");
-		});
-		res.json({ message: `Pulling model ${model} started` });
-	} catch (err: unknown) {
-		const message = err instanceof Error ? err.message : String(err);
-		sendError(res, 500, message);
-	}
-});
-
-app.post("/api/clean", authMiddleware, async (_req, res) => {
-	try {
-		const result = await appModule.ollamaService.cleanWorkspace();
-		res.json({ message: "Workspace cleaned", freed: result.freed });
-	} catch (error: unknown) {
-		const message = error instanceof Error ? error.message : String(error);
-		sendError(res, 500, message);
-	}
-});
-
-app.delete("/api/models/:name", authMiddleware, async (req, res) => {
-	try {
-		await appModule.ollamaService.deleteModel(req.params.name);
-		res.json({ message: `Model ${req.params.name} deleted` });
-	} catch (error: unknown) {
-		const message = error instanceof Error ? error.message : String(error);
-		sendError(res, 500, message);
-	}
-});
-
-// --- Hardware Sentinel ---
-
-app.get("/api/hardware", authMiddleware, (_req, res) => {
-	res.json({
-		vram: appModule.ollamaService.getVramInfo(),
-		autoUnloadMinutes: appModule.ollamaService.getAutoUnload(),
-		globalNumCtx: appModule.ollamaService.getGlobalNumCtx(),
-	});
-});
-
-app.post("/api/hardware/auto-unload", authMiddleware, (req, res) => {
-	const { minutes } = req.body;
-	if (typeof minutes !== "number" || minutes < 0) {
-		return sendError(res, 400, "minutes debe ser un numero >= 0 (0 = desactivado)", "invalid_request_error");
-	}
-	appModule.ollamaService.setAutoUnload(minutes);
-	res.json({
-		message: `Auto-unload: ${minutes === 0 ? "desactivado" : `${minutes} min`}`,
-		autoUnloadMinutes: minutes,
-	});
-});
-
-app.post("/api/hardware/num-ctx", authMiddleware, (req, res) => {
-	const { numCtx } = req.body;
-	if (typeof numCtx !== "number" || numCtx < 512) {
-		return sendError(res, 400, "numCtx debe ser >= 512", "invalid_request_error");
-	}
-	appModule.ollamaService.setGlobalNumCtx(numCtx);
-	res.json({ message: `Contexto global: ${numCtx} tokens`, globalNumCtx: numCtx });
-});
-
-// --- AI Engine Tuner ---
-
-app.get("/api/engine-stats", authMiddleware, (_req, res) => {
-	const stats = appModule.ollamaService.getStats();
-	const gpu = appModule.ollamaService.getGpuMetrics();
-	res.json({ stats, gpu });
-});
-
-app.post("/api/engine-stats/electricity-rate", authMiddleware, (req, res) => {
-	const { rateARS } = req.body;
-	if (typeof rateARS !== "number" || rateARS < 0) {
-		return sendError(res, 400, "rateARS debe ser un numero >= 0", "invalid_request_error");
-	}
-	appModule.ollamaService.updateElectricityRate(rateARS);
-	res.json({ message: `Tarifa actualizada: ${rateARS} ARS/kWh` });
-});
-
-app.post("/api/engine-stats/cloud-price", authMiddleware, (req, res) => {
-	const { pricePerMToken } = req.body;
-	if (typeof pricePerMToken !== "number" || pricePerMToken < 0) {
-		return sendError(res, 400, "pricePerMToken debe ser >= 0", "invalid_request_error");
-	}
-	appModule.ollamaService.updateCloudPrice(pricePerMToken);
-	res.json({ message: `Precio cloud actualizado: $${pricePerMToken} USD/1M tokens` });
-});
-
-// --- Control de Ngrok via Docker API ---
-const docker = new Docker({ socketPath: "/var/run/docker.sock" });
+// --- Rutas (Use Case Architecture) ---
 const NGROK_CONTAINER = process.env.NGROK_CONTAINER_NAME || "mcp-ngrok-tunnel";
 const BRAIN_CONTAINER = process.env.BRAIN_CONTAINER_NAME || "brain";
-let ngrokAuthtokenConfigured = Boolean(process.env.NGROK_AUTHTOKEN?.trim());
-
-async function getBrainContainer() {
-	try {
-		return docker.getContainer(BRAIN_CONTAINER);
-	} catch {
-		return null;
-	}
-}
-
-async function getNgrokContainer() {
-	try {
-		return docker.getContainer(NGROK_CONTAINER);
-	} catch {
-		return null;
-	}
-}
-
-async function runNgrokCommand(container: Docker.Container, cmd: string[]) {
-	const exec = await container.exec({
-		Cmd: cmd,
-		AttachStdout: true,
-		AttachStderr: true,
-	});
-
-	const stream = await exec.start({ hijack: true, stdin: false });
-	await new Promise<void>((resolve, reject) => {
-		stream.on("end", () => resolve());
-		stream.on("error", (err) => reject(err));
-	});
-
-	const result = await exec.inspect();
-	if (result.ExitCode !== 0) {
-		throw new Error(`Comando ngrok fallido (exit=${result.ExitCode})`);
-	}
-}
-
-app.get("/api/ngrok/status", authMiddleware, async (_req, res) => {
-	try {
-		const container = await getNgrokContainer();
-		if (!container) return res.json({ running: false, url: null });
-		const info = await container.inspect();
-		const running = info.State?.Running === true;
-		// Si está corriendo, intentar obtener la URL del tunnel
-		let url: string | null = null;
-		if (running) {
-			try {
-				const ngrokRes = await axios.get("http://mcp-ngrok-tunnel:4040/api/tunnels", { timeout: 2000 });
-				url = ngrokRes.data?.tunnels?.[0]?.public_url || null;
-			} catch {
-				/* tunnel aún iniciando */
-			}
-		}
-		res.json({ running, url });
-	} catch (e: unknown) {
-		const message = e instanceof Error ? e.message : String(e);
-		res.json({ running: false, url: null, error: message });
-	}
-});
-
-app.get("/api/ngrok/config", authMiddleware, async (_req, res) => {
-	const appPort = process.env.APP_PORT || "3000";
-	res.json({
-		containerName: NGROK_CONTAINER,
-		targetService: "mcp-server",
-		targetPort: appPort,
-		dashboardApiUrl: "http://mcp-ngrok-tunnel:4040/api/tunnels",
-		authtokenConfigured: ngrokAuthtokenConfigured,
-	});
-});
-
-app.post("/api/ngrok/authtoken", authMiddleware, async (req, res) => {
-	const { authtoken } = req.body;
-	if (typeof authtoken !== "string" || authtoken.trim().length < 10) {
-		return sendError(res, 400, "authtoken invalido", "invalid_request_error");
-	}
-
-	let startedByThisRequest = false;
-	try {
-		const container = await getNgrokContainer();
-		if (!container) {
-			return sendError(res, 404, "Contenedor ngrok no encontrado", "not_found");
-		}
-
-		const info = await container.inspect();
-		const wasRunning = info.State?.Running === true;
-
-		if (!wasRunning) {
-			await container.start();
-			startedByThisRequest = true;
-		}
-
-		await runNgrokCommand(container, ["ngrok", "config", "add-authtoken", authtoken.trim()]);
-		ngrokAuthtokenConfigured = true;
-
-		if (wasRunning) {
-			await container.restart();
-		} else if (startedByThisRequest) {
-			await container.stop();
-		}
-
-		res.json({ message: "Authtoken de ngrok actualizado", authtokenConfigured: true });
-	} catch (e: unknown) {
-		const message = e instanceof Error ? e.message : "Error actualizando authtoken de ngrok";
-		sendError(res, 500, message);
-	}
-});
-
-app.post("/api/ngrok/start", authMiddleware, async (_req, res) => {
-	try {
-		const container = await getNgrokContainer();
-		if (!container)
-			return sendError(res, 404, "Contenedor ngrok no encontrado. Verifica docker-compose.", "not_found");
-		const info = await container.inspect();
-		if (info.State?.Running) return res.json({ message: "Ngrok ya está corriendo", running: true });
-		await container.start();
-		log.info("ngrok: Tunel iniciado manualmente desde el Dashboard");
-		res.json({ message: "Ngrok iniciado", running: true });
-	} catch (e: unknown) {
-		const message = e instanceof Error ? e.message : String(e);
-		sendError(res, 500, message);
-	}
-});
-
-app.post("/api/ngrok/stop", authMiddleware, async (_req, res) => {
-	try {
-		const container = await getNgrokContainer();
-		if (!container) return sendError(res, 404, "Contenedor ngrok no encontrado", "not_found");
-		const info = await container.inspect();
-		if (!info.State?.Running) return res.json({ message: "Ngrok ya está detenido", running: false });
-		await container.stop();
-		log.info("ngrok: Tunel detenido manualmente desde el Dashboard");
-		res.json({ message: "Ngrok detenido", running: false });
-	} catch (e: unknown) {
-		const message = e instanceof Error ? e.message : String(e);
-		sendError(res, 500, message);
-	}
-});
-
-// --- Control de Ollama Motor via Docker API ---
 const OLLAMA_CONTAINER = "mcp-ollama-motor";
+const ngrokAuthtokenConfigured = Boolean(process.env.NGROK_AUTHTOKEN?.trim());
 
-async function getOllamaContainer() {
-	try {
-		return docker.getContainer(OLLAMA_CONTAINER);
-	} catch {
-		return null;
-	}
+const routers = createAllRoutes(
+  appModule.authService,
+  appModule.ollamaService,
+  agentsService,
+  {
+    authMiddleware,
+    appPort: String(port),
+    ngrokContainer: NGROK_CONTAINER,
+    ngrokAuthtokenConfigured,
+    ollamaContainer: OLLAMA_CONTAINER,
+    brainContainer: BRAIN_CONTAINER,
+  }
+);
+
+for (const router of routers) {
+  app.use(router);
 }
 
-app.post("/api/ollama/start", authMiddleware, async (_req, res) => {
-	try {
-		const container = await getOllamaContainer();
-		if (!container) return sendError(res, 404, "Contenedor Ollama no encontrado.", "not_found");
-		await container.start();
-		res.json({ message: "Motor Ollama iniciado" });
-	} catch (e: unknown) {
-		const message = e instanceof Error ? e.message : String(e);
-		sendError(res, 500, message);
-	}
-});
-
-app.post("/api/ollama/stop", authMiddleware, async (_req, res) => {
-	try {
-		const container = await getOllamaContainer();
-		if (!container) return sendError(res, 404, "Contenedor Ollama no encontrado.", "not_found");
-		await container.stop();
-		res.json({ message: "Motor Ollama detenido" });
-	} catch (e: unknown) {
-		const message = e instanceof Error ? e.message : String(e);
-		sendError(res, 500, message);
-	}
-});
-
-app.post("/api/ollama/restart", authMiddleware, async (_req, res) => {
-	try {
-		const container = await getOllamaContainer();
-		if (!container) return sendError(res, 404, "Contenedor Ollama no encontrado.", "not_found");
-		await container.restart();
-		res.json({ message: "Motor Ollama reiniciado" });
-	} catch (e: unknown) {
-		const message = e instanceof Error ? e.message : String(e);
-		sendError(res, 500, message);
-	}
-});
-
-// --- Control de Cerebro MCP via Docker API ---
-app.post("/api/brain/start", authMiddleware, async (_req, res) => {
-	try {
-		const container = await getBrainContainer();
-		if (!container) return sendError(res, 404, "Contenedor mcp-brain no encontrado.", "not_found");
-		await container.start();
-		res.json({ message: "Cerebro MCP iniciado", running: true });
-	} catch (e: unknown) {
-		const message = e instanceof Error ? e.message : String(e);
-		sendError(res, 500, message);
-	}
-});
-
-app.post("/api/brain/stop", authMiddleware, async (_req, res) => {
-	try {
-		const container = await getBrainContainer();
-		if (!container) return sendError(res, 404, "Contenedor mcp-brain no encontrado.", "not_found");
-		await container.stop();
-		res.json({ message: "Cerebro MCP detenido", running: false });
-	} catch (e: unknown) {
-		const message = e instanceof Error ? e.message : String(e);
-		sendError(res, 500, message);
-	}
-});
-
-// --- Scraper de Ollama Library ---
-app.get("/api/search-models", authMiddleware, async (req, res) => {
-	const q = (req.query.q as string) || "";
-	const sort = (req.query.sort as string) || "";
-	try {
-		let url = "https://ollama.com/library";
-		const params = new URLSearchParams();
-		if (q) params.append("q", q);
-		if (sort) params.append("sort", sort);
-		const qs = params.toString();
-		if (qs) url += `?${qs}`;
-		const response = await axios.get(url, {
-			timeout: 8000,
-			headers: { "User-Agent": "Mozilla/5.0 (compatible; LaLlamaOllama/1.0)" },
-		});
-		const $ = cheerio.load(response.data);
-		interface ScrapedModel {
-			name: string;
-			title: string;
-			desc: string;
-			pulls: string;
-			tags: string[];
-		}
-		const models: ScrapedModel[] = [];
-
-		// Parsear tarjetas de modelos de ollama.com/library
-		$('a[href^="/library/"]').each((_, el) => {
-			const href = $(el).attr("href") || "";
-			const name = href.replace("/library/", "").trim();
-			if (!name || name.includes("/")) return;
-
-			const title = $(el).find("h2, [class*='title'], strong").first().text().trim() || name;
-			const desc = $(el).find("p, [class*='desc']").first().text().trim();
-			const pulls = $(el).find("[class*='pull'],[class*='download']").first().text().trim();
-			const tags = $(el)
-				.find("[class*='tag'],[class*='size']")
-				.map((_, t) => $(t).text().trim())
-				.get()
-				.filter(Boolean)
-				.slice(0, 4);
-
-			if (name && !models.find((m) => m.name === name)) {
-				models.push({ name, title, desc, pulls, tags });
-			}
-		});
-
-		res.json({ models: models.slice(0, 24), query: q, source: url });
-	} catch (e: unknown) {
-		const message = e instanceof Error ? e.message : String(e);
-		res.status(500).json({
-			error: { message: `Error scraping ollama.com: ${message}`, type: "server_error" },
-			models: [],
-		});
-	}
-});
-
-// Los endpoints de memoria ahora son servidos por mcp-brain en el puerto 3001
-
-// --- Endpoints MCP (SSE) with Auth ---
-
+// --- Endpoints MCP (SSE) ---
 let transport: SSEServerTransport | null = null;
 
-app.get("/sse", async (req: Request, res: Response) => {
-	const apiKey = req.headers["x-api-key"] || req.headers.authorization?.toString().replace("Bearer ", "");
-	const ip = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "unknown";
+app.get("/sse", async (req, res) => {
+  const apiKey = req.headers["x-api-key"] || req.headers.authorization?.toString().replace("Bearer ", "");
+  const ip = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "unknown";
 
-	if (appModule.authService.isMcpAuthEnabled() && !appModule.authService.validate(apiKey as string)) {
-		log.warn({ ip }, "SSE-AUTH-FAIL: Unauthorized MCP connection attempt");
-		appModule.ollamaService.logRequest(ip, "GET /sse", "Unauthorized");
-		appModule.ollamaService.reportFailedAuth(ip);
-		return sendError(res, 401, "Unauthorized: Invalid API Key", "authentication_error");
-	}
+  if (appModule.authService.isMcpAuthEnabled() && !appModule.authService.validate(apiKey as string)) {
+    log.warn({ ip }, "SSE-AUTH-FAIL: Unauthorized MCP connection attempt");
+    appModule.ollamaService.logRequest(ip, "GET /sse", "Unauthorized");
+    appModule.ollamaService.reportFailedAuth(ip);
+    return res.status(401).json({
+      error: { message: "Unauthorized: Invalid API Key", type: "authentication_error" },
+    });
+  }
 
-	log.info({ ip }, "SSE: New authenticated connection");
-	const _sessionId = appModule.sessionManager.createSession(ip, apiKey as string);
+  log.info({ ip }, "SSE: New authenticated connection");
+  const _sessionId = appModule.sessionManager.createSession(ip, apiKey as string);
 
-	transport = new SSEServerTransport("/messages", res);
-	await server.connect(transport);
+  transport = new SSEServerTransport("/messages", res);
+  await server.connect(transport);
 });
 
-app.post("/messages", async (req: Request, res: Response) => {
-	const apiKey = req.headers["x-api-key"] || req.headers.authorization?.toString().replace("Bearer ", "");
+app.post("/messages", async (req, res) => {
+  const apiKey = req.headers["x-api-key"] || req.headers.authorization?.toString().replace("Bearer ", "");
 
-	if (appModule.authService.isMcpAuthEnabled() && !appModule.authService.validate(apiKey as string)) {
-		return sendError(res, 401, "Unauthorized: Invalid API Key", "authentication_error");
-	}
+  if (appModule.authService.isMcpAuthEnabled() && !appModule.authService.validate(apiKey as string)) {
+    return res.status(401).json({
+      error: { message: "Unauthorized: Invalid API Key", type: "authentication_error" },
+    });
+  }
 
-	if (transport) {
-		await transport.handlePostMessage(req, res);
-	} else {
-		res.status(400).send("No transport active");
-	}
+  if (transport) {
+    await transport.handlePostMessage(req, res);
+  } else {
+    res.status(400).send("No transport active");
+  }
 });
 
+// --- Error Handler ---
+app.use(createErrorHandler());
+
+// --- Startup ---
 httpServer.listen(port, () => {
-	log.info({ sse: `http://localhost:${port}/sse`, api: `http://localhost:${port}/v1` }, "🚀 Servidor Híbrido Blindado Iniciado");
+  log.info(
+    { sse: `http://localhost:${port}/sse`, api: `http://localhost:${port}/v1` },
+    "🚀 Servidor Híbrido Blindado Iniciado"
+  );
 });
 
 export { io };
