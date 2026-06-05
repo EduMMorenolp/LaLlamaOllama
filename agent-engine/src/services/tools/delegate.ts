@@ -41,9 +41,11 @@ export function registerDelegateTool() {
 			},
 		},
 		handler: async (args: Record<string, unknown>, _ctx: ToolContext) => {
-			const agent = args.agent as string;
-			const task = args.task as string;
-			const reason = args.reason as string;
+			const agent = (args.agent as string) || "general";
+			const task = (args.task as string) || "";
+			const reason = (args.reason as string) || "";
+
+			const safeTask = task.replace(/"/g, "'");
 
 			return [
 				`## Delegation Recommendation`,
@@ -52,8 +54,10 @@ export function registerDelegateTool() {
 				`**Reason**: ${reason}`,
 				``,
 				`To execute: Use the OpenCode task() function to delegate this to the ${agent} agent.`,
-				`Example: \`task(${agent}, objective="${task.replace(/"/g, "'")}")\``,
-			].join("\n");
+				safeTask ? `Example: \`task(${agent}, objective="${safeTask}")\`` : "",
+			]
+				.filter(Boolean)
+				.join("\n");
 		},
 		enabled: true,
 	});

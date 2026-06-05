@@ -158,9 +158,11 @@ services:
       - API_KEY=${API_KEY:-super-secret-mcp-key}
       - DEFAULT_MODEL=${DEFAULT_MODEL:-llama3.2:3b}
       - WORKSPACE_DIR=/workspace
+      - DB_PATH=/data/agent-engine.db
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./:/workspace
+      - ./data:/data
     depends_on:
       - backend
       - mcp-brain

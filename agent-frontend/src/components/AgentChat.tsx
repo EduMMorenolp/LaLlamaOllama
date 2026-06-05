@@ -61,6 +61,9 @@ export const AgentChat: React.FC = () => {
 	const userId = "web-user";
 	const [attachments, setAttachments] = useState<Array<{ name: string; type: string; data: string }>>([]);
 	const fileInputRef = useRef<HTMLInputElement>(null);
+	const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const reconnectAttemptsRef = useRef(0);
+	const intentionalCloseRef = useRef(false);
 
 	const scrollToBottom = () => {
 		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -76,31 +79,58 @@ export const AgentChat: React.FC = () => {
 		}
 	}, []);
 
-	// Connect WebSocket
+	// Connect WebSocket with reconnection debounce
 	useEffect(() => {
-		setConnectionStatus("connecting");
+		let mounted = true;
 
-		const ws = new WebSocket(config.wsUrl);
-		wsRef.current = ws;
+		function connect() {
+			if (!mounted) return;
+			intentionalCloseRef.current = false;
+			setConnectionStatus("connecting");
 
-		ws.onopen = () => {
-			setConnectionStatus("connected");
-			sendWs("identify", { userId });
-		};
+			const ws = new WebSocket(config.wsUrl);
+			wsRef.current = ws;
 
-		ws.onclose = () => setConnectionStatus("disconnected");
-		ws.onerror = () => setConnectionStatus("disconnected");
+			ws.onopen = () => {
+				if (!mounted) { ws.close(); return; }
+				reconnectAttemptsRef.current = 0;
+				setConnectionStatus("connected");
+				ws.send(JSON.stringify({ type: "identify", payload: { userId } }));
+			};
 
-		ws.onmessage = (event) => {
-			try {
-				const msg = JSON.parse(event.data);
-				handleWsMessage(msg);
-			} catch { /* ignore */ }
-		};
+			ws.onclose = () => {
+				if (!mounted) return;
+				setConnectionStatus("disconnected");
+				if (intentionalCloseRef.current) return;
+				const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 15000);
+				reconnectAttemptsRef.current++;
+				reconnectTimerRef.current = setTimeout(connect, delay);
+			};
+
+			ws.onerror = () => {
+				ws.close();
+			};
+
+			ws.onmessage = (event) => {
+				try {
+					const msg = JSON.parse(event.data);
+					handleWsMessage(msg);
+				} catch { /* ignore */ }
+			};
+		}
+
+		connect();
 
 		return () => {
-			if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
-				ws.close();
+			mounted = false;
+			intentionalCloseRef.current = true;
+			if (reconnectTimerRef.current) {
+				clearTimeout(reconnectTimerRef.current);
+				reconnectTimerRef.current = null;
+			}
+			if (wsRef.current) {
+				wsRef.current.close();
+				wsRef.current = null;
 			}
 		};
 	}, []);

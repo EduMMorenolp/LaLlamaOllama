@@ -351,3 +351,26 @@ export function resetAllSessions(): void {
 	sessions.clear();
 	logger.agent(`[sessions] All sessions cleared`);
 }
+
+export function pushSessionMessages(
+	chatId: string,
+	messages: Array<{ role: string; content: string }>
+): void {
+	const entry = sessions.get(chatId);
+	if (!entry) return;
+	const existingContents = new Set(
+		entry.state.messages.map((m) =>
+			typeof m.content === "string" ? m.content.substring(0, 200) : ""
+		)
+	);
+	for (const m of messages) {
+		if (m.role === "system") continue;
+		const key = m.content.substring(0, 200);
+		if (existingContents.has(key)) continue;
+		entry.state.messages.push({
+			role: m.role as "user" | "assistant",
+			content: m.content,
+		});
+		existingContents.add(key);
+	}
+}

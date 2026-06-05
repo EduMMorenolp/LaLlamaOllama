@@ -25,7 +25,7 @@ import {
 } from "../services/db/chats.js";
 import { getMessages } from "../services/db/messages.js";
 import { listModels, upsertModel, deleteModel } from "../services/db/models.js";
-import { resetSession } from "../services/agent/runAgentCore.js";
+import { resetSession, pushSessionMessages } from "../services/agent/runAgentCore.js";
 import { startTelegram, stopTelegram, initTelegramDeps } from "../services/telegram/bot.js";
 import axios from "axios";
 
@@ -250,6 +250,11 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 						resetSession(swChatId);
 						const storedMessages = getMessages(swChatId);
 						const chat = getChat(swChatId);
+						// Populate the fresh session with history from DB so it doesn't reload stale data
+						pushSessionMessages(
+							swChatId,
+							storedMessages.map((m) => ({ role: m.role, content: m.content }))
+						);
 						ws.send(
 							createMessage("assistant_done", {
 								chatId: swChatId,
@@ -306,7 +311,8 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					});
 					const updated = getGeneralConfig() as Record<string, unknown> | null;
 					ws.send(createMessage("general_config", updated || {}));
-					ws.send(createMessage("status", { model: cfg.model as string }));
+					// Broadcast model change to ALL connected clients (chat, config, etc.)
+					wsServer.sendToAll("status", { status: "identified", model: cfg.model as string });
 					break;
 				}
 

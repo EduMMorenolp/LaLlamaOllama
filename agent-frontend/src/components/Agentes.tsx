@@ -22,7 +22,7 @@ export const Agentes: React.FC = () => {
   const [connected, setConnected] = useState(false);
 
   // General config
-  const [configModel, setConfigModel] = useState("llama3.2:3b");
+  const [configModel, setConfigModel] = useState(() => localStorage.getItem("agent_model") || "llama3.2:3b");
   const [configTemp, setConfigTemp] = useState(0.7);
   const [configHistoryLimit, setConfigHistoryLimit] = useState(10);
 
@@ -39,6 +39,7 @@ export const Agentes: React.FC = () => {
   const [showAgentForm, setShowAgentForm] = useState(false);
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const sendWs = useCallback((type: string, payload?: Record<string, unknown>) => {
@@ -55,11 +56,11 @@ export const Agentes: React.FC = () => {
 
     ws.onopen = () => {
       setConnected(true);
-      sendWs("get_general_config");
-      sendWs("get_status");
-      sendWs("list_tools");
-      sendWs("list_experts");
-      sendWs("list_ollama_models");
+      ws.send(JSON.stringify({ type: "get_general_config", payload: {} }));
+      ws.send(JSON.stringify({ type: "get_status", payload: {} }));
+      ws.send(JSON.stringify({ type: "list_tools", payload: {} }));
+      ws.send(JSON.stringify({ type: "list_experts", payload: {} }));
+      ws.send(JSON.stringify({ type: "list_ollama_models", payload: {} }));
     };
 
     ws.onclose = () => setConnected(false);
@@ -71,11 +72,15 @@ export const Agentes: React.FC = () => {
         switch (msg.type) {
           case "general_config": {
             const gc = msg.payload as GeneralConfig;
-            if (gc?.model != null) setConfigModel(gc.model || "");
+            if (gc?.model != null) {
+              setConfigModel(gc.model || "");
+              localStorage.setItem("agent_model", gc.model || "");
+            }
             if (gc?.temperature != null) setConfigTemp(gc.temperature);
             if (gc?.history_limit != null) setConfigHistoryLimit(gc.history_limit);
-            if (saving) {
+            if (savingRef.current) {
               setSaving(false);
+              savingRef.current = false;
               setSaveMessage({ type: "success", text: "Configuración guardada correctamente" });
               setTimeout(() => setSaveMessage(null), 2500);
             }
@@ -130,6 +135,7 @@ export const Agentes: React.FC = () => {
     });
     if (sent) {
       setSaving(true);
+      savingRef.current = true;
     } else {
       setSaveMessage({ type: "error", text: "No hay conexión con el servidor. Verifica que el Agent Engine esté corriendo." });
     }
@@ -235,6 +241,9 @@ export const Agentes: React.FC = () => {
               }}
             >
               {ollamaModels.length === 0 && <option value="">Cargando modelos...</option>}
+              {!ollamaModels.includes(configModel) && configModel && (
+                <option value={configModel}>{configModel}</option>
+              )}
               {ollamaModels.map((m) => (
                 <option key={m} value={m}>{m}</option>
               ))}
