@@ -312,12 +312,12 @@ export const AgentChat: React.FC = () => {
 				</span>
 				{model && (
 					<span style={{ fontSize: "11px", color: "var(--accent)", fontFamily: "var(--font-mono)" }}>
-						\u2728 {model}
+						Model: {model}
 					</span>
 				)}
 				{(totalPromptTokens > 0 || totalCompletionTokens > 0) && (
 					<span style={{ fontSize: "10px", color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
-						\u26a1 {totalPromptTokens + totalCompletionTokens}
+					Tokens: {totalPromptTokens + totalCompletionTokens}
 					</span>
 				)}
 				<span style={{ flex: 1 }} />
@@ -484,7 +484,7 @@ export const AgentChat: React.FC = () => {
 						padding: "4px 16px", borderTop: "1px solid var(--border-light)",
 						fontSize: "9px", color: "var(--text-dim)",
 					}}>
-						<span>Tokens: {totalPromptTokens + totalCompletionTokens} (\u25b3{totalPromptTokens} \u25bd{totalCompletionTokens})</span>
+						<span>Tokens: {totalPromptTokens + totalCompletionTokens} (△ {totalPromptTokens} ▽ {totalCompletionTokens})</span>
 						<span>{new Date().toLocaleTimeString()}</span>
 					</div>
 				</div>
