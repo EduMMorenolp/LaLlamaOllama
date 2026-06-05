@@ -123,9 +123,6 @@ export const AgentChat: React.FC = () => {
 					setChats(chatList);
 					if (activeChatId) {
 						setCurrentChatId(activeChatId);
-					} else if (!currentChatId && chatList.length > 0) {
-						const first = chatList[0];
-						setCurrentChatId(first.id);
 					}
 				}
 				break;
@@ -358,9 +355,30 @@ export const AgentChat: React.FC = () => {
 				{/* Messages */}
 				<div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
 					<div style={{ flex: 1, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
-						{messages.length === 0 && (
+						{messages.length === 0 && !currentChatId && (
 							<div style={{ textAlign: "center", padding: "60px 20px", color: "var(--text-dim)", fontSize: "13px" }}>
-								Agent Engine ready. Send a message to start an autonomous coding session.
+								<div style={{ fontSize: "24px", marginBottom: "16px", opacity: 0.5 }}>🤖</div>
+								<div style={{ fontWeight: 600, color: "var(--text-main)", marginBottom: "8px", fontSize: "15px" }}>
+									Agent Engine Listo
+								</div>
+								<div style={{ marginBottom: "20px", lineHeight: 1.6 }}>
+									Selecciona un chat existente de la barra lateral<br />
+									o crea uno nuevo para empezar.
+								</div>
+								<button type="button" onClick={handleNewChat} style={{
+									padding: "10px 24px",
+									background: "linear-gradient(135deg, var(--accent), #7c3aed)",
+									border: "none", borderRadius: "8px", color: "white",
+									cursor: "pointer", fontSize: "13px", fontWeight: 600,
+									display: "inline-flex", alignItems: "center", gap: "8px",
+								}}>
+									<Plus size={16} /> Nuevo Chat
+								</button>
+							</div>
+						)}
+						{messages.length === 0 && currentChatId && (
+							<div style={{ textAlign: "center", padding: "60px 20px", color: "var(--text-dim)", fontSize: "13px" }}>
+								Chat vacío. Envía un mensaje para empezar.
 							</div>
 						)}
 						{messages.map((msg, i) => <MessageBubble key={i} message={msg} />)}

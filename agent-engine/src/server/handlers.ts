@@ -25,6 +25,7 @@ import {
 } from "../services/db/chats.js";
 import { getMessages } from "../services/db/messages.js";
 import { listModels, upsertModel, deleteModel } from "../services/db/models.js";
+import { resetSession } from "../services/agent/runAgentCore.js";
 import { startTelegram, stopTelegram, initTelegramDeps } from "../services/telegram/bot.js";
 import axios from "axios";
 
@@ -226,6 +227,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 							payload?.title as string
 						);
 						newChatId = newChat.id;
+						resetSession(newChatId);
 					} else if (chatAction === "rename" && payload?.chatId && payload?.title) {
 						renameChat(payload.chatId as string, payload.title as string);
 					} else if (chatAction === "delete" && payload?.chatId) {
@@ -245,6 +247,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 				case "switch_chat": {
 					const swChatId = payload?.chatId as string;
 					if (swChatId) {
+						resetSession(swChatId);
 						const storedMessages = getMessages(swChatId);
 						const chat = getChat(swChatId);
 						ws.send(
@@ -256,7 +259,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 									origin: m.origin,
 								})),
 								expertName: chat?.expertName || null,
-								text: storedMessages.length === 0 ? "Este chat no tiene mensajes aÃºn." : "",
+								text: storedMessages.length === 0 ? "Este chat no tiene mensajes aún." : "",
 								model: "Sistema",
 							})
 						);

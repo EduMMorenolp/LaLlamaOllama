@@ -8,21 +8,49 @@ import { buildSystemPrompt } from "./buildPrompt.js";
 import type { AgentOptions, AgentResult, SessionState } from "./types.js";
 import { getMessages } from "../db/messages.js";
 
-const sessions = new Map<string, SessionState>();
+const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+interface SessionEntry {
+	state: SessionState;
+	lastAccess: number;
+}
+
+const sessions = new Map<string, SessionEntry>();
+
+function cleanupExpiredSessions(): void {
+	const now = Date.now();
+	for (const [id, entry] of sessions) {
+		if (now - entry.lastAccess > SESSION_TTL_MS) {
+			logger.agent(`[${id}] Session expired (TTL ${SESSION_TTL_MS / 1000}s)`);
+			sessions.delete(id);
+		}
+	}
+}
 
 function getSession(opts: AgentOptions): SessionState {
 	const { chatId, config } = opts;
-	if (!sessions.has(chatId)) {
-		sessions.set(chatId, {
-			messages: [],
-			toolContext: {
-				sessionId: chatId,
-				workspaceDir: config.workspaceDir,
-				chatId,
-			},
-		});
+
+	const existing = sessions.get(chatId);
+	if (existing) {
+		existing.lastAccess = Date.now();
+		return existing.state;
 	}
-	return sessions.get(chatId)!;
+
+	const state: SessionState = {
+		messages: [],
+		toolContext: {
+			sessionId: chatId,
+			workspaceDir: config.workspaceDir,
+			chatId,
+		},
+	};
+	sessions.set(chatId, { state, lastAccess: Date.now() });
+
+	if (sessions.size > 100) {
+		cleanupExpiredSessions();
+	}
+
+	return state;
 }
 
 export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
@@ -317,4 +345,9 @@ export function resetSession(chatId: string): void {
 
 export function getActiveSessions(): string[] {
 	return Array.from(sessions.keys());
+}
+
+export function resetAllSessions(): void {
+	sessions.clear();
+	logger.agent(`[sessions] All sessions cleared`);
 }
