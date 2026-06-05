@@ -78,7 +78,6 @@ body {
 
 .sidebar-header {
 	padding: 24px;
-	min-height: 90px;
 	display: flex;
 	align-items: center;
 	border-bottom: 1px solid var(--border);
@@ -226,7 +225,7 @@ body {
 }
 
 .sidebar-footer {
-	padding: 24px;
+	padding: 14px;
 	background: rgba(8, 9, 13, 0.5);
 	border-top: 1px solid var(--border);
 }
