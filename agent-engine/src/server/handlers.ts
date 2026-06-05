@@ -159,11 +159,13 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					if (userId) {
 						userMap.set(clientId, userId);
 						logger.info(`ðŸ‘¤ WebChat identified: ${clientId} -> ${userId}`);
+						const gc = getGeneralConfig();
+						const effectiveModel = gc?.model || config.defaultModel;
 						ws.send(
 							createMessage("status", {
 								status: "identified",
 								userId,
-								model: config.defaultModel,
+								model: effectiveModel,
 							})
 						);
 						// Send chats for this user
@@ -296,6 +298,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 				}
 				case "general_config_update": {
 					const cfg = payload as Record<string, unknown>;
+					logger.info(`[Config] Update: model="${cfg.model}", temperature=${cfg.temperature}, history_limit=${cfg.history_limit}`);
 					// Preserve existing system_prompt if not provided in the update
 					const existing_gc = getGeneralConfig() as Record<string, unknown> | null;
 					const existingPrompt = existing_gc?.system_prompt as string | undefined;

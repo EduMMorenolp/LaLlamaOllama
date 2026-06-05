@@ -51,88 +51,106 @@ export const Agentes: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const ws = new WebSocket(config.wsUrl);
-    wsRef.current = ws;
+    let mounted = true;
 
-    ws.onopen = () => {
-      setConnected(true);
-      ws.send(JSON.stringify({ type: "get_general_config", payload: {} }));
-      ws.send(JSON.stringify({ type: "get_status", payload: {} }));
-      ws.send(JSON.stringify({ type: "list_tools", payload: {} }));
-      ws.send(JSON.stringify({ type: "list_experts", payload: {} }));
-      ws.send(JSON.stringify({ type: "list_ollama_models", payload: {} }));
-    };
+    function connect() {
+      const ws = new WebSocket(config.wsUrl);
+      wsRef.current = ws;
 
-    ws.onclose = () => setConnected(false);
-    ws.onerror = () => setConnected(false);
+      ws.onopen = () => {
+        if (!mounted) { ws.close(); return; }
+        setConnected(true);
+        ws.send(JSON.stringify({ type: "get_general_config", payload: {} }));
+        ws.send(JSON.stringify({ type: "get_status", payload: {} }));
+        ws.send(JSON.stringify({ type: "list_tools", payload: {} }));
+        ws.send(JSON.stringify({ type: "list_experts", payload: {} }));
+        ws.send(JSON.stringify({ type: "list_ollama_models", payload: {} }));
+      };
 
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        switch (msg.type) {
-          case "general_config": {
-            const gc = msg.payload as GeneralConfig;
-            if (gc?.model != null) {
-              setConfigModel(gc.model || "");
-              localStorage.setItem("agent_model", gc.model || "");
+      ws.onclose = () => {
+        if (!mounted) return;
+        setConnected(false);
+      };
+
+      ws.onerror = () => {
+        ws.close();
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          switch (msg.type) {
+            case "general_config": {
+              const gc = msg.payload as GeneralConfig;
+              if (gc?.model != null) {
+                setConfigModel(gc.model || "");
+                localStorage.setItem("agent_model", gc.model || "");
+              }
+              if (gc?.temperature != null) setConfigTemp(gc.temperature);
+              if (gc?.history_limit != null) setConfigHistoryLimit(gc.history_limit);
+              if (savingRef.current) {
+                setSaving(false);
+                savingRef.current = false;
+                setSaveMessage({ type: "success", text: "Configuración guardada correctamente" });
+                setTimeout(() => setSaveMessage(null), 2500);
+              }
+              break;
             }
-            if (gc?.temperature != null) setConfigTemp(gc.temperature);
-            if (gc?.history_limit != null) setConfigHistoryLimit(gc.history_limit);
-            if (savingRef.current) {
-              setSaving(false);
-              savingRef.current = false;
-              setSaveMessage({ type: "success", text: "Configuración guardada correctamente" });
-              setTimeout(() => setSaveMessage(null), 2500);
+            case "status":
+              if (msg.payload?.model) setConfigModel(msg.payload.model as string);
+              if (msg.payload?.telegramActive !== undefined) {
+                setTelegramEnabled(msg.payload.telegramActive as boolean);
+              }
+              break;
+            case "tools_list": {
+              const toolList = msg.payload?.tools as Array<{ function: { name: string } }> | string[];
+              if (Array.isArray(toolList)) {
+                const names = typeof toolList[0] === "string"
+                  ? toolList as string[]
+                  : (toolList as Array<{ function: { name: string } }>).map((t) => t.function.name);
+                setTools(names);
+                const states: Record<string, boolean> = {};
+                for (const t of names) states[t] = true;
+                setToolStates(states);
+              }
+              break;
             }
-            break;
-          }
-          case "status":
-            if (msg.payload?.model) setConfigModel(msg.payload.model as string);
-            if (msg.payload?.telegramActive !== undefined) {
-              setTelegramEnabled(msg.payload.telegramActive as boolean);
+            case "list_experts": {
+              const experts = msg.payload?.experts as SubAgent[];
+              if (experts) setAgents(experts);
+              break;
             }
-            break;
-          case "tools_list": {
-            const toolList = msg.payload?.tools as Array<{ function: { name: string } }> | string[];
-            if (Array.isArray(toolList)) {
-              const names = typeof toolList[0] === "string"
-                ? toolList as string[]
-                : (toolList as Array<{ function: { name: string } }>).map((t) => t.function.name);
-              setTools(names);
-              const states: Record<string, boolean> = {};
-              for (const t of names) states[t] = true;
-              setToolStates(states);
+            case "ollama_models": {
+              const models = msg.payload?.models as Array<{ name: string }> || [];
+              setOllamaModels(models.map((m: { name: string }) => m.name));
+              break;
             }
-            break;
           }
-          case "list_experts": {
-            const experts = msg.payload?.experts as SubAgent[];
-            if (experts) setAgents(experts);
-            break;
-          }
-          case "ollama_models": {
-            const models = msg.payload?.models as Array<{ name: string }> || [];
-            setOllamaModels(models.map((m: { name: string }) => m.name));
-            break;
-          }
-        }
-      } catch { /* ignore */ }
-    };
+        } catch { /* ignore */ }
+      };
+    }
+
+    connect();
 
     return () => {
-        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
-            ws.close();
-        }
+      mounted = false;
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
     };
   }, []);
 
   const handleSaveGeneralConfig = () => {
     setSaveMessage(null);
-    const sent = sendWs("general_config_update", {
+    const payload = {
       model: configModel,
       temperature: configTemp,
       history_limit: configHistoryLimit,
-    });
+    };
+    console.log("[Save] Enviando general_config_update:", JSON.stringify(payload));
+    const sent = sendWs("general_config_update", payload);
+    console.log("[Save] sendWs returned:", sent, "| wsRef.current?.readyState:", wsRef.current?.readyState);
     if (sent) {
       setSaving(true);
       savingRef.current = true;

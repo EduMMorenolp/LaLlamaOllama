@@ -136,10 +136,13 @@ export const AgentChat: React.FC = () => {
 	}, []);
 
 	const handleWsMessage = (msg: { type: string; payload?: Record<string, unknown> }) => {
+		console.log("[Chat WS] Recibido:", msg.type, msg.payload);
 		switch (msg.type) {
 			case "status":
 				if (msg.payload?.status === "identified") {
-					setModel((msg.payload?.model as string) || "");
+					const newModel = (msg.payload?.model as string) || "";
+					console.log("[Chat WS] Modelo actualizado a:", newModel);
+					setModel(newModel);
 				}
 				if (msg.payload?.status === "running") {
 					setModel((msg.payload?.model as string) || model);
