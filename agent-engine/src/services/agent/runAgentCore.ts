@@ -6,7 +6,8 @@ import { logger } from "../../utils/logger.js";
 import { createClient, getDefaultModelConfig } from "./createClient.js";
 import { buildSystemPrompt } from "./buildPrompt.js";
 import type { AgentOptions, AgentResult, SessionState } from "./types.js";
-import { getMessages } from "../db/messages.js";
+import { getMessages, saveMessage } from "../db/messages.js";
+import { getGeneralConfig } from "../db/experts.js";
 
 const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
@@ -30,6 +31,11 @@ function cleanupExpiredSessions(): void {
 function getSession(opts: AgentOptions): SessionState {
 	const { chatId, config } = opts;
 
+	// Always cleanup if threshold is close
+	if (sessions.size > 80) {
+		cleanupExpiredSessions();
+	}
+
 	const existing = sessions.get(chatId);
 	if (existing) {
 		existing.lastAccess = Date.now();
@@ -45,10 +51,6 @@ function getSession(opts: AgentOptions): SessionState {
 		},
 	};
 	sessions.set(chatId, { state, lastAccess: Date.now() });
-
-	if (sessions.size > 100) {
-		cleanupExpiredSessions();
-	}
 
 	return state;
 }
@@ -66,7 +68,6 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 	let generalTemperature = 0.7;
 	let generalHistoryLimit = 10;
 	try {
-		const { getGeneralConfig } = await import("../db/experts.js");
 		const g = getGeneralConfig();
 		if (g) {
 			if (g.model) generalModel = g.model;
@@ -79,7 +80,6 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 
 	if (!opts.skipPersistUserMsg) {
 		try {
-			const { saveMessage } = await import("../db/messages.js");
 			saveMessage({
 				userId: opts.origin === "telegram" ? `telegram-${opts.telegramChatId || chatId}` : chatId,
 				chatId,
@@ -98,7 +98,6 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 
 		let systemPrompt: string;
 		try {
-			const { getGeneralConfig } = await import("../db/experts.js");
 			const generalOverride = getGeneralConfig();
 			if (generalOverride?.system_prompt) {
 				systemPrompt = generalOverride.system_prompt;
@@ -208,37 +207,87 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 		}
 
 		try {
-			const response = await client.chat.completions.create({
+			const stream = await client.chat.completions.create({
 				model: modelConfig.model,
 				messages: session.messages,
 				tools: openAiTools.length > 0 ? openAiTools : undefined,
 				tool_choice: "auto",
-				stream: false,
+				stream: true,
 				max_tokens: 4096,
 				temperature: generalTemperature,
 			});
 
-			const choice = response.choices[0];
-			const message = choice.message;
+			let fullContent = "";
+			const toolCallDeltas: Array<{
+				index: number;
+				id?: string;
+				type?: string;
+				function?: { name?: string; arguments?: string };
+			}> = [];
 
-			if (response.usage) {
-				totalUsage.promptTokens += response.usage.prompt_tokens || 0;
-				totalUsage.completionTokens += response.usage.completion_tokens || 0;
-				totalUsage.totalTokens += response.usage.total_tokens || 0;
+			for await (const chunk of stream) {
+				const delta = chunk.choices[0]?.delta;
+				if (!delta) continue;
+
+				// Content streaming
+				if (delta.content) {
+					fullContent += delta.content;
+					opts.onChunk?.(delta.content);
+				}
+
+				// Tool call accumulation from deltas
+				if (delta.tool_calls) {
+					for (const tc of delta.tool_calls) {
+						const idx = tc.index ?? 0;
+						if (!toolCallDeltas[idx]) {
+							toolCallDeltas[idx] = { index: idx, id: tc.id, type: tc.type, function: {} };
+						}
+						if (tc.id) toolCallDeltas[idx].id = tc.id;
+						if (tc.type) toolCallDeltas[idx].type = tc.type;
+						if (tc.function?.name) {
+							toolCallDeltas[idx].function = {
+								...toolCallDeltas[idx].function,
+								name: (toolCallDeltas[idx].function?.name || "") + tc.function.name,
+							};
+						}
+						if (tc.function?.arguments) {
+							toolCallDeltas[idx].function = {
+								...toolCallDeltas[idx].function,
+								arguments: (toolCallDeltas[idx].function?.arguments || "") + tc.function.arguments,
+							};
+						}
+					}
+				}
+
+				// Usage (last chunk)
+				if (chunk.usage) {
+					totalUsage.promptTokens += chunk.usage.prompt_tokens || 0;
+					totalUsage.completionTokens += chunk.usage.completion_tokens || 0;
+					totalUsage.totalTokens += chunk.usage.total_tokens || 0;
+				}
 			}
 
-			if (message.tool_calls && message.tool_calls.length > 0) {
+			// After streaming: determine if tool calls or content
+			const hasToolCalls = toolCallDeltas.some((tc) => tc.function?.name);
+
+			if (hasToolCalls) {
+				// Build assistant message with tool calls for context
+				const toolCalls = toolCallDeltas.map((tc) => ({
+					id: tc.id || `call_${Date.now()}_${tc.index}`,
+					type: "function" as const,
+					function: {
+						name: tc.function?.name || "",
+						arguments: tc.function?.arguments || "{}",
+					},
+				}));
+
 				session.messages.push({
 					role: "assistant",
-					content: message.content || null,
-					tool_calls: message.tool_calls.map((tc) => ({
-						id: tc.id,
-						type: "function",
-						function: tc.function,
-					})),
-				} as OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam);
+					content: fullContent || null,
+					tool_calls: toolCalls,
+				} as unknown as OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam);
 
-				for (const tc of message.tool_calls) {
+				for (const tc of toolCalls) {
 					const toolName = tc.function.name;
 					let args: Record<string, unknown>;
 					try {
@@ -269,7 +318,7 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 				continue;
 			}
 
-			finalContent = message.content || "";
+			finalContent = fullContent;
 			session.messages.push({ role: "assistant", content: finalContent });
 
 			if (session.messages.length > 60) {
@@ -281,7 +330,6 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 
 			if (!opts.skipPersistUserMsg) {
 				try {
-					const { saveMessage } = await import("../db/messages.js");
 					saveMessage({
 						userId: opts.origin === "telegram" ? `telegram-${opts.telegramChatId || chatId}` : chatId,
 						chatId,

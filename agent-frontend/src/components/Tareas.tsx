@@ -26,6 +26,14 @@ interface RunEvent {
 
 type StatusFilter = "all" | "queued" | "running" | "completed" | "failed";
 
+const FILTER_LABELS: Record<StatusFilter, string> = {
+	all: "Todas",
+	queued: "En cola",
+	running: "Ejecutando",
+	completed: "Completado",
+	failed: "Fallido",
+};
+
 export const Tareas: React.FC = () => {
 	const [runs, setRuns] = useState<Run[]>([]);
 	const [loading, setLoading] = useState(true);
@@ -33,32 +41,49 @@ export const Tareas: React.FC = () => {
 	const [selectedRun, setSelectedRun] = useState<Run | null>(null);
 	const [selectedEvents, setSelectedEvents] = useState<RunEvent[]>([]);
 	const [detailLoading, setDetailLoading] = useState(false);
+	const [offset, setOffset] = useState(0);
+	const [hasMore, setHasMore] = useState(true);
+	const [loadingMore, setLoadingMore] = useState(false);
 
-	const fetchRuns = useCallback(async () => {
+	const apiHeaders = { "X-API-Key": config.apiKey };
+
+	const fetchRuns = useCallback(async (append = false) => {
 		try {
+			const currentOffset = append ? offset : 0;
 			const params = new URLSearchParams();
 			if (statusFilter !== "all") params.set("status", statusFilter);
 			params.set("limit", "50");
-			const res = await fetch(`${config.engineUrl}/api/runs?${params}`);
+			params.set("offset", String(currentOffset));
+			const res = await fetch(`${config.engineUrl}/api/runs?${params}`, { headers: apiHeaders });
 			const data = await res.json();
-			setRuns(data.runs || []);
+			const newRuns = data.runs || [];
+			if (append) {
+				setRuns((prev) => [...prev, ...newRuns]);
+			} else {
+				setRuns(newRuns);
+			}
+			setOffset(currentOffset + newRuns.length);
+			setHasMore(newRuns.length === 50);
 		} catch (err) {
 			console.error("Failed to fetch runs", err);
 		} finally {
 			setLoading(false);
+			setLoadingMore(false);
 		}
-	}, [statusFilter]);
+	}, [statusFilter, offset]);
 
 	useEffect(() => {
 		setLoading(true);
-		fetchRuns();
-	}, [fetchRuns]);
+		setOffset(0);
+		setHasMore(true);
+		fetchRuns(false);
+	}, [statusFilter]);
 
 	const openDetail = async (run: Run) => {
 		setSelectedRun(run);
 		setDetailLoading(true);
 		try {
-			const res = await fetch(`${config.engineUrl}/api/runs/${run.id}`);
+			const res = await fetch(`${config.engineUrl}/api/runs/${run.id}`, { headers: apiHeaders });
 			const data = await res.json();
 			setSelectedEvents(data.events || []);
 		} catch {
@@ -111,7 +136,7 @@ export const Tareas: React.FC = () => {
 							textTransform: "capitalize",
 						}}
 					>
-						{f === "all" ? "Todas" : f}
+						{FILTER_LABELS[f]}
 					</button>
 				))}
 			</div>
@@ -125,53 +150,77 @@ export const Tareas: React.FC = () => {
 					</div>
 				) : runs.length === 0 ? (
 					<div style={{ textAlign: "center", padding: "40px", color: "var(--text-dim)", fontSize: "13px" }}>
-						No hay tareas {statusFilter !== "all" ? `con estado "${statusFilter}"` : ""}.
+						No hay tareas {statusFilter !== "all" ? `con estado "${FILTER_LABELS[statusFilter]}"` : ""}.
 					</div>
 				) : (
-					runs.map((run) => (
-						<div
-							key={run.id}
-							onClick={() => openDetail(run)}
-							style={{
-								padding: "12px 16px",
-								marginBottom: "6px",
-								borderRadius: "8px",
-								background: "rgba(255,255,255,0.02)",
-								border: "1px solid var(--border-light)",
-								cursor: "pointer",
-								transition: "all 0.15s",
-							}}
-							onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent-glow)"; }}
-							onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-light)"; }}
-						>
-							<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-								{statusIcon(run.status)}
-								<div style={{ flex: 1, minWidth: 0 }}>
-									<div style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-main)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-										{run.userText}
+					<>
+						{runs.map((run) => (
+							<div
+								key={run.id}
+								onClick={() => openDetail(run)}
+								style={{
+									padding: "12px 16px",
+									marginBottom: "6px",
+									borderRadius: "8px",
+									background: "rgba(255,255,255,0.02)",
+									border: "1px solid var(--border-light)",
+									cursor: "pointer",
+									transition: "all 0.15s",
+								}}
+								onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent-glow)"; }}
+								onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-light)"; }}
+							>
+								<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+									{statusIcon(run.status)}
+									<div style={{ flex: 1, minWidth: 0 }}>
+										<div style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-main)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+											{run.userText}
+										</div>
+										<div style={{ display: "flex", gap: "12px", marginTop: "4px", fontSize: "10px", color: "var(--text-dim)" }}>
+											{run.created_at && <span>{new Date(run.created_at).toLocaleString()}</span>}
+											{run.model && <span style={{ color: "var(--accent)", fontFamily: "monospace" }}>{run.model}</span>}
+											{run.latencyMs != null && <span>{(run.latencyMs / 1000).toFixed(1)}s</span>}
+										</div>
 									</div>
-									<div style={{ display: "flex", gap: "12px", marginTop: "4px", fontSize: "10px", color: "var(--text-dim)" }}>
-										{run.created_at && <span>{new Date(run.created_at).toLocaleString()}</span>}
-										{run.model && <span style={{ color: "var(--accent)", fontFamily: "monospace" }}>{run.model}</span>}
-										{run.latencyMs != null && <span>{(run.latencyMs / 1000).toFixed(1)}s</span>}
-									</div>
+									<span
+										style={{
+											padding: "2px 8px",
+											borderRadius: "4px",
+											fontSize: "10px",
+											fontWeight: 600,
+											textTransform: "capitalize",
+											background: statusColor(run.status),
+											color: run.status === "completed" ? "var(--success)" : run.status === "failed" ? "var(--error)" : run.status === "running" ? "var(--accent)" : "var(--warning)",
+										}}
+									>
+										{FILTER_LABELS[run.status as StatusFilter] || run.status}
+									</span>
 								</div>
-								<span
+							</div>
+						))}
+						{hasMore && (
+							<div style={{ textAlign: "center", padding: "16px" }}>
+								<button
+									type="button"
+									onClick={() => { setLoadingMore(true); fetchRuns(true); }}
+									disabled={loadingMore}
 									style={{
-										padding: "2px 8px",
-										borderRadius: "4px",
-										fontSize: "10px",
+										padding: "8px 20px",
+										background: "rgba(79,140,255,0.1)",
+										border: "1px solid rgba(79,140,255,0.2)",
+										borderRadius: "8px",
+										color: "var(--accent)",
+										cursor: "pointer",
+										fontSize: "11px",
 										fontWeight: 600,
-										textTransform: "capitalize",
-										background: statusColor(run.status),
-										color: run.status === "completed" ? "var(--success)" : run.status === "failed" ? "var(--error)" : run.status === "running" ? "var(--accent)" : "var(--warning)",
+										opacity: loadingMore ? 0.6 : 1,
 									}}
 								>
-									{run.status}
-								</span>
+									{loadingMore ? "Cargando..." : "Cargar m\u00e1s"}
+								</button>
 							</div>
-						</div>
-					))
+						)}
+					</>
 				)}
 			</div>
 

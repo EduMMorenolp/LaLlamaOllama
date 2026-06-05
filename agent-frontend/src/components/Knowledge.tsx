@@ -1,6 +1,7 @@
 import { BookOpen, FileText, Loader2, Search, Trash2, Upload, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { config } from "../config";
+import { ConfirmModal } from "./ConfirmModal";
 
 interface KnowledgeFile {
 	name: string;
@@ -26,15 +27,18 @@ export const Knowledge: React.FC = () => {
 	const [fileName, setFileName] = useState("");
 	const [fileContent, setFileContent] = useState("");
 	const [showUpload, setShowUpload] = useState(false);
+	const [confirmDeleteFile, setConfirmDeleteFile] = useState<string | null>(null);
 
 	// Search
 	const [searchQuery, setSearchQuery] = useState("");
 	const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
 	const [searching, setSearching] = useState(false);
 
+	const apiHeaders = { "X-API-Key": config.apiKey };
+
 	const fetchFiles = useCallback(async () => {
 		try {
-			const res = await fetch(`${config.engineUrl}/api/knowledge`);
+			const res = await fetch(`${config.engineUrl}/api/knowledge`, { headers: apiHeaders });
 			const data = await res.json();
 			setFiles(data.files || []);
 		} catch (err) {
@@ -54,7 +58,7 @@ export const Knowledge: React.FC = () => {
 		try {
 			const res = await fetch(`${config.engineUrl}/api/knowledge/upload`, {
 				method: "POST",
-				headers: { "Content-Type": "application/json" },
+				headers: { "Content-Type": "application/json", ...apiHeaders },
 				body: JSON.stringify({ name: fileName.trim(), content: fileContent }),
 			});
 			const data = await res.json();
@@ -72,10 +76,10 @@ export const Knowledge: React.FC = () => {
 	};
 
 	const handleDelete = async (name: string) => {
-		if (!confirm(`¿Eliminar "${name}" del conocimiento?`)) return;
 		try {
 			await fetch(`${config.engineUrl}/api/knowledge/${encodeURIComponent(name)}`, {
 				method: "DELETE",
+				headers: apiHeaders,
 			});
 			fetchFiles();
 		} catch (err) {
@@ -91,7 +95,8 @@ export const Knowledge: React.FC = () => {
 		setSearching(true);
 		try {
 			const res = await fetch(
-				`${config.brainUrl}/api/memory/search?q=${encodeURIComponent(searchQuery)}&project=lallamaollama&mode=semantic&limit=10`
+				`${config.engineUrl}/api/memory/search?q=${encodeURIComponent(searchQuery)}&limit=10`,
+				{ headers: apiHeaders }
 			);
 			const data = await res.json();
 			setSearchResults(data.results || []);
@@ -175,7 +180,7 @@ export const Knowledge: React.FC = () => {
 							onChange={(e) => setFileContent(e.target.value)}
 							rows={8}
 							style={{ ...inputStyle, resize: "vertical", fontFamily: "var(--font-mono)", fontSize: "12px" }}
-							placeholder="Pega el contenido del archivo aquí..."
+							placeholder="Pega el contenido del archivo aqu\u00ed..."
 						/>
 					</div>
 					<button
@@ -201,7 +206,7 @@ export const Knowledge: React.FC = () => {
 						{uploading ? "Subiendo..." : "Subir e Indexar"}
 					</button>
 					<div style={{ fontSize: "10px", color: "var(--text-dim)", marginTop: "8px" }}>
-						El archivo se dividirá en chunks y se indexará vectorialmente en MCP Brain.
+						El archivo se dividir\u00e1 en chunks y se indexar\u00e1 vectorialmente en MCP Brain.
 					</div>
 				</div>
 			)}
@@ -240,12 +245,12 @@ export const Knowledge: React.FC = () => {
 										{file.name}
 									</div>
 									<div style={{ fontSize: "10px", color: "var(--text-dim)", marginTop: "2px" }}>
-										{formatSize(file.size)} · {file.modifiedAt ? new Date(file.modifiedAt).toLocaleDateString() : ""}
+										{formatSize(file.size)} \u00b7 {file.modifiedAt ? new Date(file.modifiedAt).toLocaleDateString() : ""}
 									</div>
 								</div>
 								<button
 									type="button"
-									onClick={() => handleDelete(file.name)}
+									onClick={() => setConfirmDeleteFile(file.name)}
 									style={{
 										background: "none",
 										border: "none",
@@ -329,6 +334,16 @@ export const Knowledge: React.FC = () => {
 					</div>
 				</div>
 			</div>
+
+			<ConfirmModal
+				open={!!confirmDeleteFile}
+				title="Eliminar archivo"
+				message={confirmDeleteFile ? `\u00bfEst\u00e1s seguro de eliminar "${confirmDeleteFile}" del conocimiento?` : ""}
+				confirmText="Eliminar"
+				onConfirm={() => { if (confirmDeleteFile) { handleDelete(confirmDeleteFile); setConfirmDeleteFile(null); } }}
+				onCancel={() => setConfirmDeleteFile(null)}
+				danger
+			/>
 		</div>
 	);
 };

@@ -50,13 +50,7 @@
       "mode": "subagent",
       "model": "gemma4:e2b"
     },
-    "qa-verification": {
-      "mode": "subagent"
-    },
     "mcp-brain": {
-      "mode": "subagent"
-    },
-    "agent-creator": {
       "mode": "subagent"
     }
   },

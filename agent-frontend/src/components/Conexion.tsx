@@ -1,6 +1,7 @@
-import { Cable, Plus, Save, Trash2, Wifi, WifiOff } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+﻿import { Cable, Plus, Save, Trash2, Wifi, WifiOff } from "lucide-react";
+import { useEffect, useState } from "react";
 import { config } from "../config";
+import { useWs } from "../contexts/WebSocketContext";
 
 interface ModelEntry {
   name: string;
@@ -10,44 +11,29 @@ interface ModelEntry {
 }
 
 export const Conexion: React.FC = () => {
-  const wsRef = useRef<WebSocket | null>(null);
-  const [connected, setConnected] = useState(false);
+  const { connected, send: sendWs, subscribe } = useWs();
 
   // Models
   const [models, setModels] = useState<ModelEntry[]>([]);
   const [showModelForm, setShowModelForm] = useState(false);
   const [newModel, setNewModel] = useState<ModelEntry>({ name: "", displayName: "", apiKey: "", baseUrl: "" });
 
+  // Subscribe to WS messages
   useEffect(() => {
-    const ws = new WebSocket(config.wsUrl);
-    wsRef.current = ws;
+    return subscribe((msg) => {
+      if (msg.type === "list_models") {
+        const list = msg.payload?.models as ModelEntry[];
+        if (list) setModels(list);
+      }
+    });
+  }, [subscribe]);
 
-    ws.onopen = () => {
-      setConnected(true);
-      ws.send(JSON.stringify({ type: "list_models", payload: {} }));
-    };
-
-    ws.onclose = () => setConnected(false);
-    ws.onerror = () => setConnected(false);
-
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.type === "list_models") {
-          const list = msg.payload?.models as ModelEntry[];
-          if (list) setModels(list);
-        }
-      } catch { /* ignore */ }
-    };
-
-    return () => ws.close();
-  }, []);
-
-  const sendWs = useCallback((type: string, payload?: Record<string, unknown>) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type, payload: payload || {} }));
+  // Fetch models when connected
+  useEffect(() => {
+    if (connected) {
+      sendWs("list_models", {});
     }
-  }, []);
+  }, [connected, sendWs]);
 
   const handleSaveModel = () => {
     if (!newModel.name.trim()) return;
@@ -74,7 +60,7 @@ export const Conexion: React.FC = () => {
       <div style={sectionCard}>
         <label style={sectionTitle}>
           <Cable size={14} style={{ marginRight: "6px" }} />
-          Estado de Conexión
+          Estado de Conexi\u00f3n
         </label>
         <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "var(--text-main)" }}>
           {connected ? (
@@ -176,7 +162,7 @@ export const Conexion: React.FC = () => {
           URL: {config.brainUrl}
         </div>
         <div style={{ fontSize: "11px", color: "var(--text-dim)" }}>
-          El Agent Engine se conecta al MCP Brain para memoria persistente y búsqueda semántica.
+          El Agent Engine se conecta al MCP Brain para memoria persistente y b\u00fasqueda sem\u00e1ntica.
         </div>
       </div>
     </div>

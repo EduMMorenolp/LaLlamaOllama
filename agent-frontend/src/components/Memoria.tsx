@@ -17,6 +17,8 @@ interface MemoryStats {
 	byType?: Record<string, number>;
 }
 
+const PAGE_SIZE = 20;
+
 export const Memoria: React.FC = () => {
 	const [query, setQuery] = useState("");
 	const [results, setResults] = useState<MemoryResult[]>([]);
@@ -24,10 +26,16 @@ export const Memoria: React.FC = () => {
 	const [stats, setStats] = useState<MemoryStats>({});
 	const [selectedMemory, setSelectedMemory] = useState<MemoryResult | null>(null);
 	const [searchMode, setSearchMode] = useState<"semantic" | "lexical" | "hybrid">("semantic");
+	const [offset, setOffset] = useState(0);
+	const [loadingMore, setLoadingMore] = useState(false);
+
+	const apiHeaders = { "X-API-Key": config.apiKey };
 
 	const fetchStats = useCallback(async () => {
 		try {
-			const res = await fetch(`${config.brainUrl}/api/memory/stats?project=lallamaollama`);
+			const res = await fetch(`${config.engineUrl}/api/memory/stats`, {
+				headers: apiHeaders,
+			});
 			const data = await res.json();
 			setStats(data);
 		} catch { /* ignore */ }
@@ -37,29 +45,43 @@ export const Memoria: React.FC = () => {
 		fetchStats();
 	}, [fetchStats]);
 
-	const handleSearch = useCallback(async () => {
+	const handleSearch = useCallback(async (append = false) => {
 		if (!query.trim()) {
 			setResults([]);
 			return;
 		}
-		setLoading(true);
+		if (append) {
+			setLoadingMore(true);
+		} else {
+			setLoading(true);
+			setOffset(0);
+		}
 		try {
+			const currentOffset = append ? offset : 0;
 			const res = await fetch(
-				`${config.brainUrl}/api/memory/search?q=${encodeURIComponent(query)}&project=lallamaollama&mode=${searchMode}&limit=20`
+				`${config.engineUrl}/api/memory/search?q=${encodeURIComponent(query)}&mode=${searchMode}&limit=${PAGE_SIZE}&offset=${currentOffset}`,
+				{ headers: apiHeaders }
 			);
 			const data = await res.json();
-			setResults(data.results || []);
+			const newResults = data.results || [];
+			if (append) {
+				setResults((prev) => [...prev, ...newResults]);
+			} else {
+				setResults(newResults);
+			}
+			setOffset(currentOffset + newResults.length);
 		} catch {
 			setResults([]);
 		} finally {
 			setLoading(false);
+			setLoadingMore(false);
 		}
-	}, [query, searchMode]);
+	}, [query, searchMode, offset]);
 
 	useEffect(() => {
-		const timer = setTimeout(handleSearch, 400);
+		const timer = setTimeout(() => handleSearch(false), 400);
 		return () => clearTimeout(timer);
-	}, [handleSearch]);
+	}, [query, searchMode]);
 
 	const typeColors: Record<string, string> = {
 		knowledge: "var(--accent)",
@@ -160,70 +182,94 @@ export const Memoria: React.FC = () => {
 				{!query.trim() ? (
 					<div style={{ textAlign: "center", padding: "60px 20px", color: "var(--text-dim)", fontSize: "13px" }}>
 						<Brain size={48} style={{ margin: "0 auto 16px", opacity: 0.15, display: "block" }} />
-						Busca en la memoria del agente. Usa búsqueda semántica, léxica o híbrida.
+						Busca en la memoria del agente. Usa b\u00fasqueda sem\u00e1ntica, l\u00e9xica o h\u00edbrida.
 					</div>
 				) : results.length === 0 && !loading ? (
 					<div style={{ textAlign: "center", padding: "40px", color: "var(--text-dim)", fontSize: "13px" }}>
 						Sin resultados para "{query}".
 					</div>
 				) : (
-					results.map((mem) => (
-						<div
-							key={mem.id}
-							onClick={() => setSelectedMemory(mem)}
-							style={{
-								padding: "12px 16px",
-								marginBottom: "6px",
-								borderRadius: "8px",
-								background: "rgba(255,255,255,0.02)",
-								border: "1px solid var(--border-light)",
-								cursor: "pointer",
-							}}
-						>
-							<div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-								<span style={{
-									padding: "2px 8px",
-									borderRadius: "4px",
-									fontSize: "9px",
-									fontWeight: 700,
-									textTransform: "uppercase",
-									background: `${typeColors[mem.type] || "var(--text-muted)"}20`,
-									color: typeColors[mem.type] || "var(--text-muted)",
-								}}>
-									{mem.type}
-								</span>
-								<span style={{ fontSize: "10px", color: "var(--text-dim)" }}>
-									{mem.createdAt ? new Date(mem.createdAt).toLocaleDateString() : ""}
-								</span>
-								{mem.similarity != null && (
-									<span style={{ fontSize: "9px", color: "var(--accent)", marginLeft: "auto" }}>
-										{(mem.similarity * 100).toFixed(0)}%
+					<>
+						{results.map((mem) => (
+							<div
+								key={mem.id}
+								onClick={() => setSelectedMemory(mem)}
+								style={{
+									padding: "12px 16px",
+									marginBottom: "6px",
+									borderRadius: "8px",
+									background: "rgba(255,255,255,0.02)",
+									border: "1px solid var(--border-light)",
+									cursor: "pointer",
+								}}
+							>
+								<div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+									<span style={{
+										padding: "2px 8px",
+										borderRadius: "4px",
+										fontSize: "9px",
+										fontWeight: 700,
+										textTransform: "uppercase",
+										background: `${typeColors[mem.type] || "var(--text-muted)"}20`,
+										color: typeColors[mem.type] || "var(--text-muted)",
+									}}>
+										{mem.type}
 									</span>
+									<span style={{ fontSize: "10px", color: "var(--text-dim)" }}>
+										{mem.createdAt ? new Date(mem.createdAt).toLocaleDateString() : ""}
+									</span>
+									{mem.similarity != null && (
+										<span style={{ fontSize: "9px", color: "var(--accent)", marginLeft: "auto" }}>
+											{(mem.similarity * 100).toFixed(0)}%
+										</span>
+									)}
+								</div>
+								<div style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-main)", marginBottom: "2px" }}>
+									{mem.title}
+								</div>
+								<div style={{ fontSize: "11px", color: "var(--text-dim)", maxHeight: "40px", overflow: "hidden" }}>
+									{mem.content}
+								</div>
+								{mem.tags && (
+									<div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginTop: "6px" }}>
+										{mem.tags.split(",").map((tag) => (
+											<span key={tag} style={{
+												fontSize: "8px",
+												padding: "1px 5px",
+												borderRadius: "3px",
+												background: "rgba(255,255,255,0.05)",
+												color: "var(--text-muted)",
+											}}>
+												{tag.trim()}
+											</span>
+										))}
+									</div>
 								)}
 							</div>
-							<div style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-main)", marginBottom: "2px" }}>
-								{mem.title}
+						))}
+						{results.length === PAGE_SIZE && (
+							<div style={{ textAlign: "center", padding: "16px" }}>
+								<button
+									type="button"
+									onClick={() => handleSearch(true)}
+									disabled={loadingMore}
+									style={{
+										padding: "8px 20px",
+										background: "rgba(79,140,255,0.1)",
+										border: "1px solid rgba(79,140,255,0.2)",
+										borderRadius: "8px",
+										color: "var(--accent)",
+										cursor: "pointer",
+										fontSize: "11px",
+										fontWeight: 600,
+										opacity: loadingMore ? 0.6 : 1,
+									}}
+								>
+									{loadingMore ? "Cargando..." : "Cargar m\u00e1s"}
+								</button>
 							</div>
-							<div style={{ fontSize: "11px", color: "var(--text-dim)", maxHeight: "40px", overflow: "hidden" }}>
-								{mem.content}
-							</div>
-							{mem.tags && (
-								<div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginTop: "6px" }}>
-									{mem.tags.split(",").map((tag) => (
-										<span key={tag} style={{
-											fontSize: "8px",
-											padding: "1px 5px",
-											borderRadius: "3px",
-											background: "rgba(255,255,255,0.05)",
-											color: "var(--text-muted)",
-										}}>
-											{tag.trim()}
-										</span>
-									))}
-								</div>
-							)}
-						</div>
-					))
+						)}
+					</>
 				)}
 			</div>
 
@@ -270,7 +316,7 @@ export const Memoria: React.FC = () => {
 						</h3>
 						<div style={{ fontSize: "11px", color: "var(--text-dim)", marginBottom: "16px" }}>
 							{selectedMemory.createdAt ? new Date(selectedMemory.createdAt).toLocaleString() : ""}
-							{selectedMemory.id && <> · ID: {selectedMemory.id}</>}
+							{selectedMemory.id && <> \u00b7 ID: {selectedMemory.id}</>}
 						</div>
 						<div style={{
 							padding: "16px",

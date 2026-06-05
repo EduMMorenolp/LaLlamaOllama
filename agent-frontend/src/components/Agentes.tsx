@@ -1,6 +1,6 @@
-import { Plus, Save, Settings, Sliders, Trash2, X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { config } from "../config";
+﻿import { Plus, Save, Settings, Sliders, Trash2, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { useWs } from "../contexts/WebSocketContext";
 
 interface SubAgent {
   name: string;
@@ -18,9 +18,7 @@ interface GeneralConfig {
 }
 
 export const Agentes: React.FC = () => {
-  const wsRef = useRef<WebSocket | null>(null);
-  const [connected, setConnected] = useState(false);
-
+  const { connected, send: sendWs, subscribe } = useWs();
   // General config
   const [configModel, setConfigModel] = useState(() => localStorage.getItem("agent_model") || "llama3.2:3b");
   const [configTemp, setConfigTemp] = useState(0.7);
@@ -42,121 +40,85 @@ export const Agentes: React.FC = () => {
   const savingRef = useRef(false);
   const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  const sendWs = useCallback((type: string, payload?: Record<string, unknown>) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type, payload: payload || {} }));
-      return true;
-    }
-    return false;
-  }, []);
-
+  // Subscribe to WS messages
   useEffect(() => {
-    let mounted = true;
-
-    function connect() {
-      const ws = new WebSocket(config.wsUrl);
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        if (!mounted) { ws.close(); return; }
-        setConnected(true);
-        ws.send(JSON.stringify({ type: "get_general_config", payload: {} }));
-        ws.send(JSON.stringify({ type: "get_status", payload: {} }));
-        ws.send(JSON.stringify({ type: "list_tools", payload: {} }));
-        ws.send(JSON.stringify({ type: "list_experts", payload: {} }));
-        ws.send(JSON.stringify({ type: "list_ollama_models", payload: {} }));
-      };
-
-      ws.onclose = () => {
-        if (!mounted) return;
-        setConnected(false);
-      };
-
-      ws.onerror = () => {
-        ws.close();
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          switch (msg.type) {
-            case "general_config": {
-              const gc = msg.payload as GeneralConfig;
-              if (gc?.model != null) {
-                setConfigModel(gc.model || "");
-                localStorage.setItem("agent_model", gc.model || "");
-              }
-              if (gc?.temperature != null) setConfigTemp(gc.temperature);
-              if (gc?.history_limit != null) setConfigHistoryLimit(gc.history_limit);
-              if (savingRef.current) {
-                setSaving(false);
-                savingRef.current = false;
-                setSaveMessage({ type: "success", text: "Configuración guardada correctamente" });
-                setTimeout(() => setSaveMessage(null), 2500);
-              }
-              break;
-            }
-            case "status":
-              if (msg.payload?.model) setConfigModel(msg.payload.model as string);
-              if (msg.payload?.telegramActive !== undefined) {
-                setTelegramEnabled(msg.payload.telegramActive as boolean);
-              }
-              break;
-            case "tools_list": {
-              const toolList = msg.payload?.tools as Array<{ function: { name: string } }> | string[];
-              if (Array.isArray(toolList)) {
-                const names = typeof toolList[0] === "string"
-                  ? toolList as string[]
-                  : (toolList as Array<{ function: { name: string } }>).map((t) => t.function.name);
-                setTools(names);
-                const states: Record<string, boolean> = {};
-                for (const t of names) states[t] = true;
-                setToolStates(states);
-              }
-              break;
-            }
-            case "list_experts": {
-              const experts = msg.payload?.experts as SubAgent[];
-              if (experts) setAgents(experts);
-              break;
-            }
-            case "ollama_models": {
-              const models = msg.payload?.models as Array<{ name: string }> || [];
-              setOllamaModels(models.map((m: { name: string }) => m.name));
-              break;
-            }
+    return subscribe((msg) => {
+      switch (msg.type) {
+        case "general_config": {
+          const gc = msg.payload as unknown as GeneralConfig;
+          if (gc?.model != null) {
+            setConfigModel(gc.model || "");
+            localStorage.setItem("agent_model", gc.model || "");
           }
-        } catch { /* ignore */ }
-      };
-    }
-
-    connect();
-
-    return () => {
-      mounted = false;
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
+          if (gc?.temperature != null) setConfigTemp(gc.temperature);
+          if (gc?.history_limit != null) setConfigHistoryLimit(gc.history_limit);
+          if (savingRef.current) {
+            setSaving(false);
+            savingRef.current = false;
+            setSaveMessage({ type: "success", text: "Configuraci\u00f3n guardada correctamente" });
+            setTimeout(() => setSaveMessage(null), 2500);
+          }
+          break;
+        }
+        case "status":
+          if (msg.payload?.model) setConfigModel(msg.payload.model as string);
+          if (msg.payload?.telegramActive !== undefined) {
+            setTelegramEnabled(msg.payload.telegramActive as boolean);
+          }
+          break;
+        case "tools_list": {
+          const toolList = msg.payload?.tools as Array<{ function: { name: string } }> | string[];
+          if (Array.isArray(toolList)) {
+            const names = typeof toolList[0] === "string"
+              ? toolList as string[]
+              : (toolList as Array<{ function: { name: string } }>).map((t) => t.function.name);
+            setTools(names);
+            const states: Record<string, boolean> = {};
+            for (const t of names) states[t] = true;
+            setToolStates(states);
+          }
+          break;
+        }
+        case "list_experts": {
+          const experts = msg.payload?.experts as SubAgent[];
+          if (experts) setAgents(experts);
+          break;
+        }
+        case "ollama_models": {
+          const models = msg.payload?.models as Array<{ name: string }> || [];
+          setOllamaModels(models.map((m: { name: string }) => m.name));
+          break;
+        }
       }
-    };
-  }, []);
+    });
+  }, [subscribe]);
+
+  // Fetch initial data when connected
+  useEffect(() => {
+    if (connected) {
+      sendWs("get_general_config", {});
+      sendWs("get_status", {});
+      sendWs("list_tools", {});
+      sendWs("list_experts", {});
+      sendWs("list_ollama_models", {});
+    }
+  }, [connected, sendWs]);
 
   const handleSaveGeneralConfig = () => {
     setSaveMessage(null);
+    if (!connected) {
+      setSaveMessage({ type: "error", text: "No hay conexi\u00f3n con el servidor. Verifica que el Agent Engine est\u00e9 corriendo." });
+      return;
+    }
     const payload = {
       model: configModel,
       temperature: configTemp,
       history_limit: configHistoryLimit,
     };
     console.log("[Save] Enviando general_config_update:", JSON.stringify(payload));
-    const sent = sendWs("general_config_update", payload);
-    console.log("[Save] sendWs returned:", sent, "| wsRef.current?.readyState:", wsRef.current?.readyState);
-    if (sent) {
-      setSaving(true);
-      savingRef.current = true;
-    } else {
-      setSaveMessage({ type: "error", text: "No hay conexión con el servidor. Verifica que el Agent Engine esté corriendo." });
-    }
+    sendWs("general_config_update", payload);
+    setSaving(true);
+    savingRef.current = true;
   };
 
   const handleTelegramSave = () => {
@@ -217,7 +179,7 @@ export const Agentes: React.FC = () => {
 
   return (
     <div style={{ maxWidth: "900px", margin: "0 auto" }}>
-      {/* Connection status � full width */}
+      {/* Connection status — full width */}
       <div style={sectionCard}>
         <label style={sectionTitle}>
           <Settings size={14} style={{ marginRight: "6px" }} />
@@ -240,7 +202,7 @@ export const Agentes: React.FC = () => {
         <div style={sectionCardGrid}>
           <label style={sectionTitle}>
             <Sliders size={14} style={{ marginRight: "6px" }} />
-            Configuracion General
+            Configuraci\u00f3n General
           </label>
 
           <div style={{ marginBottom: "12px" }}>
@@ -268,7 +230,7 @@ export const Agentes: React.FC = () => {
             </select>
             {ollamaModels.length === 0 && (
               <div style={{ fontSize: "10px", color: "var(--warning)", marginTop: "4px" }}>
-                No se pudieron cargar los modelos. ?Ollama esta corriendo?
+                No se pudieron cargar los modelos. \u00bfOllama est\u00e1 corriendo?
               </div>
             )}
           </div>
@@ -294,7 +256,7 @@ export const Agentes: React.FC = () => {
 
           <div style={{ marginBottom: "12px" }}>
             <label style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>
-              Limite de historial: {configHistoryLimit} mensajes
+              L\u00edmite de historial: {configHistoryLimit} mensajes
             </label>
             <input
               type="number"
@@ -313,7 +275,7 @@ export const Agentes: React.FC = () => {
               cursor: saving ? "wait" : "pointer",
             }}>
               <Save size={14} style={{ marginRight: "4px" }} />
-              {saving ? "Guardando..." : "Guardar Configuracion"}
+              {saving ? "Guardando..." : "Guardar Configuraci\u00f3n"}
             </button>
             {saveMessage && (
               <span style={{
@@ -354,7 +316,7 @@ export const Agentes: React.FC = () => {
         </div>
       </div>
 
-      {/* Tools � full width */}
+      {/* Tools — full width */}
       <div style={sectionCard}>
         <label style={sectionTitle}>Herramientas ({tools.length})</label>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
@@ -380,10 +342,10 @@ export const Agentes: React.FC = () => {
         </div>
       </div>
 
-      {/* Sub-Agents � full width */}
+      {/* Sub-Agents — full width */}
       <div style={sectionCard}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-          <label style={{ ...sectionTitle, marginBottom: 0 }}>Sub-Agents ({agents.length})</label>
+          <label style={{ ...sectionTitle, marginBottom: 0 }}>Sub-Agentes ({agents.length})</label>
           <button
             type="button"
             onClick={() => setShowAgentForm(!showAgentForm)}

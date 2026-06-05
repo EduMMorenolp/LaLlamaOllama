@@ -21,6 +21,28 @@
 - Chats ahora se crean con el userId real (no clientId volátil)
 - Auto-creación de chat al recibir primer mensaje si no existe
 
+### Streaming
+- **Streaming real activado**: `stream: true` en OpenAI API, procesamiento `for await...of` con emisión de chunks vía WebSocket
+- `onChunk` callback ahora se invoca correctamente (antes estaba cableado pero nunca se llamaba)
+- Soportes tool calls en streaming: acumulación de deltas, reconstrucción de llamadas
+
+### Añadido
+- Autenticación REST con API Key via header `X-API-Key` (salta `/health`)
+- CORS configurado con orígenes permitidos (variable `ALLOWED_ORIGINS`)
+- Rate limiting (100 req/min) en endpoints `/api`
+- Endpoints proxy a Brain: `GET /api/memory/search` y `GET /api/memory/stats`
+- Handler WebSocket `list_tasks` con filtros status/limit/offset
+- Manejador global de errores Express
+- Archivo `.env.example` con todas las variables documentadas
+
+### Cambiado
+- Eliminados módulos muertos: `services/sessions/` y `services/execution/`
+- `cron.ts` ahora hace session cleanup real (llama a `resetAllSessions()`)
+- Imports dinámicos en `runAgentCore.ts` migrados a estáticos (mejora performance)
+- Límite de sesiones reducido: cleanup preventivo cuando >80 entradas
+- Type assertions `as never` eliminadas (5 ocurrencias reemplazadas con tipos concretos)
+- `brainUrl` ahora lee `VITE_BRAIN_URL` con fallback a `BRAIN_URL`
+
 ## [0.5.0] — 2026-06-02
 
 ### Añadido

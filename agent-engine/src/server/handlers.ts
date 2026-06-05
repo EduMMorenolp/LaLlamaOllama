@@ -1,4 +1,4 @@
-﻿import { type WebSocket } from "ws";
+import { type WebSocket } from "ws";
 import { runAgent } from "../services/agent/runAgent.js";
 import type { BrainClient } from "../services/brain/client.js";
 import { loadConfig } from "../services/config.js";
@@ -12,8 +12,9 @@ import {
 	upsertExpert,
 	deleteExpert,
 	getGeneralConfig,
+	type SubAgent,
 } from "../services/db/experts.js";
-import { listAllUsers, upsertUser, deleteUser } from "../services/db/users.js";
+import { listAllUsers, upsertUser, deleteUser, type UserProfile } from "../services/db/users.js";
 import {
 	createChat,
 	listChats,
@@ -24,7 +25,8 @@ import {
 	togglePin,
 } from "../services/db/chats.js";
 import { getMessages } from "../services/db/messages.js";
-import { listModels, upsertModel, deleteModel } from "../services/db/models.js";
+import { listModels, upsertModel, deleteModel, type ModelEntry } from "../services/db/models.js";
+import { listRunsByFilters } from "../services/db/runs.js";
 import { resetSession, pushSessionMessages } from "../services/agent/runAgentCore.js";
 import { startTelegram, stopTelegram, initTelegramDeps } from "../services/telegram/bot.js";
 import axios from "axios";
@@ -42,46 +44,45 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 			const { type, payload } = parsed;
 
 			switch (type) {
-				// â”€â”€â”€ Chat â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-			case "user_message": {
-				const rawChatId = (payload?.chatId as string) || clientId;
-				const text = (payload?.text as string) || "";
-				const attachments = payload?.attachments as Array<{ name: string; type: string; data: string }> | undefined;
-				if (!text.trim()) {
-					ws.send(createMessage("error", { message: "Empty message", code: "EMPTY" }));
-					return;
-				}
+				case "user_message": {
+					const rawChatId = (payload?.chatId as string) || clientId;
+					const text = (payload?.text as string) || "";
+					const attachments = payload?.attachments as Array<{ name: string; type: string; data: string }> | undefined;
+					if (!text.trim()) {
+						ws.send(createMessage("error", { message: "Empty message", code: "EMPTY" }));
+						return;
+					}
 
-				let chatId = rawChatId;
-				if (!getChat(rawChatId)) {
-					const userId = userMap.get(clientId) ?? clientId;
-					const newChat = createChat(userId, null, text.substring(0, 40));
-					chatId = newChat.id;
-					ws.send(
-						createMessage("list_chats", {
-							chats: listChats(userId, undefined),
-							channelChats: listChannelChats(userId),
-							activeChatId: chatId,
-						})
-					);
-				}
+					let chatId = rawChatId;
+					if (!getChat(rawChatId)) {
+						const userId = userMap.get(clientId) ?? clientId;
+						const newChat = createChat(userId, null, text.substring(0, 40));
+						chatId = newChat.id;
+						ws.send(
+							createMessage("list_chats", {
+								chats: listChats(userId, undefined),
+								channelChats: listChannelChats(userId),
+								activeChatId: chatId,
+							})
+						);
+					}
 
-				this.handleUserMessage(chatId, text, clientId, attachments);
-				break;
-			}
+					this.handleUserMessage(chatId, text, clientId, attachments);
+					break;
+				}
 				case "cancel": {
 					const chatId = (payload?.chatId as string) || clientId;
 					logger.agent(`[${chatId}] Cancel requested`);
 					wsServer.sendToAll("assistant_done", {
 						chatId,
-						text: "â¹ï¸ ConversaciÃ³n cancelada.",
+						text: "? Conversaci�n cancelada.",
 						model: "system",
 						latencyMs: 0,
 					});
 					break;
 				}
 
-				// â”€â”€â”€ Status / Tools â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+				// Status / Tools
 				case "get_status": {
 					ws.send(
 						createMessage("status", {
@@ -113,7 +114,6 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					break;
 				}
 
-
 				// Ollama models
 				case "list_ollama_models": {
 					const backendUrl = config.backendUrl;
@@ -131,7 +131,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 						});
 					break;
 				}
-				// â”€â”€â”€ Expert Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+				// Expert Management
 				case "list_experts": {
 					const experts = listExperts();
 					ws.send(createMessage("list_experts", { experts }));
@@ -140,7 +140,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 				case "expert_update": {
 					const action = payload?.action as string;
 					if (action === "upsert" && payload?.expert) {
-						upsertExpert(payload.expert as never);
+						upsertExpert(payload.expert as SubAgent);
 						ws.send(createMessage("list_experts", { experts: listExperts() }));
 					} else if (action === "delete" && payload?.name) {
 						deleteExpert(payload.name as string);
@@ -149,7 +149,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					break;
 				}
 
-				// â”€â”€â”€ User Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+				// User Management
 				case "list_users": {
 					ws.send(createMessage("list_users", { users: listAllUsers() }));
 					break;
@@ -158,7 +158,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					const userId = payload?.userId as string;
 					if (userId) {
 						userMap.set(clientId, userId);
-						logger.info(`ðŸ‘¤ WebChat identified: ${clientId} -> ${userId}`);
+						logger.info(`?? WebChat identified: ${clientId} -> ${userId}`);
 						const gc = getGeneralConfig();
 						const effectiveModel = gc?.model || config.defaultModel;
 						ws.send(
@@ -182,30 +182,31 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 				case "user_register": {
 					const userId = payload?.userId as string;
 					upsertUser(userId, {
-						name: payload?.name as string,
-						timezone: payload?.timezone as string,
-						telegram_user: payload?.telegram_user as string,
-						telegram_token: payload?.telegram_token as string,
-					} as never);
-					logger.info(`âœ… User registered: ${userId}`);
+						name: payload?.name as string | undefined,
+						timezone: payload?.timezone as string | undefined,
+						telegram_user: payload?.telegram_user as string | undefined,
+						telegram_token: payload?.telegram_token as string | undefined,
+					});
+					logger.info(`?? User registered: ${userId}`);
 					ws.send(createMessage("list_users", { users: listAllUsers() }));
 					break;
 				}
 				case "user_update": {
 					const uId = payload?.userId as string;
-					upsertUser(uId, payload as never);
+					const { userId: _u, ...userData } = payload as Record<string, unknown>;
+					upsertUser(uId, userData as Partial<Omit<UserProfile, "userId" | "created_at">>);
 					ws.send(createMessage("list_users", { users: listAllUsers() }));
 					break;
 				}
 				case "user_delete": {
 					const dId = payload?.userId as string;
 					deleteUser(dId);
-					logger.info(`ðŸ—‘ï¸ User deleted: ${dId}`);
+					logger.info(`??? User deleted: ${dId}`);
 					ws.send(createMessage("list_users", { users: listAllUsers() }));
 					break;
 				}
 
-				// â”€â”€â”€ Chat Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+				// Chat Management
 				case "list_chats": {
 					const userId = payload?.userId as string;
 					if (userId) {
@@ -266,7 +267,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 									origin: m.origin,
 								})),
 								expertName: chat?.expertName || null,
-								text: storedMessages.length === 0 ? "Este chat no tiene mensajes aún." : "",
+								text: storedMessages.length === 0 ? "Este chat no tiene mensajes a�n." : "",
 								model: "Sistema",
 							})
 						);
@@ -274,7 +275,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					break;
 				}
 
-				// â”€â”€â”€ Model Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+				// Model Management
 				case "list_models": {
 					ws.send(createMessage("list_models", { models: listModels() }));
 					break;
@@ -282,7 +283,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 				case "model_update": {
 					const modelAction = payload?.action as string;
 					if (modelAction === "upsert" && payload?.modelConfig) {
-						upsertModel(payload.modelConfig as never);
+						upsertModel(payload.modelConfig as ModelEntry);
 					} else if (modelAction === "delete" && payload?.name) {
 						deleteModel(payload.name as string);
 					}
@@ -290,7 +291,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					break;
 				}
 
-				// â”€â”€â”€ General Config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+				// General Config
 				case "get_general_config": {
 					const gc = getGeneralConfig() as Record<string, unknown> | null;
 					ws.send(createMessage("general_config", gc || {}));
@@ -319,11 +320,12 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					break;
 				}
 
-				// â”€â”€â”€ Telegram Settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+				// Telegram Settings
 				case "telegram_update": {
 					const token = payload?.botToken as string;
 					const enabled = payload?.enabled as boolean;
 					if (enabled && token) {
+						// TODO: usar variable de m�dulo en vez de process.env
 						process.env.TELEGRAM_BOT_TOKEN = token;
 						startTelegram().catch((err) => {
 							logger.error(`Failed to start Telegram: ${err}`);
@@ -339,6 +341,16 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 							telegramActive: !!process.env.TELEGRAM_BOT_TOKEN,
 						})
 					);
+					break;
+				}
+
+				// Task history
+				case "list_tasks": {
+					const taskStatus = payload?.status as string | undefined;
+					const limit = parseInt(payload?.limit as string, 10) || 20;
+					const offset = parseInt(payload?.offset as string, 10) || 0;
+					const runs = listRunsByFilters({ status: taskStatus, limit, offset });
+					ws.send(createMessage("list_tasks", { runs }));
 					break;
 				}
 
@@ -378,7 +390,6 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					latencyMs: result.latencyMs,
 				});
 
-
 				// Send updated chat list to all clients so sidebar refreshes with lastMessage
 				const userId = userMap.get(clientId) ?? clientId;
 				wsServer.sendToAll("list_chats", {
@@ -403,4 +414,3 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 		},
 	};
 }
-

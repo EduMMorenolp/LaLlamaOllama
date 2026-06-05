@@ -1,5 +1,6 @@
 import cors from "cors";
-import express, { type Request, type Response } from "express";
+import express, { type Request, type Response, type NextFunction } from "express";
+import rateLimit from "express-rate-limit";
 import { createServer } from "node:http";
 import type { AppConfig } from "../services/config.js";
 import { toolRegistry } from "../services/tools/registry.js";
@@ -21,12 +22,77 @@ import {
 } from "../services/knowledge/index.js";
 import type { BrainClient } from "../services/brain/client.js";
 
+const apiLimiter = rateLimit({
+	windowMs: 60 * 1000,
+	max: 100,
+	standardHeaders: true,
+	legacyHeaders: false,
+});
+
 export function startApiServer(config: AppConfig, brain?: BrainClient) {
 	const app = express();
-	app.use(cors());
+	app.use(cors({
+		origin: (config as any).allowedOrigins?.length ? (config as any).allowedOrigins : ["http://localhost:8081"],
+		methods: ["GET", "POST", "PUT", "DELETE"],
+		allowedHeaders: ["Content-Type", "X-API-Key"],
+	}));
 	app.use(express.json({ limit: "10mb" }));
 
-	// Health endpoint
+	app.use("/api", apiLimiter);
+
+	function authMiddleware(req: Request, res: Response, next: NextFunction) {
+		if (req.path === "/health" || req.path.startsWith("/memory/")) return next();
+		const apiKey = req.headers["x-api-key"] as string;
+		if (!apiKey || apiKey !== config.apiKey) {
+			res.status(401).json({ error: "Unauthorized: invalid or missing API key" });
+			return;
+		}
+		next();
+	}
+	app.use("/api", authMiddleware);
+
+	
+	// -- Brain Proxy -----------------------------------------------------
+	app.get("/api/memory/search", async (req: Request, res: Response) => {
+		if (!brain) {
+			res.status(503).json({ error: "Brain not available" });
+			return;
+		}
+		try {
+			const q = req.query.q as string;
+			const mode = (req.query.mode as string) || "semantic";
+			const limit = parseInt(req.query.limit as string, 10) || 10;
+			const project = (req.query.project as string) || "lallamaollama";
+			const axiosResp = await (await import("axios")).default.get(`${config.brainUrl}/api/memory/search`, {
+				params: { q, project, mode, limit },
+				timeout: 10000,
+			});
+			res.json(axiosResp.data);
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			logger.error(`[Brain Proxy] Search failed: ${msg}`);
+			res.status(502).json({ error: "Brain search failed", detail: msg });
+		}
+	});
+
+	app.get("/api/memory/stats", async (_req: Request, res: Response) => {
+		if (!brain) {
+			res.status(503).json({ error: "Brain not available" });
+			return;
+		}
+		try {
+			const axiosResp = await (await import("axios")).default.get(`${config.brainUrl}/api/memory/stats`, {
+				params: { project: "lallamaollama" },
+				timeout: 10000,
+			});
+			res.json(axiosResp.data);
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			logger.error(`[Brain Proxy] Stats failed: ${msg}`);
+			res.status(502).json({ error: "Brain stats failed", detail: msg });
+		}
+	});
+// Health endpoint
 	app.get("/health", (_req: Request, res: Response) => {
 		res.json({
 			status: "ok",
@@ -74,7 +140,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient) {
 		res.json({ stats });
 	});
 
-	// ── Runs (Task History) ──────────────────────────────────────────────
+	// Runs (Task History)
 	app.get("/api/runs", (req: Request, res: Response) => {
 		const status = req.query.status as string | undefined;
 		const limit = parseInt(req.query.limit as string, 10) || 50;
@@ -98,7 +164,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient) {
 		res.json({ run, events });
 	});
 
-	// ── Knowledge (RAG) ─────────────────────────────────────────────────
+	// Knowledge (RAG)
 	app.get("/api/knowledge", (_req: Request, res: Response) => {
 		const files = listKnowledgeFiles(config.workspaceDir);
 		res.json({ files });
@@ -135,6 +201,12 @@ export function startApiServer(config: AppConfig, brain?: BrainClient) {
 			return;
 		}
 		res.json({ success: true });
+	});
+
+	// Global error handler
+	app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+		console.error(`[API] Unhandled error: ${err.message}`);
+		res.status(500).json({ error: "Internal server error" });
 	});
 
 	const httpServer = createServer(app);
