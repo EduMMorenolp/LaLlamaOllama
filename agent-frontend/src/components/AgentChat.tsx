@@ -62,6 +62,9 @@ export const AgentChat: React.FC = () => {
 	const [attachments, setAttachments] = useState<Array<{ name: string; type: string; data: string }>>([]);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+	const [messageQueue, setMessageQueue] = useState<string[]>([]);
+	const [confirmClearQueue, setConfirmClearQueue] = useState(false);
+	const messageQueueRef = useRef<string[]>([]);
 
 	const { connected, send: sendWs, subscribe } = useWs();
 
@@ -72,6 +75,21 @@ export const AgentChat: React.FC = () => {
 	useEffect(() => {
 		scrollToBottom();
 	}, [messages, currentToolCalls]);
+
+	// Keep messageQueueRef in sync
+	useEffect(() => {
+		messageQueueRef.current = messageQueue;
+	}, [messageQueue]);
+
+	// Auto-dispatch next queued message when processing finishes
+	useEffect(() => {
+		if (!isProcessing && messageQueueRef.current.length > 0) {
+			const [nextText, ...rest] = messageQueueRef.current;
+			setMessageQueue(rest);
+			sendMessage(nextText);
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [isProcessing]);
 
 	// Subscribe to WS messages
 	useEffect(() => {
@@ -140,10 +158,16 @@ export const AgentChat: React.FC = () => {
 
 				const text = msg.payload?.text as string;
 				if (chatId === currentChatId || !currentChatId) {
-					setMessages((prev) => [
-						...prev,
-						{ role: "assistant", content: text, timestamp: new Date(), usage },
-					]);
+					setMessages((prev) => {
+						const last = prev[prev.length - 1];
+						// Replace the last streaming message (from assistant_chunk) instead of appending
+						if (last?.role === "assistant" && !last.usage) {
+							const updated = [...prev];
+							updated[updated.length - 1] = { role: "assistant", content: text, timestamp: new Date(), usage };
+							return updated;
+						}
+						return [...prev, { role: "assistant", content: text, timestamp: new Date(), usage }];
+					});
 				}
 				setCurrentToolCalls([]);
 				setIsProcessing(false);
@@ -186,10 +210,7 @@ export const AgentChat: React.FC = () => {
 		}
 	};
 
-	const handleSend = useCallback(() => {
-		const text = input.trim();
-		if (!text || !connected) return;
-
+	const sendMessage = useCallback((text: string) => {
 		const chatId = currentChatId || "dashboard";
 		const promptEstimate = Math.ceil(text.length / 4);
 		setMessages((prev) => [...prev, { role: "user", content: text, timestamp: new Date(), usage: { promptTokens: promptEstimate, completionTokens: 0, totalTokens: promptEstimate } }]);
@@ -204,11 +225,30 @@ export const AgentChat: React.FC = () => {
 		}
 		sendWs("user_message", payload);
 		setAttachments([]);  // Clear attachments after sending
-	}, [input, currentChatId, sendWs, attachments, connected]);
+	}, [currentChatId, sendWs, attachments]);
+
+	const handleSend = useCallback(() => {
+		const text = input.trim();
+		if (!text || !connected) return;
+
+		if (isProcessing) {
+			// Queue the message instead of sending directly
+			if (messageQueue.length >= 3) return;
+			setMessageQueue((prev) => [...prev, text]);
+			setInput("");
+			return;
+		}
+
+		sendMessage(text);
+	}, [input, isProcessing, connected, messageQueue.length, sendMessage]);
 
 	const handleCancel = () => {
-		sendWs("cancel", { chatId: currentChatId || "dashboard" });
-		setIsProcessing(false);
+		if (messageQueue.length > 0) {
+			setConfirmClearQueue(true);
+		} else {
+			sendWs("cancel", { chatId: currentChatId || "dashboard" });
+			setIsProcessing(false);
+		}
 	};
 
 	const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -225,6 +265,7 @@ export const AgentChat: React.FC = () => {
 		if (chatId === currentChatId) return;
 		setCurrentChatId(chatId);
 		setMessages([]);
+		setMessageQueue([]);
 		sendWs("switch_chat", { chatId });
 	};
 
@@ -405,8 +446,48 @@ export const AgentChat: React.FC = () => {
 						<div ref={messagesEndRef} />
 					</div>
 
+					{/* Queue bar */}
+					{messageQueue.length > 0 && (
+						<div style={{
+							padding: "6px 16px", borderTop: "1px solid var(--border-light)",
+							display: "flex", alignItems: "center", gap: "8px",
+							fontSize: "11px", color: "var(--text-dim)",
+						}}>
+							<span style={{ fontWeight: 600, color: "var(--accent)", whiteSpace: "nowrap" }}>
+								{messageQueue.length}/3 mensajes en cola
+							</span>
+							<div style={{ flex: 1, display: "flex", gap: "4px", overflow: "hidden" }}>
+								{messageQueue.map((q, i) => (
+									<span key={i} style={{
+										display: "inline-flex", alignItems: "center", gap: "4px",
+										background: "rgba(79,140,255,0.08)", border: "1px solid rgba(79,140,255,0.15)",
+										borderRadius: "4px", padding: "2px 6px", fontSize: "10px",
+										color: "var(--text-main)", maxWidth: "140px",
+									}}>
+										<span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+											{q}
+										</span>
+										<button type="button" onClick={() => setMessageQueue((prev) => prev.filter((_, idx) => idx !== i))}
+											style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", padding: 0, display: "flex" }}
+											title="Quitar de la cola">
+											<X size={10} />
+										</button>
+									</span>
+								))}
+							</div>
+							<button type="button" onClick={() => setMessageQueue([])}
+								style={{
+									background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.15)",
+									borderRadius: "4px", color: "var(--error)", cursor: "pointer",
+									padding: "2px 8px", fontSize: "10px", fontWeight: 600, whiteSpace: "nowrap",
+								}}>
+								Vaciar cola
+							</button>
+						</div>
+					)}
+
 					{/* Input */}
-					<div style={{ padding: "12px 16px", borderTop: "1px solid var(--border-light)" }}>
+					<div style={{ padding: "12px 16px", borderTop: messageQueue.length > 0 ? "none" : "1px solid var(--border-light)" }}>
 						{/* Hidden file input */}
 						<input
 							type="file"
@@ -453,21 +534,21 @@ export const AgentChat: React.FC = () => {
 								value={input}
 								onChange={(e) => setInput(e.target.value)}
 								onKeyDown={handleKeyDown}
-								placeholder="Pregunta al agente..."
-								disabled={isProcessing}
+								placeholder={isProcessing ? (messageQueue.length >= 3 ? "Cola llena (3/3)" : "Escribe, se encolar\u00e1 al enviar...") : "Pregunta al agente..."}
 								rows={2}
 								style={{
 									flex: 1, background: "rgba(255,255,255,0.03)", border: "1px solid var(--border-light)",
 									borderRadius: "8px", padding: "10px 14px", color: "var(--text-main)",
 									fontSize: "13px", fontFamily: "inherit", resize: "none",
-									opacity: isProcessing ? 0.5 : 1,
 								}}
 							/>
-							<button type="button" onClick={handleSend} disabled={isProcessing || !input.trim()} title="Enviar mensaje" style={{
+							<button type="button" onClick={handleSend} disabled={(!input.trim()) || (isProcessing && messageQueue.length >= 3)} title={
+								isProcessing && messageQueue.length >= 3 ? "M\u00e1ximo 3 mensajes en cola" : "Enviar mensaje"
+							} style={{
 								padding: "10px 16px", background: "linear-gradient(135deg, var(--accent), #7c3aed)",
 								border: "none", borderRadius: "8px", color: "white",
-								cursor: isProcessing ? "not-allowed" : "pointer",
-								opacity: isProcessing || !input.trim() ? 0.5 : 1,
+								cursor: (!input.trim() || (isProcessing && messageQueue.length >= 3)) ? "not-allowed" : "pointer",
+								opacity: (!input.trim() || (isProcessing && messageQueue.length >= 3)) ? 0.5 : 1,
 								display: "flex", alignItems: "center", justifyContent: "center",
 							}}>
 								<Send size={18} />
@@ -528,6 +609,25 @@ export const AgentChat: React.FC = () => {
 				confirmText="Eliminar"
 				onConfirm={() => { if (confirmDelete) { handleDeleteChat(confirmDelete); setConfirmDelete(null); } }}
 				onCancel={() => setConfirmDelete(null)}
+				danger
+			/>
+			<ConfirmModal
+				open={confirmClearQueue}
+				title="Cancelar y vaciar cola"
+				message="Tienes mensajes en cola. \u00bfQuieres cancelar la respuesta actual y vaciar la cola, o cancelar solo la respuesta actual y mantener la cola?"
+				confirmText="Vaciar todo"
+				cancelText="Solo cancelar respuesta"
+				onConfirm={() => {
+					setConfirmClearQueue(false);
+					setMessageQueue([]);
+					sendWs("cancel", { chatId: currentChatId || "dashboard" });
+					setIsProcessing(false);
+				}}
+				onCancel={() => {
+					setConfirmClearQueue(false);
+					sendWs("cancel", { chatId: currentChatId || "dashboard" });
+					setIsProcessing(false);
+				}}
 				danger
 			/>
 		</div>
