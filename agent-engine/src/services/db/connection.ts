@@ -98,6 +98,12 @@ export function getDb(dbPath?: string): Database.Database {
 		CREATE INDEX IF NOT EXISTS idx_messages_userId ON messages(userId);
 		CREATE INDEX IF NOT EXISTS idx_messages_chatId ON messages(chatId);
 		CREATE INDEX IF NOT EXISTS idx_chats_userId ON chats(userId);
+		CREATE TABLE IF NOT EXISTS settings (
+			key TEXT PRIMARY KEY,
+			value TEXT NOT NULL,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+
 		CREATE INDEX IF NOT EXISTS idx_sub_agents_name ON sub_agents(name);
 		CREATE INDEX IF NOT EXISTS idx_runs_chatId ON runs(chatId);
 		CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status);

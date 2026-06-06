@@ -1,8 +1,9 @@
-import { type WebSocket } from "ws";
+﻿import { type WebSocket } from "ws";
 import { runAgent } from "../services/agent/runAgent.js";
 import type { BrainClient } from "../services/brain/client.js";
 import { loadConfig } from "../services/config.js";
 import { toolRegistry } from "../services/tools/registry.js";
+import { getDockerInfo } from "../services/runtime.js";
 import { logger } from "../utils/logger.js";
 import { createMessage } from "../gateway/protocol.js";
 import type { WsServer } from "./ws.js";
@@ -75,7 +76,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					logger.agent(`[${chatId}] Cancel requested`);
 					wsServer.sendToAll("assistant_done", {
 						chatId,
-						text: "? Conversaci�n cancelada.",
+						text: "? Conversaciï¿½n cancelada.",
 						model: "system",
 						latencyMs: 0,
 					});
@@ -84,10 +85,12 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 
 				// Status / Tools
 				case "get_status": {
+						const gc = getGeneralConfig();
+						const effectiveModel = gc?.model || config.defaultModel;
 					ws.send(
 						createMessage("status", {
 							status: "running",
-							model: config.defaultModel,
+							model: effectiveModel,
 							tools: toolRegistry.getToolNames(),
 							clients: wsServer.getClientCount(),
 							telegramActive: !!process.env.TELEGRAM_BOT_TOKEN,
@@ -267,7 +270,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 									origin: m.origin,
 								})),
 								expertName: chat?.expertName || null,
-								text: storedMessages.length === 0 ? "Este chat no tiene mensajes a�n." : "",
+								text: storedMessages.length === 0 ? "Este chat no tiene mensajes aï¿½n." : "",
 								model: "Sistema",
 							})
 						);
@@ -325,7 +328,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					const token = payload?.botToken as string;
 					const enabled = payload?.enabled as boolean;
 					if (enabled && token) {
-						// TODO: usar variable de m�dulo en vez de process.env
+						// TODO: usar variable de mï¿½dulo en vez de process.env
 						process.env.TELEGRAM_BOT_TOKEN = token;
 						startTelegram().catch((err) => {
 							logger.error(`Failed to start Telegram: ${err}`);
@@ -341,6 +344,18 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 							telegramActive: !!process.env.TELEGRAM_BOT_TOKEN,
 						})
 					);
+					break;
+				}
+
+				// Task history
+				// Docker/Container info
+				case "get_docker_info": {
+					try {
+						const dockerInfo = getDockerInfo();
+						ws.send(createMessage("docker_info", { dockerInfo }));
+					} catch {
+						ws.send(createMessage("docker_info", { dockerInfo: null }));
+					}
 					break;
 				}
 
@@ -414,3 +429,5 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 		},
 	};
 }
+
+

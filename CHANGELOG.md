@@ -7,6 +7,28 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 
 ## [Unreleased]
 
+### 🧠 Agent Engine: Docker Awareness + Eliminación de Jarvis (2026-06-06)
+
+#### Agent Engine
+- **Nuevo servicio `docker-info.ts`** — Detección automática del entorno al iniciar:
+  - Si ejecuta dentro de Docker (`.dockerenv` / cgroup)
+  - CPUs lógicos, RAM total y límite del contenedor (cgroup v1/v2)
+  - GPU NVIDIA disponible (`nvidia-smi` + `NVIDIA_VISIBLE_DEVICES`)
+  - Disco disponible en el workspace (`df`)
+  - Se inyecta en el system prompt del agente como sección `## Entorno del agente`
+- **Nueva tabla `settings` en SQLite** — Almacenamiento key-value persistente para `docker_info` y otras configuraciones
+- **`AppConfig` ahora incluye `dockerInfo`** — La configuración del entorno está disponible en todo el runtime
+- **`RuntimeContext` extendido** — Incluye `dockerInfo` y nueva función `getDockerInfo()`
+- **Nuevo handler WS `get_docker_info`** — Expone la info del contenedor al frontend
+- **Corregido `get_status`** — Ahora usa el modelo de `__general__` (DB) en lugar de solo `config.defaultModel` (env var), consistente con el handler `identify`
+
+#### Agent Frontend
+- **Eliminada la pestaña "Jarvis"** — Se eliminó el asistente de voz (`Jarvis.tsx`) y la tab correspondiente del dashboard
+- **Nueva sección "Información del Contenedor"** en Conexión — Grid visual con CPU, RAM, GPU, Disco y badge Docker/Host
+- **Chat siempre montado** — `<AgentChat />` ahora se mantiene montado con `display:none` en vez de render condicional, evitando perder suscripciones WebSocket al cambiar de tab
+- **Corregida desincronización del modelo** — El Chat ahora recibe broadcasts de cambio de modelo aunque esté en segundo plano
+- **Eliminado hardcode de modelo en Agentes** — Ya no usa `localStorage` ni fallback `"llama3.2:3b"`; el modelo viene siempre del servidor
+
 ### 🎨 Agent Frontend: Dashboard multi-sección + Chat persistente + Conocimiento (2026-06-04)
 
 #### Agent Frontend (nuevo)

@@ -1,3 +1,5 @@
+import type { DockerInfo } from "./docker-info.js";
+
 export interface AppConfig {
 	enginePort: number;
 	backendUrl: string;
@@ -10,6 +12,8 @@ export interface AppConfig {
 	telegramBotToken: string;
 	telegramAllowedUsers: string[];
 	allowedOrigins?: string[];
+	/** Docker environment info (detected at startup) */
+	dockerInfo?: DockerInfo;
 }
 
 export function loadConfig(): AppConfig {

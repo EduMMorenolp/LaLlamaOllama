@@ -27,3 +27,5 @@ export type { StoredRun, RunEventRecord } from "./runs.js";
 export { createRun, updateRun, appendRunEvent, getRun, listRuns } from "./runs.js";
 export type { ModelEntry } from "./models.js";
 export { getModel, upsertModel, listModels, deleteModel } from "./models.js";
+export type { SettingEntry } from "./settings.js";
+export { getSetting, setSetting, getAllSettings, deleteSetting } from "./settings.js";

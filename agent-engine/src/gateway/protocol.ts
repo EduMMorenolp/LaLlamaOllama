@@ -36,6 +36,8 @@ export type WsMessageType =
 	| "get_general_config"
 	| "general_config_update"
 	| "general_config"
+	// Docker info
+	| "get_docker_info"
 	// Ollama models
 	| "list_ollama_models"
 	// Server → Client
@@ -47,7 +49,8 @@ export type WsMessageType =
 	| "error"
 	| "tools_list"
 	| "action_log"
-	| "ollama_models";
+	| "ollama_models"
+	| "docker_info";
 
 export interface UserMessagePayload {
 	chatId: string;

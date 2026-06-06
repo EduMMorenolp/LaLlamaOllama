@@ -2,12 +2,14 @@ import "dotenv/config";
 import { validateEnv } from "./env.js";
 import { loadConfig } from "./services/config.js";
 import { BrainClient } from "./services/brain/client.js";
+import { detectDockerInfo } from "./services/docker-info.js";
 import { registerAllTools } from "./services/tools/index.js";
 import { toolRegistry } from "./services/tools/registry.js";
 import { startApiServer } from "./server/api.js";
 import { WsServer } from "./server/ws.js";
 import { startCronJobs } from "./server/cron.js";
 import { getDb } from "./services/db/connection.js";
+import { setSetting } from "./services/db/settings.js";
 import { initTelegramDeps, startTelegram } from "./services/telegram/bot.js";
 import { setRuntimeContext } from "./services/runtime.js";
 import { initOrchestrator } from "./services/orchestrator/index.js";
@@ -36,9 +38,21 @@ async function bootstrap() {
 		logger.warn(`[DB] SQLite init failed: ${err}`);
 	}
 
-	// 4. Create BrainClient (core dependency)
+	// 4. Detect Docker environment
+	let dockerInfo = await detectDockerInfo(config.workspaceDir);
+	logger.info(`[Docker] ${dockerInfo.inDocker ? "Inside container" : "Host machine"}`);
+	logger.info(`[Docker] CPUs: ${dockerInfo.cpuCores}, RAM: ${(dockerInfo.memoryTotalBytes / 1024 / 1024 / 1024).toFixed(1)} GB${dockerInfo.gpuAvailable ? `, GPU: ${dockerInfo.gpuInfo}` : ""}`);
+	// Persist Docker info to settings DB
+	try {
+		setSetting("docker_info", JSON.stringify(dockerInfo));
+	} catch {
+		// DB might not be available yet
+	}
+	config.dockerInfo = dockerInfo;
+
+	// 5. Create BrainClient (core dependency)
 	const brain = new BrainClient(config);
-	setRuntimeContext(config, brain);
+	setRuntimeContext(config, brain, dockerInfo);
 	try {
 		const stats = await brain.getStats();
 		logger.info(`[Brain] Connected. Stats: ${JSON.stringify(stats)}`);
@@ -47,31 +61,31 @@ async function bootstrap() {
 		logger.warn("[Brain] Will retry on each memory operation");
 	}
 
-	// 4b. Initialize orchestrator/queue
+	// 6. Initialize orchestrator/queue
 	initOrchestrator();
 
-	// 5. Register all tools (injected with brain dependency)
+	// 7. Register all tools (injected with brain dependency)
 	registerAllTools(brain);
 	logger.info(`[Tools] ${toolRegistry.getToolNames().length} tools registered:`);
 	for (const name of toolRegistry.getToolNames()) {
 		logger.info(`  - ${name} (${toolRegistry.isEnabled(name) ? "enabled" : "disabled"})`);
 	}
 
-	// 6. Initialize Telegram dependencies
+	// 8. Initialize Telegram dependencies
 	initTelegramDeps(config, brain);
 
-	// 7. Start Telegram bot if token configured
+	// 9. Start Telegram bot if token configured
 	if (config.telegramBotToken) {
 		await startTelegram();
 	} else {
 		logger.info("[Telegram] No token configured. Skipping.");
 	}
 
-	// 8. Start servers
+	// 10. Start servers
 	startApiServer(config, brain);
 	const wsServer = new WsServer(config, brain);
 
-	// 9. Background jobs
+	// 11. Background jobs
 	startCronJobs(brain);
 
 	// Handle shutdown

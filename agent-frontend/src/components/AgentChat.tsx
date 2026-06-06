@@ -1,11 +1,11 @@
-import { ChevronLeft, ChevronRight, Edit3, MessageSquare, Paperclip, Pin, PinOff, Plus, Save, Search, Send, StopCircle, Terminal, Trash2, Wrench, X } from "lucide-react";
+﻿import { ChevronLeft, ChevronRight, Edit3, MessageSquare, Paperclip, Pin, PinOff, Plus, Save, Search, Send, StopCircle, Terminal, Trash2, Wrench, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useWs } from "../contexts/WebSocketContext";
 import { ConfirmModal } from "./ConfirmModal";
 
-// ��� Types �������������������������������������������������
+// ï¿½ï¿½ï¿½ Types ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
 interface TokenUsage {
 	promptTokens: number;
@@ -39,7 +39,7 @@ interface ChatEntry {
 	lastMessage?: string;
 }
 
-// ��� Main Component ����������������������������������������
+// ï¿½ï¿½ï¿½ Main Component ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
 export const AgentChat: React.FC = () => {
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -49,7 +49,7 @@ export const AgentChat: React.FC = () => {
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 
-	// ��� Chat management ��������������������������������������
+	// ï¿½ï¿½ï¿½ Chat management ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	const [chats, setChats] = useState<ChatEntry[]>([]);
 	const [currentChatId, setCurrentChatId] = useState<string | null>(null);
 	const [chatSidebarOpen, setChatSidebarOpen] = useState(true);
@@ -89,9 +89,6 @@ export const AgentChat: React.FC = () => {
 					const newModel = (msg.payload?.model as string) || "";
 					console.log("[Chat WS] Modelo actualizado a:", newModel);
 					setModel(newModel);
-				}
-				if (msg.payload?.status === "running") {
-					setModel((msg.payload?.model as string) || model);
 				}
 				break;
 
@@ -221,7 +218,7 @@ export const AgentChat: React.FC = () => {
 		}
 	};
 
-	// ��� Chat CRUD ���������������������������������������������
+	// ï¿½ï¿½ï¿½ Chat CRUD ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	const handleNewChat = () => sendWs("chat_update", { action: "create", title: "Nuevo chat" });
 
 	const handleSwitchChat = (chatId: string) => {
@@ -484,7 +481,7 @@ export const AgentChat: React.FC = () => {
 						padding: "4px 16px", borderTop: "1px solid var(--border-light)",
 						fontSize: "9px", color: "var(--text-dim)",
 					}}>
-						<span>Tokens: {totalPromptTokens + totalCompletionTokens} (△ {totalPromptTokens} ▽ {totalCompletionTokens})</span>
+						<span>Tokens: {totalPromptTokens + totalCompletionTokens} (â–³ {totalPromptTokens} â–½ {totalCompletionTokens})</span>
 						<span>{new Date().toLocaleTimeString()}</span>
 					</div>
 				</div>
@@ -536,7 +533,7 @@ export const AgentChat: React.FC = () => {
 		</div>
 	);
 
-	// ��� Render Chat Item �������������������������������������
+	// ï¿½ï¿½ï¿½ Render Chat Item ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	function renderChatItem(chat: ChatEntry) {
 		const isActive = chat.id === currentChatId;
 		const isRenaming = renamingChat === chat.id;
@@ -590,7 +587,7 @@ export const AgentChat: React.FC = () => {
 	}
 };
 
-// ��� Message Bubble Component ������������������������������
+// ï¿½ï¿½ï¿½ Message Bubble Component ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
 const MessageBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
 	const isUser = message.role === "user";
@@ -640,3 +637,4 @@ const MessageBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
 		</div>
 	);
 };
+

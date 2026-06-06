@@ -1,4 +1,4 @@
-﻿import { Plus, Save, Settings, Sliders, Trash2, X } from "lucide-react";
+import { Plus, Save, Settings, Sliders, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useWs } from "../contexts/WebSocketContext";
 
@@ -19,8 +19,7 @@ interface GeneralConfig {
 
 export const Agentes: React.FC = () => {
   const { connected, send: sendWs, subscribe } = useWs();
-  // General config
-  const [configModel, setConfigModel] = useState(() => localStorage.getItem("agent_model") || "llama3.2:3b");
+  const [configModel, setConfigModel] = useState("");
   const [configTemp, setConfigTemp] = useState(0.7);
   const [configHistoryLimit, setConfigHistoryLimit] = useState(10);
 
@@ -29,7 +28,6 @@ export const Agentes: React.FC = () => {
   const [tools, setTools] = useState<string[]>([]);
   const [toolStates, setToolStates] = useState<Record<string, boolean>>({});
 
-  // Sub-agents
   const [agents, setAgents] = useState<SubAgent[]>([]);
   const [newAgent, setNewAgent] = useState<SubAgent>({
     name: "", model: "", system_prompt: "", tools: [], temperature: 0.7,
@@ -40,7 +38,6 @@ export const Agentes: React.FC = () => {
   const savingRef = useRef(false);
   const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  // Subscribe to WS messages
   useEffect(() => {
     return subscribe((msg) => {
       switch (msg.type) {
@@ -48,7 +45,6 @@ export const Agentes: React.FC = () => {
           const gc = msg.payload as unknown as GeneralConfig;
           if (gc?.model != null) {
             setConfigModel(gc.model || "");
-            localStorage.setItem("agent_model", gc.model || "");
           }
           if (gc?.temperature != null) setConfigTemp(gc.temperature);
           if (gc?.history_limit != null) setConfigHistoryLimit(gc.history_limit);
@@ -93,7 +89,6 @@ export const Agentes: React.FC = () => {
     });
   }, [subscribe]);
 
-  // Fetch initial data when connected
   useEffect(() => {
     if (connected) {
       sendWs("get_general_config", {});
@@ -115,7 +110,6 @@ export const Agentes: React.FC = () => {
       temperature: configTemp,
       history_limit: configHistoryLimit,
     };
-    console.log("[Save] Enviando general_config_update:", JSON.stringify(payload));
     sendWs("general_config_update", payload);
     setSaving(true);
     savingRef.current = true;
@@ -179,7 +173,6 @@ export const Agentes: React.FC = () => {
 
   return (
     <div style={{ maxWidth: "900px", margin: "0 auto" }}>
-      {/* Connection status — full width */}
       <div style={sectionCard}>
         <label style={sectionTitle}>
           <Settings size={14} style={{ marginRight: "6px" }} />
@@ -196,13 +189,11 @@ export const Agentes: React.FC = () => {
         </div>
       </div>
 
-      {/* 2-column grid: General Config | Telegram */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
-        {/* General Settings */}
         <div style={sectionCardGrid}>
           <label style={sectionTitle}>
             <Sliders size={14} style={{ marginRight: "6px" }} />
-            Configuraci\u00f3n General
+            Configuraci&oacute;n General
           </label>
 
           <div style={{ marginBottom: "12px" }}>
@@ -230,7 +221,7 @@ export const Agentes: React.FC = () => {
             </select>
             {ollamaModels.length === 0 && (
               <div style={{ fontSize: "10px", color: "var(--warning)", marginTop: "4px" }}>
-                No se pudieron cargar los modelos. \u00bfOllama est\u00e1 corriendo?
+                No se pudieron cargar los modelos. &iquest;Ollama est&aacute; corriendo?
               </div>
             )}
           </div>
@@ -256,7 +247,7 @@ export const Agentes: React.FC = () => {
 
           <div style={{ marginBottom: "12px" }}>
             <label style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>
-              L\u00edmite de historial: {configHistoryLimit} mensajes
+              L&iacute;mite de historial: {configHistoryLimit} mensajes
             </label>
             <input
               type="number"
@@ -275,7 +266,7 @@ export const Agentes: React.FC = () => {
               cursor: saving ? "wait" : "pointer",
             }}>
               <Save size={14} style={{ marginRight: "4px" }} />
-              {saving ? "Guardando..." : "Guardar Configuraci\u00f3n"}
+              {saving ? "Guardando..." : "Guardar Configuraci&oacute;n"}
             </button>
             {saveMessage && (
               <span style={{
@@ -288,7 +279,6 @@ export const Agentes: React.FC = () => {
           </div>
         </div>
 
-        {/* Telegram */}
         <div style={sectionCardGrid}>
           <label style={sectionTitle}>Telegram Bot</label>
           <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
@@ -316,7 +306,6 @@ export const Agentes: React.FC = () => {
         </div>
       </div>
 
-      {/* Tools — full width */}
       <div style={sectionCard}>
         <label style={sectionTitle}>Herramientas ({tools.length})</label>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
@@ -342,7 +331,6 @@ export const Agentes: React.FC = () => {
         </div>
       </div>
 
-      {/* Sub-Agents — full width */}
       <div style={sectionCard}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
           <label style={{ ...sectionTitle, marginBottom: 0 }}>Sub-Agentes ({agents.length})</label>
@@ -389,7 +377,7 @@ export const Agentes: React.FC = () => {
                   cursor: "pointer",
                 }}
               >
-                <option value="">Default ({configModel})</option>
+                <option value="">Default ({configModel || "..."})</option>
                 {ollamaModels.map((m) => (
                   <option key={m} value={m}>{m}</option>
                 ))}
