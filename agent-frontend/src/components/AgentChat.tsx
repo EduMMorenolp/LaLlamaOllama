@@ -98,7 +98,7 @@ export const AgentChat: React.FC = () => {
 	const [chatSearchOpen, setChatSearchOpen] = useState(false);
 
 	// ─── Feature: collapsible tools ───────────────────────────────────────────────────────────────────────────────────
-	const [collapsedTools, setCollapsedTools] = useState(false);
+	const [collapsedTools, setCollapsedTools] = useState(true);
 
 	// ─── Feature: edit messages ───────────────────────────────────────────────────────────────────────────────────────
 	const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -557,7 +557,7 @@ export const AgentChat: React.FC = () => {
 			md += `## ${roleLabel} (${time})\n\n`;
 			md += `${msg.content}\n\n`;
 			if (msg.usage) {
-				md += `> Tokens: ${msg.usage.promptTokens}\u2191 / ${msg.usage.completionTokens}\u2193\n\n`;
+				md += `> Tokens: ${msg.usage.promptTokens}△ / ${msg.usage.completionTokens}▽\n\n`;
 			}
 			md += `---\n\n`;
 		});
@@ -728,7 +728,6 @@ export const AgentChat: React.FC = () => {
 						)}
 						{messages.length === 0 && !currentChatId && (
 							<div style={{ textAlign: "center", padding: "60px 20px", color: "var(--text-dim)", fontSize: "13px" }}>
-								<div style={{ fontSize: "24px", marginBottom: "16px", opacity: 0.5 }}>??</div>
 								<div style={{ fontWeight: 600, color: "var(--text-main)", marginBottom: "8px", fontSize: "15px" }}>
 									Agent Engine Listo
 								</div>
@@ -888,7 +887,7 @@ export const AgentChat: React.FC = () => {
 											</div>
 											{tc.status === "done" && (
 												<div style={{ color: "var(--success)", fontSize: "10px", marginTop: "2px" }}>
-													\u2705 Completado
+													✅ Completado
 												</div>
 											)}
 											{tc.status === "error" && (
@@ -1390,7 +1389,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index, onEdit, o
 			<div style={{ fontSize: "10px", color: "var(--text-dim)", marginTop: "4px", padding: "0 4px", display: "flex", gap: "8px", alignItems: "center" }}>
 				<span>{message.timestamp.toLocaleTimeString()}</span>
 				{!isUser && message.usage && (
-					<span>{message.usage.promptTokens}\u2191 / {message.usage.completionTokens}\u2193</span>
+					<span>{message.usage.promptTokens} ↑ / {message.usage.completionTokens} ↓</span>
 				)}
 				<span style={{ flex: 1 }} />
 				{/* Feature: reply button */}
