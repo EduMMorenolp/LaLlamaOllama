@@ -79,6 +79,107 @@ export const SubAgentesList: React.FC = () => {
 		sendWs("expert_update", { action: "delete", name });
 	};
 
+	// ─── Template definitions ───────────────────────────────────────────
+	const agentTemplates: Array<{
+		id: string;
+		name: string;
+		desc: string;
+		agent: Partial<SubAgent>;
+	}> = [
+		{
+			id: "sub-codigo",
+			name: "💻 Asistente de Código",
+			desc: "Revisión de código, debugging, refactoring y buenas prácticas",
+			agent: {
+				name: "codigo",
+				system_prompt: `Eres un asistente experto en desarrollo de software.
+Te especializas en:
+- Revisar código fuente y encontrar bugs, vulnerabilidades y malas prácticas
+- Sugerir refactors y mejoras de rendimiento
+- Explicar patrones de diseño y arquitectura
+- Escribir código limpio, comentado y testeable
+- Ayudar con debugging y resolución de errores
+
+Sé preciso, concreto y siempre explica POR QUÉ sugerís un cambio.`,
+				tools: ["bash", "read_file", "write_file", "edit_file", "glob", "grep"],
+				temperature: 0.3,
+				model: "",
+			},
+		},
+		{
+			id: "sub-docs",
+			name: "📝 Asistente de Documentación",
+			desc: "Redacción técnica, documentación, READMEs y guías",
+			agent: {
+				name: "documentacion",
+				system_prompt: `Eres un asistente especializado en documentación técnica.
+Te especializas en:
+- Redactar documentación clara y bien estructurada
+- Escribir READMEs, guías de usuario y manuales técnicos
+- Documentar APIs, endpoints y schemas
+- Crear tutoriales paso a paso
+- Traducir documentación técnica entre idiomas
+
+Usa un tono profesional pero accesible. Incluye ejemplos prácticos.`,
+				tools: ["read_file", "glob", "grep", "read_url", "web_search", "translate"],
+				temperature: 0.7,
+				model: "",
+			},
+		},
+		{
+			id: "sub-testing",
+			name: "🧪 Asistente de Testing",
+			desc: "Pruebas unitarias, integración, E2E y calidad de software",
+			agent: {
+				name: "testing",
+				system_prompt: `Eres un asistente especializado en testing y calidad de software.
+Te especializas en:
+- Escribir tests unitarios, de integración y E2E
+- Analizar cobertura de código y sugerir mejoras
+- Identificar casos borde y escenarios de error
+- Escribir mocks, stubs y fixtures
+- Automatizar pruebas y configurar CI/CD
+
+Sé exhaustivo: cada función debería tener al menos un test feliz y uno de error.`,
+				tools: ["bash", "read_file", "write_file", "edit_file", "glob", "grep"],
+				temperature: 0.4,
+				model: "",
+			},
+		},
+		{
+			id: "sub-devops",
+			name: "🐳 Asistente DevOps",
+			desc: "Docker, infraestructura, despliegue y automatización",
+			agent: {
+				name: "devops",
+				system_prompt: `Eres un asistente experto en DevOps e infraestructura.
+Te especializas en:
+- Crear y optimizar Dockerfiles y docker-compose.yml
+- Configurar redes, volúmenes y servicios Docker
+- Automatizar despliegues y CI/CD
+- Monitorear y diagnosticar problemas de infraestructura
+- Seguridad de contenedores y buenas prácticas
+
+Prioriza soluciones simples, seguras y mantenibles. Documenta cada cambio.`,
+				tools: ["bash", "read_file", "write_file", "edit_file", "glob", "grep", "read_url"],
+				temperature: 0.5,
+				model: "",
+			},
+		},
+	];
+
+	const applyAgentTemplate = (tpl: typeof agentTemplates[0]) => {
+		const a = tpl.agent;
+		setNewAgent({
+			name: a.name || "",
+			model: a.model || "",
+			system_prompt: a.system_prompt || "",
+			tools: a.tools || [],
+			temperature: a.temperature ?? 0.7,
+		});
+		setShowAgentForm(true);
+	};
+
 	const sectionTitle: React.CSSProperties = {
 		fontSize: "12px",
 		fontWeight: 600,
@@ -91,6 +192,72 @@ export const SubAgentesList: React.FC = () => {
 
 	return (
 		<div style={sectionCard}>
+			{/* ─── Template presets section ─────────────────────────────── */}
+			<div style={{
+				marginBottom: "20px",
+				padding: "14px 16px",
+				borderRadius: "8px",
+				background: "rgba(255,215,0,0.04)",
+				border: "1px solid rgba(255,215,0,0.15)",
+			}}>
+				<div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
+					<FileText size={13} color="var(--accent)" />
+					<label style={{ ...sectionTitle, marginBottom: 0 }}>
+						Plantillas de sub-agentes
+					</label>
+				</div>
+				<div style={{
+					display: "grid",
+					gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+					gap: "8px",
+				}}>
+					{agentTemplates.map((tpl) => (
+						<button
+							key={tpl.id}
+							type="button"
+							onClick={() => applyAgentTemplate(tpl)}
+							style={{
+								padding: "10px 12px",
+								borderRadius: "8px",
+								background: "rgba(255,255,255,0.03)",
+								border: "1px solid var(--border-light)",
+								cursor: "pointer",
+								textAlign: "left",
+								transition: "all 0.2s ease",
+								color: "inherit",
+								fontFamily: "inherit",
+							}}
+							onMouseEnter={(e) => {
+								e.currentTarget.style.background = "rgba(79,140,255,0.08)";
+								e.currentTarget.style.borderColor = "rgba(79,140,255,0.3)";
+							}}
+							onMouseLeave={(e) => {
+								e.currentTarget.style.background = "rgba(255,255,255,0.03)";
+								e.currentTarget.style.borderColor = "var(--border-light)";
+							}}
+						>
+							<div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>
+								{tpl.name}
+							</div>
+							<div style={{ fontSize: "10px", color: "var(--text-dim)", lineHeight: 1.4 }}>
+								{tpl.desc}
+							</div>
+							<div style={{
+								marginTop: "6px",
+								fontSize: "9px",
+								fontWeight: 600,
+								color: "var(--accent)",
+								textTransform: "uppercase",
+								letterSpacing: "0.5px",
+							}}>
+								Usar plantilla →
+							</div>
+						</button>
+					))}
+				</div>
+			</div>
+
+			{/* Header */}
 			<div
 				style={{
 					display: "flex",

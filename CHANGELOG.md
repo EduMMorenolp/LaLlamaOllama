@@ -37,6 +37,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 #### Agent Frontend
 - **➕ `ModosList.tsx` (NUEVO)** — Componente CRUD completo: lista, creación, edición inline y eliminación de modos con confirmación visual
 - **➕ Plantillas de modos recomendados** en `ModosList.tsx` — 4 tarjetas clickeables (Asistente General, Desarrollo, Investigación, Aprendizaje) que precargan el formulario de creación con system prompt, tools y configuración predefinida
+- **➕ Plantillas de sub-agentes** en `SubAgentesList.tsx` — 4 tarjetas (Código, Documentación, Testing, DevOps) con system prompt, tools y temperatura predefinidos
 - **🔄 `Agentes.tsx` rediseñado** — 3 sub-tabs: "Agente Principal", "Modos", "Sub Agentes". Tarjetas de modo clickeables con glow activo. Estado de modos gestionado a nivel padre
 - **🔄 `AgentePrincipal.tsx` adaptado** — Muestra y edita configuración del modo activo (system prompt, modelo, temperatura, tools). Tool list con indicador ✅/❌. **Eliminada sección Telegram** (ya en Conexion.tsx)
 - **➕ `AgentChat.tsx`** — Nuevo handler `mode_changed` que resetea chat y muestra "🔄 Modo cambiado a 'X'" cuando cambia el modo
