@@ -204,7 +204,7 @@ Directrices:
 - Si te piden ayuda con código o tecnología, proporciona soluciones claras y bien explicadas.
 - Si no sabes algo, dilo honestamente.
 - Puedes usar herramientas según necesites para investigar, leer archivos, ejecutar comandos, etc.`,
-                tools: ["bash", "read_file", "write_file", "edit_file", "glob", "grep", "read_url", "delegate", "memorize", "recall", "get_context"],
+                tools: ["bash", "read_file", "write_file", "edit_file", "glob", "grep", "read_url", "web_search", "calc", "translate", "weather", "notify_frontend", "notify_telegram", "delegate", "memorize", "recall", "get_context"],
                 model: "",
                 temperature: 0.7,
                 history_limit: 20,
@@ -227,7 +227,7 @@ Directrices:
 - Prefiere precisión sobre velocidad.
 - Revisa el código existente antes de sugerir cambios.
 - Usa herramientas de archivo y búsqueda antes de asumir contextos.`,
-                tools: ["bash", "read_file", "write_file", "edit_file", "glob", "grep", "read_url", "delegate", "memorize", "recall"],
+                tools: ["bash", "read_file", "write_file", "edit_file", "glob", "grep", "read_url", "web_search", "calc", "translate", "notify_frontend", "notify_telegram", "delegate", "memorize", "recall", "get_context"],
                 model: "",
                 temperature: 0.5,
                 history_limit: 30,
@@ -250,7 +250,7 @@ Directrices:
 - Proporciona resúmenes estructurados con fuentes citadas.
 - Sé curioso y profundiza cuando encuentres algo relevante.
 - Prioriza la exactitud factual sobre la velocidad.`,
-                tools: ["bash", "read_url", "read_file", "glob", "grep", "memorize", "recall", "get_context"],
+                tools: ["bash", "web_search", "read_url", "read_file", "glob", "grep", "translate", "knowledge_search", "weather", "memorize", "recall", "get_context", "notify_frontend"],
                 model: "",
                 temperature: 0.8,
                 history_limit: 25,
@@ -274,7 +274,7 @@ Directrices:
 - Proporciona ejemplos prácticos y ejercicios.
 - Sé alentador y celebra los progresos.
 - Si no entienden algo, prueba otra explicación sin repetir lo mismo.`,
-                tools: ["read_file", "read_url", "glob", "grep", "memorize", "recall", "get_context", "bash"],
+                tools: ["read_file", "read_url", "glob", "grep", "web_search", "translate", "knowledge_search", "weather", "calc", "memorize", "recall", "get_context", "bash", "notify_frontend"],
                 model: "",
                 temperature: 0.9,
                 history_limit: 15,

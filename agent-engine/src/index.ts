@@ -11,7 +11,7 @@ import { detectDockerInfo } from "./services/docker-info.js";
 import { initOrchestrator } from "./services/orchestrator/index.js";
 import { setRuntimeContext } from "./services/runtime.js";
 import { initTelegramDeps, startTelegram } from "./services/telegram/bot.js";
-import { registerAllTools } from "./services/tools/index.js";
+import { registerAllTools, setWsServer } from "./services/tools/index.js";
 import { toolRegistry } from "./services/tools/registry.js";
 import { logger } from "./utils/logger.js";
 
@@ -101,6 +101,9 @@ async function bootstrap() {
 	startApiServer(config, brain);
 	const wsServer = new WsServer(config, brain);
 
+	// Set wsServer reference for tools that need it (e.g., notify_frontend)
+	setWsServer(wsServer);
+
 	// 10. Initialize Telegram dependencies
 	initTelegramDeps(config, brain, wsServer);
 
@@ -132,8 +135,8 @@ Tu objetivo es ayudar al usuario con lo que necesite: conversación casual, busc
 - Usa markdown para mejorar legibilidad cuando sea útil.
 
 # Herramientas
-Tienes acceso a buscar en internet y usar la memoria del sistema. No puedes ejecutar comandos ni modificar archivos.`,
-				tools: ["read_url", "recall", "get_context", "memorize"],
+Tienes acceso a buscar en internet, consultar el clima, traducir texto, hacer cálculos y usar la memoria del sistema.`,
+				tools: ["web_search", "read_url", "weather", "translate", "calc", "recall", "get_context", "memorize", "notify_frontend"],
 				model: config.defaultModel,
 				temperature: 0.7,
 				history_limit: 10,
@@ -154,7 +157,7 @@ Puedes leer, escribir y editar archivos, ejecutar comandos, buscar en el código
 - Mantén el estilo y arquitectura existentes.
 - Prefiere cambios mínimos y consistentes.
 - No rompas el proyecto existente.`,
-				tools: ["bash", "read_file", "write_file", "edit_file", "glob", "grep", "read_url", "delegate", "memorize", "recall", "get_context"],
+				tools: ["bash", "read_file", "write_file", "edit_file", "glob", "grep", "read_url", "web_search", "calc", "delegate", "memorize", "recall", "get_context", "notify_frontend", "notify_telegram"],
 				model: config.defaultModel,
 				temperature: 0.7,
 				history_limit: 20,
@@ -169,7 +172,7 @@ Puedes leer, escribir y editar archivos, ejecutar comandos, buscar en el código
 				system_prompt: `Eres LaLlama, un asistente especializado en investigación y análisis.
 
 Tu fortaleza es buscar información en profundidad, analizar documentos, resumir hallazgos y guardar conocimiento en la memoria del sistema.`,
-				tools: ["read_url", "recall", "memorize", "get_context"],
+				tools: ["web_search", "read_url", "weather", "translate", "knowledge_search", "calc", "recall", "memorize", "get_context", "notify_frontend"],
 				model: config.defaultModel,
 				temperature: 0.3,
 				history_limit: 15,

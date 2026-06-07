@@ -10,6 +10,10 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 ### 🎭 Sistema de Modos: Personalidad, herramientas y configuración por modo (2026-06-07)
 
 #### Agent Engine
+- **➕ 7 nuevas herramientas**: `weather` (clima Open-Meteo), `web_search` (DuckDuckGo), `calc` (calculadora científica segura), `translate` (LibreTranslate, 30+ idiomas), `notify_frontend` (toast vía WS), `notify_telegram` (mensaje a chats Telegram), `knowledge_search` (búsqueda semántica RAG en MCP Brain)
+- **➕ `tool-bridge.ts`** — Puente de acceso a WsServer para tools que notifican en tiempo real
+- **➕ Nueva dependencia**: `cheerio` para parseo HTML en web_search
+- **🔄 Modos por defecto mejorados** — `asistente`, `desarrollador`, `investigador` ahora incluyen las nuevas tools según su perfil
 - **➕ Nueva tabla `agent_modes`** en SQLite con columna `tools` (JSON), `extends` (herencia), `tool_policy` y contador de uso
 - **➕ `services/db/modes.ts`** — CRUD completo: `listModes()`, `getMode()`, `resolveMode()` (herencia recursiva con merge de tools), `upsertMode()`, `deleteMode()`, `setActiveMode()`, `incrementModeUsage()`
 - **➕ `toolRegistry.applyModeTools(tools[])`** con `SimpleMutex` — deshabilita atómicamente todas las herramientas y luego habilita solo las del modo
