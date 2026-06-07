@@ -32,7 +32,7 @@ export function registerReadUrlTool() {
 			function: {
 				name: "read_url",
 				description:
-					"Fetch the content of a URL and return it as text. Useful for reading web pages, API responses, and documentation.",
+					"Obtiene el contenido de una URL y lo devuelve como texto. \u00datil para leer p\u00e1ginas web, respuestas de API y documentaci\u00f3n.",
 				parameters: {
 					type: "object",
 					properties: {

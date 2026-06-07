@@ -23,7 +23,7 @@ export function registerBashTool() {
 			type: "function",
 			function: {
 				name: "bash",
-				description: "Execute a shell command in the workspace. Returns stdout + stderr.",
+				description: "Ejecuta un comando en la terminal del workspace. Devuelve stdout y stderr.",
 				parameters: {
 					type: "object",
 					properties: {

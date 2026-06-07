@@ -17,6 +17,13 @@ class ToolRegistry {
 			.map((t) => t.spec);
 	}
 
+	getAllTools(): Array<{ spec: ToolSpec; enabled: boolean }> {
+		return Array.from(this.registry.values()).map((t) => ({
+			spec: t.spec,
+			enabled: t.enabled,
+		}));
+	}
+
 	async execute(name: string, args: Record<string, unknown>, context: ToolContext): Promise<string> {
 		const def = this.registry.get(name);
 		if (!def) {

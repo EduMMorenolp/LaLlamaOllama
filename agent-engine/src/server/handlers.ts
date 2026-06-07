@@ -112,9 +112,9 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					);
 					break;
 				}
-				case "list_tools": {
-					const specs = toolRegistry.getSpecs();
-					ws.send(createMessage("tools_list", { tools: specs }));
+			case "list_tools": {
+					const tools = toolRegistry.getAllTools();
+					ws.send(createMessage("tools_list", { tools }));
 					break;
 				}
 				case "toggle_tool": {

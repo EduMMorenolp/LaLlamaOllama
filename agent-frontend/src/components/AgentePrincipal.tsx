@@ -1,4 +1,4 @@
-import { Save, Settings, Sliders } from "lucide-react";
+import { Power, PowerOff, Save, Settings, Sliders } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useWs } from "../contexts/WebSocketContext";
 
@@ -7,6 +7,17 @@ interface GeneralConfig {
 	temperature: number;
 	history_limit: number;
 	system_prompt: string;
+}
+
+interface ToolInfo {
+	spec: {
+		function: {
+			name: string;
+			description: string;
+			parameters: Record<string, unknown>;
+		};
+	};
+	enabled: boolean;
 }
 
 export const AgentePrincipal: React.FC = () => {
@@ -18,8 +29,7 @@ export const AgentePrincipal: React.FC = () => {
 
 	const [telegramToken, setTelegramToken] = useState("");
 	const [telegramEnabled, setTelegramEnabled] = useState(false);
-	const [tools, setTools] = useState<string[]>([]);
-	const [toolStates, setToolStates] = useState<Record<string, boolean>>({});
+	const [tools, setTools] = useState<ToolInfo[]>([]);
 	const [ollamaModels, setOllamaModels] = useState<string[]>([]);
 	const [saving, setSaving] = useState(false);
 	const savingRef = useRef(false);
@@ -49,16 +59,9 @@ export const AgentePrincipal: React.FC = () => {
 					}
 					break;
 				case "tools_list": {
-					const toolList = msg.payload?.tools as Array<{ function: { name: string } }> | string[];
+					const toolList = msg.payload?.tools as ToolInfo[];
 					if (Array.isArray(toolList)) {
-						const names =
-							typeof toolList[0] === "string"
-								? (toolList as string[])
-								: (toolList as Array<{ function: { name: string } }>).map((t) => t.function.name);
-						setTools(names);
-						const states: Record<string, boolean> = {};
-						for (const t of names) states[t] = true;
-						setToolStates(states);
+						setTools(toolList);
 					}
 					break;
 				}
@@ -108,7 +111,7 @@ export const AgentePrincipal: React.FC = () => {
 
 	const handleToolToggle = (toolName: string, enabled: boolean) => {
 		sendWs("toggle_tool", { name: toolName, enabled });
-		setToolStates((prev) => ({ ...prev, [toolName]: enabled }));
+		setTools((prev) => prev.map((t) => (t.spec.function.name === toolName ? { ...t, enabled } : t)));
 	};
 
 	const sectionCard: React.CSSProperties = {
@@ -353,26 +356,81 @@ export const AgentePrincipal: React.FC = () => {
 			{/* Tools */}
 			<div style={sectionCard}>
 				<label style={sectionTitle}>Herramientas ({tools.length})</label>
-				<div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-					{tools.map((tool) => (
-						<button
-							key={tool}
-							type="button"
-							onClick={() => handleToolToggle(tool, !toolStates[tool])}
-							style={{
-								padding: "6px 12px",
-								borderRadius: "6px",
-								border: "1px solid var(--border-light)",
-								background: toolStates[tool] ? "rgba(79,140,255,0.1)" : "rgba(255,255,255,0.02)",
-								color: toolStates[tool] ? "var(--accent)" : "var(--text-muted)",
-								cursor: "pointer",
-								fontSize: "11px",
-								fontWeight: toolStates[tool] ? 600 : 400,
-							}}
-						>
-							{tool}
-						</button>
-					))}
+				<div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+					{tools.map((tool) => {
+						const isEnabled = tool.enabled;
+						const name = tool.spec.function.name;
+						const desc = tool.spec.function.description;
+						return (
+							<div
+								key={name}
+								style={{
+									display: "flex",
+									alignItems: "center",
+									gap: "12px",
+									padding: "12px",
+									borderRadius: "8px",
+									background: isEnabled ? "rgba(79,140,255,0.04)" : "rgba(255,255,255,0.01)",
+									border: `1px solid ${isEnabled ? "rgba(79,140,255,0.15)" : "var(--border-light)"}`,
+									opacity: isEnabled ? 1 : 0.55,
+									transition: "all 0.2s ease",
+								}}
+							>
+								<div style={{ flex: 1, minWidth: 0 }}>
+									<div
+										style={{
+											fontSize: "13px",
+											fontWeight: 600,
+											color: "var(--text-main)",
+											fontFamily: "var(--font-mono)",
+											marginBottom: "2px",
+										}}
+									>
+										{name}
+									</div>
+									<div
+										style={{
+											fontSize: "11px",
+											color: "var(--text-dim)",
+											lineHeight: 1.4,
+											overflow: "hidden",
+											textOverflow: "ellipsis",
+											display: "-webkit-box",
+											WebkitLineClamp: 2,
+											WebkitBoxOrient: "vertical",
+										}}
+									>
+										{desc}
+									</div>
+								</div>
+								<button
+									type="button"
+									onClick={() => handleToolToggle(name, !isEnabled)}
+									title={isEnabled ? "Desactivar" : "Activar"}
+									style={{
+										display: "flex",
+										alignItems: "center",
+										gap: "6px",
+										padding: "6px 12px",
+										borderRadius: "6px",
+										border: "none",
+										background: isEnabled ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.1)",
+										color: isEnabled ? "var(--success)" : "var(--error)",
+										cursor: "pointer",
+										fontSize: "11px",
+										fontWeight: 600,
+										fontFamily: "inherit",
+										whiteSpace: "nowrap",
+										transition: "all 0.2s ease",
+										flexShrink: 0,
+									}}
+								>
+									{isEnabled ? <Power size={12} /> : <PowerOff size={12} />}
+									{isEnabled ? "Activo" : "Inactivo"}
+								</button>
+							</div>
+						);
+					})}
 				</div>
 			</div>
 		</>
