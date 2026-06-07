@@ -10,11 +10,7 @@ export interface ModelEntry {
 
 export function getModel(name: string): ModelEntry | null {
 	const db = getDb();
-	return (
-		(db.prepare("SELECT * FROM models WHERE name = ?").get(name) as
-			| ModelEntry
-			| undefined) || null
-	);
+	return (db.prepare("SELECT * FROM models WHERE name = ?").get(name) as ModelEntry | undefined) || null;
 }
 
 export function upsertModel(model: ModelEntry): void {

@@ -1,5 +1,5 @@
 import { logger } from "../../utils/logger.js";
-import type { ToolSpec, ToolContext, ToolDefinition } from "./types.js";
+import type { ToolContext, ToolDefinition, ToolSpec } from "./types.js";
 
 // ─── Registry ─────────────────────────────────────────────────────────
 

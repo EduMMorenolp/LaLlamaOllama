@@ -1,6 +1,6 @@
 import type OpenAI from "openai";
-import type { AppConfig } from "../config.js";
 import type { BrainClient } from "../brain/client.js";
+import type { AppConfig } from "../config.js";
 import type { ToolContext } from "../tools/types.js";
 
 export interface AgentOptions {

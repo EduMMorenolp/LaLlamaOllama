@@ -2,17 +2,12 @@
 import type { DockerInfo } from "../docker-info.js";
 import { formatDockerInfo } from "../docker-info.js";
 
-export function buildSystemPrompt(
-  config: AppConfig,
-  activeModel?: string,
-): string {
-  const dockerSection = config.dockerInfo
-    ? `\n\n${formatDockerInfo(config.dockerInfo)}`
-    : "";
+export function buildSystemPrompt(config: AppConfig, activeModel?: string): string {
+	const dockerSection = config.dockerInfo ? `\n\n${formatDockerInfo(config.dockerInfo)}` : "";
 
-  const activeModelLabel = activeModel || config.defaultModel;
+	const activeModelLabel = activeModel || config.defaultModel;
 
-  return `
+	return `
 # Identidad
 Eres un asistente conversacional y operativo del proyecto LaLlamaOllama.
 
@@ -106,7 +101,7 @@ El frontend tiene estos comandos Slash que puedes mencionar al usuario cuando se
  * agent is aware of its own capacity and surroundings.
  */
 export function buildEnvironmentContext(dockerInfo?: DockerInfo): string {
-  if (!dockerInfo) return "";
+	if (!dockerInfo) return "";
 
-  return formatDockerInfo(dockerInfo);
+	return formatDockerInfo(dockerInfo);
 }

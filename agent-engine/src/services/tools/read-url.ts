@@ -4,25 +4,25 @@ import type { ToolContext } from "./types.js";
 
 // Strip HTML tags and clean up the content for readability
 function htmlToText(html: string): string {
-  // Remove script and style tags and their content
-  let text = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
-  text = text.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
-  text = text.replace(/<svg[^>]*>[\s\S]*?<\/svg>/gi, '');
-  // Remove all HTML tags
-  text = text.replace(/<[^>]+>/g, ' ');
-  // Decode common entities
-  text = text.replace(/&nbsp;/g, ' ');
-  text = text.replace(/&amp;/g, '&');
-  text = text.replace(/&lt;/g, '<');
-  text = text.replace(/&gt;/g, '>');
-  text = text.replace(/&quot;/g, '"');
-  text = text.replace(/&#39;/g, "'");
-  text = text.replace(/&[a-z]+;/g, ' ');
-  // Remove excessive whitespace
-  text = text.replace(/\s+/g, ' ');
-  // Remove excessive newlines
-  text = text.replace(/\n\s*\n\s*\n/g, '\n\n');
-  return text.trim();
+	// Remove script and style tags and their content
+	let text = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "");
+	text = text.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "");
+	text = text.replace(/<svg[^>]*>[\s\S]*?<\/svg>/gi, "");
+	// Remove all HTML tags
+	text = text.replace(/<[^>]+>/g, " ");
+	// Decode common entities
+	text = text.replace(/&nbsp;/g, " ");
+	text = text.replace(/&amp;/g, "&");
+	text = text.replace(/&lt;/g, "<");
+	text = text.replace(/&gt;/g, ">");
+	text = text.replace(/&quot;/g, '"');
+	text = text.replace(/&#39;/g, "'");
+	text = text.replace(/&[a-z]+;/g, " ");
+	// Remove excessive whitespace
+	text = text.replace(/\s+/g, " ");
+	// Remove excessive newlines
+	text = text.replace(/\n\s*\n\s*\n/g, "\n\n");
+	return text.trim();
 }
 
 export function registerReadUrlTool() {
@@ -61,8 +61,9 @@ export function registerReadUrlTool() {
 				const res = await axios.get(url, {
 					timeout: 15000,
 					headers: {
-						"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-						"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+						"User-Agent":
+							"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+						Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 						"Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
 					},
 					responseType: "text",
@@ -77,9 +78,12 @@ export function registerReadUrlTool() {
 				}
 
 				// Detect if content is HTML and clean it
-				const isHtml = typeof content === 'string' &&
-					(content.trim().startsWith('<!') || content.trim().startsWith('<html') ||
-					content.includes('<script') || content.includes('<div'));
+				const isHtml =
+					typeof content === "string" &&
+					(content.trim().startsWith("<!") ||
+						content.trim().startsWith("<html") ||
+						content.includes("<script") ||
+						content.includes("<div"));
 				if (isHtml) {
 					content = htmlToText(content);
 					// If the cleaned text is too short, the HTML stripping might have removed everything

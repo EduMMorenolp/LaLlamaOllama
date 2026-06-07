@@ -23,7 +23,8 @@ export function registerMemoryTools(brain: BrainClient) {
 						},
 						type: {
 							type: "string",
-							description: "Type of memory: 'feature', 'bug-fix', 'architecture', 'decision', 'discovery', or 'note'",
+							description:
+								"Type of memory: 'feature', 'bug-fix', 'architecture', 'decision', 'discovery', or 'note'",
 							enum: ["feature", "bug-fix", "architecture", "decision", "discovery", "note"],
 						},
 						tags: {

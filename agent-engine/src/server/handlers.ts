@@ -1,39 +1,44 @@
-import { type WebSocket } from "ws";
+import axios from "axios";
+import type { WebSocket } from "ws";
+import { createMessage } from "../gateway/protocol.js";
 import { runAgent } from "../services/agent/runAgent.js";
+import { pushSessionMessages, resetSession } from "../services/agent/runAgentCore.js";
+import { generateSuggestions } from "../services/agent/suggestions.js";
 import type { BrainClient } from "../services/brain/client.js";
 import { loadConfig } from "../services/config.js";
-import { toolRegistry } from "../services/tools/registry.js";
-import { getDockerInfo } from "../services/runtime.js";
-import { logger } from "../utils/logger.js";
-import { createMessage } from "../gateway/protocol.js";
-import type { WsServer } from "./ws.js";
-import {
-	listExperts,
-	getExpert,
-	upsertExpert,
-	deleteExpert,
-	getGeneralConfig,
-	type SubAgent,
-} from "../services/db/experts.js";
-import { listAllUsers, upsertUser, deleteUser, type UserProfile } from "../services/db/users.js";
 import {
 	createChat,
-	listChats,
-	listChannelChats,
-	getChat,
-	renameChat,
 	deleteChat as deleteDbChat,
+	getChat,
+	getChatWithStats,
+	listChannelChats,
+	listChats,
+	renameChat,
 	togglePin,
 } from "../services/db/chats.js";
+import {
+	deleteExpert,
+	getExpert,
+	getGeneralConfig,
+	listExperts,
+	type SubAgent,
+	upsertExpert,
+} from "../services/db/experts.js";
 import { getMessages } from "../services/db/messages.js";
-import { saveMessageToFavorites, unsaveMessage, listSavedMessages, isMessageSaved } from "../services/db/savedMessages.js";
-import { generateSuggestions } from "../services/agent/suggestions.js";
-import { getChatWithStats } from "../services/db/chats.js";
-import { listModels, upsertModel, deleteModel, type ModelEntry } from "../services/db/models.js";
-import { listRunsByFilters, createRun } from "../services/db/runs.js";
-import { resetSession, pushSessionMessages } from "../services/agent/runAgentCore.js";
-import { startTelegram, stopTelegram, initTelegramDeps } from "../services/telegram/bot.js";
-import axios from "axios";
+import { deleteModel, listModels, type ModelEntry, upsertModel } from "../services/db/models.js";
+import { createRun, listRunsByFilters } from "../services/db/runs.js";
+import {
+	isMessageSaved,
+	listSavedMessages,
+	saveMessageToFavorites,
+	unsaveMessage,
+} from "../services/db/savedMessages.js";
+import { deleteUser, listAllUsers, type UserProfile, upsertUser } from "../services/db/users.js";
+import { getDockerInfo } from "../services/runtime.js";
+import { initTelegramDeps, startTelegram, stopTelegram } from "../services/telegram/bot.js";
+import { toolRegistry } from "../services/tools/registry.js";
+import { logger } from "../utils/logger.js";
+import type { WsServer } from "./ws.js";
 
 export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 	const config = loadConfig();
@@ -51,8 +56,12 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 				case "user_message": {
 					const rawChatId = (payload?.chatId as string) || clientId;
 					const text = (payload?.text as string) || "";
-					const attachments = payload?.attachments as Array<{ name: string; type: string; data: string }> | undefined;
-					const quotedMessage = payload?.quotedMessage as { content: string; role: string; timestamp?: string } | undefined;
+					const attachments = payload?.attachments as
+						| Array<{ name: string; type: string; data: string }>
+						| undefined;
+					const quotedMessage = payload?.quotedMessage as
+						| { content: string; role: string; timestamp?: string }
+						| undefined;
 					if (!text.trim()) {
 						ws.send(createMessage("error", { message: "Empty message", code: "EMPTY" }));
 						return;
@@ -89,8 +98,8 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 
 				// Status / Tools
 				case "get_status": {
-						const gc = getGeneralConfig();
-						const effectiveModel = gc?.model || config.defaultModel;
+					const gc = getGeneralConfig();
+					const effectiveModel = gc?.model || config.defaultModel;
 					ws.send(
 						createMessage("status", {
 							status: "running",
@@ -124,16 +133,19 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 				// Ollama models
 				case "list_ollama_models": {
 					const backendUrl = config.backendUrl;
-					axios.get(`${backendUrl}/api/models`, {
-						timeout: 3000,
-						headers: { 'X-API-Key': config.apiKey }
-					})
+					axios
+						.get(`${backendUrl}/api/models`, {
+							timeout: 3000,
+							headers: { "X-API-Key": config.apiKey },
+						})
 						.then((response) => {
 							const models = response.data?.models || [];
 							ws.send(createMessage("ollama_models", { models }));
 						})
 						.catch((err) => {
-							logger.warn("Could not fetch Ollama models: " + (err instanceof Error ? err.message : String(err)));
+							logger.warn(
+								"Could not fetch Ollama models: " + (err instanceof Error ? err.message : String(err))
+							);
 							ws.send(createMessage("ollama_models", { models: [] }));
 						});
 					break;
@@ -306,7 +318,9 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 				}
 				case "general_config_update": {
 					const cfg = payload as Record<string, unknown>;
-					logger.info(`[Config] Update: model="${cfg.model}", temperature=${cfg.temperature}, history_limit=${cfg.history_limit}`);
+					logger.info(
+						`[Config] Update: model="${cfg.model}", temperature=${cfg.temperature}, history_limit=${cfg.history_limit}`
+					);
 					// Preserve existing system_prompt if not provided in the update
 					const existing_gc = getGeneralConfig() as Record<string, unknown> | null;
 					const existingPrompt = existing_gc?.system_prompt as string | undefined;
@@ -383,7 +397,6 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					break;
 				}
 
-
 				// Favorites / Saved messages
 				case "save_message": {
 					const userId_sv = userMap.get(clientId) ?? clientId;
@@ -392,7 +405,13 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					const msgContent = payload?.messageContent as string;
 					const msgTimestamp = payload?.messageTimestamp as string;
 					const ok_sv = saveMessageToFavorites(userId_sv, chatId_sv, msgRole, msgContent, msgTimestamp);
-					ws.send(createMessage("message_saved", { ok: ok_sv, chatId: chatId_sv, messageContent: msgContent.substring(0, 100) }));
+					ws.send(
+						createMessage("message_saved", {
+							ok: ok_sv,
+							chatId: chatId_sv,
+							messageContent: msgContent.substring(0, 100),
+						})
+					);
 					break;
 				}
 				case "unsave_message": {
@@ -414,7 +433,13 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					const chatId_ims = payload?.chatId as string;
 					const msgContent_ims = payload?.messageContent as string;
 					const saved_ims = isMessageSaved(userId_ims, chatId_ims, msgContent_ims);
-					ws.send(createMessage("message_saved_status", { saved: saved_ims, chatId: chatId_ims, messageContent: msgContent_ims.substring(0, 100) }));
+					ws.send(
+						createMessage("message_saved_status", {
+							saved: saved_ims,
+							chatId: chatId_ims,
+							messageContent: msgContent_ims.substring(0, 100),
+						})
+					);
 					break;
 				}
 
@@ -442,7 +467,13 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 			}
 		},
 
-		async handleUserMessage(chatId: string, text: string, clientId: string, attachments?: Array<{ name: string; type: string; data: string }>, quotedMessage?: { content: string; role: string; timestamp?: string }) {
+		async handleUserMessage(
+			chatId: string,
+			text: string,
+			clientId: string,
+			attachments?: Array<{ name: string; type: string; data: string }>,
+			quotedMessage?: { content: string; role: string; timestamp?: string }
+		) {
 			logger.agent(`[${chatId}] Received: "${text.substring(0, 100)}..."`);
 
 			try {
@@ -453,8 +484,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					brain,
 					attachments,
 					quotedMessage,
-					onChunk: (chunk: string) =>
-						wsServer.sendToAll("assistant_chunk", { chatId, text: chunk }),
+					onChunk: (chunk: string) => wsServer.sendToAll("assistant_chunk", { chatId, text: chunk }),
 					onToolCall: (toolName: string, args: Record<string, unknown>) =>
 						wsServer.sendToAll("tool_call", { chatId, toolName, args }),
 					onToolResult: (toolName: string, result: string) =>
@@ -500,5 +530,3 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 		},
 	};
 }
-
-

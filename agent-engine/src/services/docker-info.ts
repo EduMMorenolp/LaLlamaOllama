@@ -1,6 +1,6 @@
 import { exec } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { cpus, hostname, totalmem, platform } from "node:os";
+import { cpus, hostname, platform, totalmem } from "node:os";
 import { promisify } from "node:util";
 
 const execAsync = promisify(exec);
@@ -88,7 +88,7 @@ async function detectGpu(): Promise<{ available: boolean; info: string }> {
 
 	try {
 		const { stdout } = await execAsync(
-			'nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader,nounits',
+			"nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader,nounits",
 			{ timeout: 5000, windowsHide: true }
 		);
 		const lines = stdout.trim().split("\n").filter(Boolean);

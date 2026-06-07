@@ -47,30 +47,33 @@ export const Tareas: React.FC = () => {
 
 	const apiHeaders = { "X-API-Key": config.apiKey };
 
-	const fetchRuns = useCallback(async (append = false) => {
-		try {
-			const currentOffset = append ? offset : 0;
-			const params = new URLSearchParams();
-			if (statusFilter !== "all") params.set("status", statusFilter);
-			params.set("limit", "50");
-			params.set("offset", String(currentOffset));
-			const res = await fetch(`${config.engineUrl}/api/runs?${params}`, { headers: apiHeaders });
-			const data = await res.json();
-			const newRuns = data.runs || [];
-			if (append) {
-				setRuns((prev) => [...prev, ...newRuns]);
-			} else {
-				setRuns(newRuns);
+	const fetchRuns = useCallback(
+		async (append = false) => {
+			try {
+				const currentOffset = append ? offset : 0;
+				const params = new URLSearchParams();
+				if (statusFilter !== "all") params.set("status", statusFilter);
+				params.set("limit", "50");
+				params.set("offset", String(currentOffset));
+				const res = await fetch(`${config.engineUrl}/api/runs?${params}`, { headers: apiHeaders });
+				const data = await res.json();
+				const newRuns = data.runs || [];
+				if (append) {
+					setRuns((prev) => [...prev, ...newRuns]);
+				} else {
+					setRuns(newRuns);
+				}
+				setOffset(currentOffset + newRuns.length);
+				setHasMore(newRuns.length === 50);
+			} catch (err) {
+				console.error("Failed to fetch runs", err);
+			} finally {
+				setLoading(false);
+				setLoadingMore(false);
 			}
-			setOffset(currentOffset + newRuns.length);
-			setHasMore(newRuns.length === 50);
-		} catch (err) {
-			console.error("Failed to fetch runs", err);
-		} finally {
-			setLoading(false);
-			setLoadingMore(false);
-		}
-	}, [statusFilter, offset]);
+		},
+		[statusFilter, offset]
+	);
 
 	useEffect(() => {
 		setLoading(true);
@@ -95,21 +98,31 @@ export const Tareas: React.FC = () => {
 
 	const statusIcon = (status: string) => {
 		switch (status) {
-			case "completed": return <CheckCircle size={14} style={{ color: "var(--success)" }} />;
-			case "running": return <Loader2 size={14} style={{ color: "var(--accent)" }} className="animate-spin" />;
-			case "queued": return <Clock size={14} style={{ color: "var(--warning)" }} />;
-			case "failed": return <XCircle size={14} style={{ color: "var(--error)" }} />;
-			default: return <AlertCircle size={14} style={{ color: "var(--text-muted)" }} />;
+			case "completed":
+				return <CheckCircle size={14} style={{ color: "var(--success)" }} />;
+			case "running":
+				return <Loader2 size={14} style={{ color: "var(--accent)" }} className="animate-spin" />;
+			case "queued":
+				return <Clock size={14} style={{ color: "var(--warning)" }} />;
+			case "failed":
+				return <XCircle size={14} style={{ color: "var(--error)" }} />;
+			default:
+				return <AlertCircle size={14} style={{ color: "var(--text-muted)" }} />;
 		}
 	};
 
 	const statusColor = (status: string) => {
 		switch (status) {
-			case "completed": return "rgba(16,185,129,0.15)";
-			case "running": return "rgba(79,140,255,0.15)";
-			case "queued": return "rgba(245,158,11,0.15)";
-			case "failed": return "rgba(239,68,68,0.15)";
-			default: return "rgba(255,255,255,0.03)";
+			case "completed":
+				return "rgba(16,185,129,0.15)";
+			case "running":
+				return "rgba(79,140,255,0.15)";
+			case "queued":
+				return "rgba(245,158,11,0.15)";
+			case "failed":
+				return "rgba(239,68,68,0.15)";
+			default:
+				return "rgba(255,255,255,0.03)";
 		}
 	};
 
@@ -145,7 +158,11 @@ export const Tareas: React.FC = () => {
 			<div style={{ flex: 1, overflowY: "auto" }}>
 				{loading ? (
 					<div style={{ textAlign: "center", padding: "40px", color: "var(--text-muted)" }}>
-						<Loader2 size={24} className="animate-spin" style={{ margin: "0 auto 12px", display: "block" }} />
+						<Loader2
+							size={24}
+							className="animate-spin"
+							style={{ margin: "0 auto 12px", display: "block" }}
+						/>
 						Cargando tareas...
 					</div>
 				) : runs.length === 0 ? (
@@ -167,18 +184,43 @@ export const Tareas: React.FC = () => {
 									cursor: "pointer",
 									transition: "all 0.15s",
 								}}
-								onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent-glow)"; }}
-								onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-light)"; }}
+								onMouseEnter={(e) => {
+									e.currentTarget.style.borderColor = "var(--accent-glow)";
+								}}
+								onMouseLeave={(e) => {
+									e.currentTarget.style.borderColor = "var(--border-light)";
+								}}
 							>
 								<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
 									{statusIcon(run.status)}
 									<div style={{ flex: 1, minWidth: 0 }}>
-										<div style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-main)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+										<div
+											style={{
+												fontSize: "12px",
+												fontWeight: 600,
+												color: "var(--text-main)",
+												overflow: "hidden",
+												textOverflow: "ellipsis",
+												whiteSpace: "nowrap",
+											}}
+										>
 											{run.userText}
 										</div>
-										<div style={{ display: "flex", gap: "12px", marginTop: "4px", fontSize: "10px", color: "var(--text-dim)" }}>
+										<div
+											style={{
+												display: "flex",
+												gap: "12px",
+												marginTop: "4px",
+												fontSize: "10px",
+												color: "var(--text-dim)",
+											}}
+										>
 											{run.created_at && <span>{new Date(run.created_at).toLocaleString()}</span>}
-											{run.model && <span style={{ color: "var(--accent)", fontFamily: "monospace" }}>{run.model}</span>}
+											{run.model && (
+												<span style={{ color: "var(--accent)", fontFamily: "monospace" }}>
+													{run.model}
+												</span>
+											)}
 											{run.latencyMs != null && <span>{(run.latencyMs / 1000).toFixed(1)}s</span>}
 										</div>
 									</div>
@@ -190,7 +232,14 @@ export const Tareas: React.FC = () => {
 											fontWeight: 600,
 											textTransform: "capitalize",
 											background: statusColor(run.status),
-											color: run.status === "completed" ? "var(--success)" : run.status === "failed" ? "var(--error)" : run.status === "running" ? "var(--accent)" : "var(--warning)",
+											color:
+												run.status === "completed"
+													? "var(--success)"
+													: run.status === "failed"
+														? "var(--error)"
+														: run.status === "running"
+															? "var(--accent)"
+															: "var(--warning)",
 										}}
 									>
 										{FILTER_LABELS[run.status as StatusFilter] || run.status}
@@ -202,7 +251,10 @@ export const Tareas: React.FC = () => {
 							<div style={{ textAlign: "center", padding: "16px" }}>
 								<button
 									type="button"
-									onClick={() => { setLoadingMore(true); fetchRuns(true); }}
+									onClick={() => {
+										setLoadingMore(true);
+										fetchRuns(true);
+									}}
 									disabled={loadingMore}
 									style={{
 										padding: "8px 20px",
@@ -229,7 +281,10 @@ export const Tareas: React.FC = () => {
 				<div
 					style={{
 						position: "fixed",
-						top: 0, left: 0, right: 0, bottom: 0,
+						top: 0,
+						left: 0,
+						right: 0,
+						bottom: 0,
 						background: "rgba(0,0,0,0.7)",
 						backdropFilter: "blur(4px)",
 						display: "flex",
@@ -252,40 +307,142 @@ export const Tareas: React.FC = () => {
 						}}
 						onClick={(e) => e.stopPropagation()}
 					>
-						<h3 style={{ margin: "0 0 16px", fontSize: "16px", fontWeight: 700, color: "var(--text-main)" }}>
+						<h3
+							style={{ margin: "0 0 16px", fontSize: "16px", fontWeight: 700, color: "var(--text-main)" }}
+						>
 							Detalle de Tarea #{selectedRun.id}
 						</h3>
 
-						<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
+						<div
+							style={{
+								display: "grid",
+								gridTemplateColumns: "1fr 1fr",
+								gap: "12px",
+								marginBottom: "16px",
+							}}
+						>
 							<div>
-								<div style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase" }}>Estado</div>
-								<div style={{ fontSize: "13px", color: "var(--text-main)", marginTop: "2px" }}>{selectedRun.status}</div>
+								<div
+									style={{
+										fontSize: "10px",
+										fontWeight: 600,
+										color: "var(--text-muted)",
+										textTransform: "uppercase",
+									}}
+								>
+									Estado
+								</div>
+								<div style={{ fontSize: "13px", color: "var(--text-main)", marginTop: "2px" }}>
+									{selectedRun.status}
+								</div>
 							</div>
 							<div>
-								<div style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase" }}>Modelo</div>
-								<div style={{ fontSize: "13px", color: "var(--accent)", marginTop: "2px", fontFamily: "monospace" }}>{selectedRun.model || "-"}</div>
+								<div
+									style={{
+										fontSize: "10px",
+										fontWeight: 600,
+										color: "var(--text-muted)",
+										textTransform: "uppercase",
+									}}
+								>
+									Modelo
+								</div>
+								<div
+									style={{
+										fontSize: "13px",
+										color: "var(--accent)",
+										marginTop: "2px",
+										fontFamily: "monospace",
+									}}
+								>
+									{selectedRun.model || "-"}
+								</div>
 							</div>
 							<div>
-								<div style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase" }}>Latencia</div>
-								<div style={{ fontSize: "13px", color: "var(--text-main)", marginTop: "2px" }}>{selectedRun.latencyMs ? `${(selectedRun.latencyMs / 1000).toFixed(1)}s` : "-"}</div>
+								<div
+									style={{
+										fontSize: "10px",
+										fontWeight: 600,
+										color: "var(--text-muted)",
+										textTransform: "uppercase",
+									}}
+								>
+									Latencia
+								</div>
+								<div style={{ fontSize: "13px", color: "var(--text-main)", marginTop: "2px" }}>
+									{selectedRun.latencyMs ? `${(selectedRun.latencyMs / 1000).toFixed(1)}s` : "-"}
+								</div>
 							</div>
 							<div>
-								<div style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase" }}>Creado</div>
-								<div style={{ fontSize: "13px", color: "var(--text-main)", marginTop: "2px" }}>{selectedRun.created_at ? new Date(selectedRun.created_at).toLocaleString() : "-"}</div>
+								<div
+									style={{
+										fontSize: "10px",
+										fontWeight: 600,
+										color: "var(--text-muted)",
+										textTransform: "uppercase",
+									}}
+								>
+									Creado
+								</div>
+								<div style={{ fontSize: "13px", color: "var(--text-main)", marginTop: "2px" }}>
+									{selectedRun.created_at ? new Date(selectedRun.created_at).toLocaleString() : "-"}
+								</div>
 							</div>
 						</div>
 
 						<div style={{ marginBottom: "16px" }}>
-							<div style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "6px" }}>Mensaje del usuario</div>
-							<div style={{ padding: "10px 14px", background: "rgba(255,255,255,0.03)", borderRadius: "8px", border: "1px solid var(--border-light)", fontSize: "13px", color: "var(--text-main)", whiteSpace: "pre-wrap" }}>
+							<div
+								style={{
+									fontSize: "10px",
+									fontWeight: 600,
+									color: "var(--text-muted)",
+									textTransform: "uppercase",
+									marginBottom: "6px",
+								}}
+							>
+								Mensaje del usuario
+							</div>
+							<div
+								style={{
+									padding: "10px 14px",
+									background: "rgba(255,255,255,0.03)",
+									borderRadius: "8px",
+									border: "1px solid var(--border-light)",
+									fontSize: "13px",
+									color: "var(--text-main)",
+									whiteSpace: "pre-wrap",
+								}}
+							>
 								{selectedRun.userText}
 							</div>
 						</div>
 
 						{selectedRun.resultText && (
 							<div style={{ marginBottom: "16px" }}>
-								<div style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "6px" }}>Respuesta</div>
-								<div style={{ padding: "10px 14px", background: "rgba(79,140,255,0.03)", borderRadius: "8px", border: "1px solid rgba(79,140,255,0.1)", fontSize: "12px", color: "var(--text-main)", whiteSpace: "pre-wrap", maxHeight: "200px", overflow: "auto" }}>
+								<div
+									style={{
+										fontSize: "10px",
+										fontWeight: 600,
+										color: "var(--text-muted)",
+										textTransform: "uppercase",
+										marginBottom: "6px",
+									}}
+								>
+									Respuesta
+								</div>
+								<div
+									style={{
+										padding: "10px 14px",
+										background: "rgba(79,140,255,0.03)",
+										borderRadius: "8px",
+										border: "1px solid rgba(79,140,255,0.1)",
+										fontSize: "12px",
+										color: "var(--text-main)",
+										whiteSpace: "pre-wrap",
+										maxHeight: "200px",
+										overflow: "auto",
+									}}
+								>
 									{selectedRun.resultText}
 								</div>
 							</div>
@@ -293,8 +450,28 @@ export const Tareas: React.FC = () => {
 
 						{selectedRun.errorText && (
 							<div style={{ marginBottom: "16px" }}>
-								<div style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "6px" }}>Error</div>
-								<div style={{ padding: "10px 14px", background: "rgba(239,68,68,0.05)", borderRadius: "8px", border: "1px solid rgba(239,68,68,0.15)", fontSize: "12px", color: "var(--error)", whiteSpace: "pre-wrap" }}>
+								<div
+									style={{
+										fontSize: "10px",
+										fontWeight: 600,
+										color: "var(--text-muted)",
+										textTransform: "uppercase",
+										marginBottom: "6px",
+									}}
+								>
+									Error
+								</div>
+								<div
+									style={{
+										padding: "10px 14px",
+										background: "rgba(239,68,68,0.05)",
+										borderRadius: "8px",
+										border: "1px solid rgba(239,68,68,0.15)",
+										fontSize: "12px",
+										color: "var(--error)",
+										whiteSpace: "pre-wrap",
+									}}
+								>
 									{selectedRun.errorText}
 								</div>
 							</div>
@@ -302,15 +479,29 @@ export const Tareas: React.FC = () => {
 
 						{/* Events Timeline */}
 						<div>
-							<div style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "8px" }}>
+							<div
+								style={{
+									fontSize: "10px",
+									fontWeight: 600,
+									color: "var(--text-muted)",
+									textTransform: "uppercase",
+									marginBottom: "8px",
+								}}
+							>
 								Eventos ({selectedEvents.length})
 							</div>
 							{detailLoading ? (
 								<div style={{ textAlign: "center", padding: "12px" }}>
-									<Loader2 size={16} className="animate-spin" style={{ color: "var(--text-muted)" }} />
+									<Loader2
+										size={16}
+										className="animate-spin"
+										style={{ color: "var(--text-muted)" }}
+									/>
 								</div>
 							) : selectedEvents.length === 0 ? (
-								<div style={{ fontSize: "12px", color: "var(--text-dim)", padding: "8px 0" }}>Sin eventos registrados.</div>
+								<div style={{ fontSize: "12px", color: "var(--text-dim)", padding: "8px 0" }}>
+									Sin eventos registrados.
+								</div>
 							) : (
 								<div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
 									{selectedEvents.map((evt) => (
@@ -325,22 +516,44 @@ export const Tareas: React.FC = () => {
 											}}
 										>
 											<div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-												<span style={{
-													padding: "1px 6px",
-													borderRadius: "3px",
-													fontSize: "9px",
-													fontWeight: 700,
-													textTransform: "uppercase",
-													background: evt.type === "tool_call" ? "rgba(79,140,255,0.15)" : evt.type === "error" ? "rgba(239,68,68,0.15)" : "rgba(255,255,255,0.05)",
-													color: evt.type === "tool_call" ? "var(--accent)" : evt.type === "error" ? "var(--error)" : "var(--text-muted)",
-												}}>
+												<span
+													style={{
+														padding: "1px 6px",
+														borderRadius: "3px",
+														fontSize: "9px",
+														fontWeight: 700,
+														textTransform: "uppercase",
+														background:
+															evt.type === "tool_call"
+																? "rgba(79,140,255,0.15)"
+																: evt.type === "error"
+																	? "rgba(239,68,68,0.15)"
+																	: "rgba(255,255,255,0.05)",
+														color:
+															evt.type === "tool_call"
+																? "var(--accent)"
+																: evt.type === "error"
+																	? "var(--error)"
+																	: "var(--text-muted)",
+													}}
+												>
 													{evt.type}
 												</span>
 												<span style={{ color: "var(--text-dim)", fontSize: "10px" }}>
-													{evt.created_at ? new Date(evt.created_at).toLocaleTimeString() : ""}
+													{evt.created_at
+														? new Date(evt.created_at).toLocaleTimeString()
+														: ""}
 												</span>
 											</div>
-											<div style={{ color: "var(--text-dim)", marginTop: "4px", fontSize: "10px", maxHeight: "60px", overflow: "hidden" }}>
+											<div
+												style={{
+													color: "var(--text-dim)",
+													marginTop: "4px",
+													fontSize: "10px",
+													maxHeight: "60px",
+													overflow: "hidden",
+												}}
+											>
 												{JSON.stringify(evt.payload).substring(0, 200)}
 											</div>
 										</div>

@@ -1,8 +1,8 @@
 import type TelegramBot from "node-telegram-bot-api";
-import { runAgent } from "../agent/runAgent.js";
-import { getOrCreateChannelChat } from "../db/chats.js";
-import { loadConfig } from "../config.js";
 import { logger } from "../../utils/logger.js";
+import { runAgent } from "../agent/runAgent.js";
+import { loadConfig } from "../config.js";
+import { getOrCreateChannelChat } from "../db/chats.js";
 
 export async function handleCallbackQuery(
 	query: TelegramBot.CallbackQuery,

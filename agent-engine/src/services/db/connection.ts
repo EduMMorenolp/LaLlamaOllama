@@ -186,7 +186,9 @@ export function getDb(dbPath?: string): Database.Database {
 			);
 			CREATE INDEX IF NOT EXISTS idx_saved_messages_userId ON saved_messages(userId);
 		`);
-	} catch { /* ignore */ }
+	} catch {
+		/* ignore */
+	}
 
 	logger.info(`[DB] SQLite initialized: ${resolvedPath}`);
 	return _db;

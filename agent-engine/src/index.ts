@@ -1,18 +1,18 @@
 import "dotenv/config";
 import { validateEnv } from "./env.js";
-import { loadConfig } from "./services/config.js";
-import { BrainClient } from "./services/brain/client.js";
-import { detectDockerInfo } from "./services/docker-info.js";
-import { registerAllTools } from "./services/tools/index.js";
-import { toolRegistry } from "./services/tools/registry.js";
 import { startApiServer } from "./server/api.js";
-import { WsServer } from "./server/ws.js";
 import { startCronJobs } from "./server/cron.js";
+import { WsServer } from "./server/ws.js";
+import { BrainClient } from "./services/brain/client.js";
+import { loadConfig } from "./services/config.js";
 import { getDb } from "./services/db/connection.js";
 import { setSetting } from "./services/db/settings.js";
-import { initTelegramDeps, startTelegram } from "./services/telegram/bot.js";
-import { setRuntimeContext } from "./services/runtime.js";
+import { detectDockerInfo } from "./services/docker-info.js";
 import { initOrchestrator } from "./services/orchestrator/index.js";
+import { setRuntimeContext } from "./services/runtime.js";
+import { initTelegramDeps, startTelegram } from "./services/telegram/bot.js";
+import { registerAllTools } from "./services/tools/index.js";
+import { toolRegistry } from "./services/tools/registry.js";
 import { logger } from "./utils/logger.js";
 
 async function bootstrap() {
@@ -39,9 +39,11 @@ async function bootstrap() {
 	}
 
 	// 4. Detect Docker environment
-	let dockerInfo = await detectDockerInfo(config.workspaceDir);
+	const dockerInfo = await detectDockerInfo(config.workspaceDir);
 	logger.info(`[Docker] ${dockerInfo.inDocker ? "Inside container" : "Host machine"}`);
-	logger.info(`[Docker] CPUs: ${dockerInfo.cpuCores}, RAM: ${(dockerInfo.memoryTotalBytes / 1024 / 1024 / 1024).toFixed(1)} GB${dockerInfo.gpuAvailable ? `, GPU: ${dockerInfo.gpuInfo}` : ""}`);
+	logger.info(
+		`[Docker] CPUs: ${dockerInfo.cpuCores}, RAM: ${(dockerInfo.memoryTotalBytes / 1024 / 1024 / 1024).toFixed(1)} GB${dockerInfo.gpuAvailable ? `, GPU: ${dockerInfo.gpuInfo}` : ""}`
+	);
 	// Persist Docker info to settings DB
 	try {
 		setSetting("docker_info", JSON.stringify(dockerInfo));

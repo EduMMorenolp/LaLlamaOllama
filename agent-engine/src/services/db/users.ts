@@ -18,10 +18,7 @@ export function getUser(userId: string): UserProfile | null {
 	return (stmt.get(userId) as UserProfile | undefined) || null;
 }
 
-export function upsertUser(
-	userId: string,
-	data: Partial<Omit<UserProfile, "userId" | "created_at">>
-): void {
+export function upsertUser(userId: string, data: Partial<Omit<UserProfile, "userId" | "created_at">>): void {
 	const db = getDb();
 	const existing = getUser(userId);
 

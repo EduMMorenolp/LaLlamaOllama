@@ -22,12 +22,7 @@ export interface RunEventRecord {
 	created_at?: string;
 }
 
-export function createRun(input: {
-	chatId: string;
-	userText: string;
-	origin?: string;
-	status?: string;
-}): number {
+export function createRun(input: { chatId: string; userText: string; origin?: string; status?: string }): number {
 	const db = getDb();
 	const result = db
 		.prepare(
@@ -102,16 +97,10 @@ export function getRun(runId: number): StoredRun | undefined {
 
 export function listRuns(limit = 20): StoredRun[] {
 	const db = getDb();
-	return db
-		.prepare("SELECT * FROM runs ORDER BY created_at DESC LIMIT ?")
-		.all(limit) as StoredRun[];
+	return db.prepare("SELECT * FROM runs ORDER BY created_at DESC LIMIT ?").all(limit) as StoredRun[];
 }
 
-export function listRunsByFilters(filters: {
-	status?: string;
-	limit?: number;
-	offset?: number;
-}): StoredRun[] {
+export function listRunsByFilters(filters: { status?: string; limit?: number; offset?: number }): StoredRun[] {
 	const db = getDb();
 	const conditions: string[] = [];
 	const params: Array<string | number> = [];
@@ -126,15 +115,11 @@ export function listRunsByFilters(filters: {
 	const offset = filters.offset ?? 0;
 
 	return db
-		.prepare(
-			`SELECT * FROM runs ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`
-		)
+		.prepare(`SELECT * FROM runs ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`)
 		.all(...params, limit, offset) as StoredRun[];
 }
 
 export function getRunEvents(runId: number): RunEventRecord[] {
 	const db = getDb();
-	return db
-		.prepare("SELECT * FROM run_events WHERE runId = ? ORDER BY id ASC")
-		.all(runId) as RunEventRecord[];
+	return db.prepare("SELECT * FROM run_events WHERE runId = ? ORDER BY id ASC").all(runId) as RunEventRecord[];
 }

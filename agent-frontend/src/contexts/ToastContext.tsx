@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { createContext, type ReactNode, useCallback, useContext, useState } from "react";
 
 type ToastType = "success" | "error" | "info";
 
@@ -32,29 +32,48 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 		<ToastContext.Provider value={{ show, toasts }}>
 			{children}
 			{/* Toast container */}
-			<div style={{
-				position: "fixed", bottom: "20px", right: "20px", zIndex: 9999,
-				display: "flex", flexDirection: "column", gap: "8px",
-			}}>
+			<div
+				style={{
+					position: "fixed",
+					bottom: "20px",
+					right: "20px",
+					zIndex: 9999,
+					display: "flex",
+					flexDirection: "column",
+					gap: "8px",
+				}}
+			>
 				{toasts.map((toast) => (
-					<div key={toast.id} style={{
-						padding: "10px 16px",
-						borderRadius: "8px",
-						background: toast.type === "success" ? "rgba(34,197,94,0.15)"
-							: toast.type === "error" ? "rgba(239,68,68,0.15)"
-							: "rgba(79,140,255,0.15)",
-						border: toast.type === "success" ? "1px solid rgba(34,197,94,0.3)"
-							: toast.type === "error" ? "1px solid rgba(239,68,68,0.3)"
-							: "1px solid rgba(79,140,255,0.3)",
-						color: toast.type === "success" ? "var(--success)"
-							: toast.type === "error" ? "var(--error)"
-							: "var(--accent)",
-						fontSize: "12px",
-						fontWeight: 500,
-						boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-						animation: "slideIn 0.2s ease",
-						maxWidth: "350px",
-					}}>
+					<div
+						key={toast.id}
+						style={{
+							padding: "10px 16px",
+							borderRadius: "8px",
+							background:
+								toast.type === "success"
+									? "rgba(34,197,94,0.15)"
+									: toast.type === "error"
+										? "rgba(239,68,68,0.15)"
+										: "rgba(79,140,255,0.15)",
+							border:
+								toast.type === "success"
+									? "1px solid rgba(34,197,94,0.3)"
+									: toast.type === "error"
+										? "1px solid rgba(239,68,68,0.3)"
+										: "1px solid rgba(79,140,255,0.3)",
+							color:
+								toast.type === "success"
+									? "var(--success)"
+									: toast.type === "error"
+										? "var(--error)"
+										: "var(--accent)",
+							fontSize: "12px",
+							fontWeight: 500,
+							boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+							animation: "slideIn 0.2s ease",
+							maxWidth: "350px",
+						}}
+					>
 						{toast.text}
 					</div>
 				))}
@@ -69,4 +88,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 	);
 }
 
-export function useToast() { return useContext(ToastContext); }
+export function useToast() {
+	return useContext(ToastContext);
+}

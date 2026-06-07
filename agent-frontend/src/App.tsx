@@ -1,16 +1,7 @@
-﻿import {
-	BookOpen,
-	Bot,
-	Cable,
-	ClipboardList,
-	Menu,
-	MessageSquare,
-	Settings,
-	X,
-} from "lucide-react";
+﻿import { BookOpen, Bot, Cable, ClipboardList, Menu, MessageSquare, Settings, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { Agentes } from "./components/Agentes";
 import { AgentChat } from "./components/AgentChat";
+import { Agentes } from "./components/Agentes";
 import { Conexion } from "./components/Conexion";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Knowledge } from "./components/Knowledge";
@@ -136,7 +127,9 @@ export default function App() {
 
 				<div
 					className="view-body"
-					style={activeTab === "chat" ? { padding: "10px", display: "flex", flexDirection: "column" } : undefined}
+					style={
+						activeTab === "chat" ? { padding: "10px", display: "flex", flexDirection: "column" } : undefined
+					}
 				>
 					<ErrorBoundary name="Chat">
 						<div style={{ display: activeTab === "chat" ? "contents" : "none" }}>

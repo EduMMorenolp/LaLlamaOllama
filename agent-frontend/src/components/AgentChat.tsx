@@ -1,4 +1,26 @@
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Download, Edit3, MessageSquare, Paperclip, Pin, PinOff, Plus, Reply, Save, Search, Send, Star, StopCircle, Terminal, Trash2, Wrench, X } from "lucide-react";
+import {
+	Check,
+	ChevronDown,
+	ChevronLeft,
+	ChevronRight,
+	Download,
+	Edit3,
+	MessageSquare,
+	Paperclip,
+	Pin,
+	PinOff,
+	Plus,
+	Reply,
+	Save,
+	Search,
+	Send,
+	Star,
+	StopCircle,
+	Terminal,
+	Trash2,
+	Wrench,
+	X,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -38,7 +60,6 @@ interface ChatEntry {
 	updated_at: string;
 	lastMessage?: string;
 	messageCount?: number;
-
 }
 
 // Utility: extract images from message content
@@ -108,12 +129,14 @@ export const AgentChat: React.FC = () => {
 	const [expandedImage, setExpandedImage] = useState<string | null>(null);
 
 	// Feature: reply to messages
-	const [replyTo, setReplyTo] = useState<{ index: number; content: string; role: string; timestamp: Date } | null>(null);
+	const [replyTo, setReplyTo] = useState<{ index: number; content: string; role: string; timestamp: Date } | null>(
+		null
+	);
 
 	// Feature: saved/favorited messages
 	const [savedMessages, setSavedMessages] = useState<Set<string>>(new Set());
 
-	// Feature: auto suggestions 
+	// Feature: auto suggestions
 	const [suggestions, setSuggestions] = useState<string[]>([]);
 
 	// Slash commands-
@@ -212,11 +235,13 @@ export const AgentChat: React.FC = () => {
 
 				if (msg.payload?.history) {
 					const history = msg.payload?.history as Array<{ role: string; text: string }>;
-					setMessages(history.map((h) => ({
-						role: h.role as ChatMessage["role"],
-						content: h.text,
-						timestamp: new Date(),
-					})));
+					setMessages(
+						history.map((h) => ({
+							role: h.role as ChatMessage["role"],
+							content: h.text,
+							timestamp: new Date(),
+						}))
+					);
 					return;
 				}
 
@@ -227,7 +252,12 @@ export const AgentChat: React.FC = () => {
 						// Replace the last streaming message (from assistant_chunk) instead of appending
 						if (last?.role === "assistant" && !last.usage) {
 							const updated = [...prev];
-							updated[updated.length - 1] = { role: "assistant", content: text, timestamp: new Date(), usage };
+							updated[updated.length - 1] = {
+								role: "assistant",
+								content: text,
+								timestamp: new Date(),
+								usage,
+							};
 							return updated;
 						}
 						return [...prev, { role: "assistant", content: text, timestamp: new Date(), usage }];
@@ -267,7 +297,11 @@ export const AgentChat: React.FC = () => {
 			case "error": {
 				setMessages((prev) => [
 					...prev,
-					{ role: "system", content: `\u274c Error: ${msg.payload?.message as string}`, timestamp: new Date() },
+					{
+						role: "system",
+						content: `\u274c Error: ${msg.payload?.message as string}`,
+						timestamp: new Date(),
+					},
 				]);
 				setIsProcessing(false);
 				break;
@@ -313,7 +347,11 @@ export const AgentChat: React.FC = () => {
 					const key = statusChatId + "|" + statusContent.substring(0, 50);
 					setSavedMessages((prev) => {
 						const next = new Set(prev);
-						if (isSaved) { next.add(key); } else { next.delete(key); }
+						if (isSaved) {
+							next.add(key);
+						} else {
+							next.delete(key);
+						}
 						return next;
 					});
 				}
@@ -329,7 +367,6 @@ export const AgentChat: React.FC = () => {
 				break;
 			}
 
-
 			case "tools_list": {
 				const tools = msg.payload?.tools as Array<{ function: { name: string; description: string } }>;
 				if (tools && Array.isArray(tools)) {
@@ -337,11 +374,14 @@ export const AgentChat: React.FC = () => {
 						.filter((t) => t?.function?.name)
 						.map((t) => `- **${t.function.name}**: ${t.function.description || "Sin descripci�n"}`)
 						.join("\n");
-					setMessages((prev) => [...prev, {
-						role: "system",
-						content: `**Herramientas disponibles (${tools.length}):**\n\n${toolsText}`,
-						timestamp: new Date(),
-					}]);
+					setMessages((prev) => [
+						...prev,
+						{
+							role: "system",
+							content: `**Herramientas disponibles (${tools.length}):**\n\n${toolsText}`,
+							timestamp: new Date(),
+						},
+					]);
 				}
 				break;
 			}
@@ -350,20 +390,24 @@ export const AgentChat: React.FC = () => {
 				const models = msg.payload?.models as Array<{ name: string }>;
 				if (models && Array.isArray(models)) {
 					if (models.length === 0) {
-						setMessages((prev) => [...prev, {
-							role: "system",
-							content: "No se encontraron modelos en Ollama.",
-							timestamp: new Date(),
-						}]);
+						setMessages((prev) => [
+							...prev,
+							{
+								role: "system",
+								content: "No se encontraron modelos en Ollama.",
+								timestamp: new Date(),
+							},
+						]);
 					} else {
-						const modelsText = models
-							.map((m: { name: string }) => `- **${m.name}**`)
-							.join("\n");
-						setMessages((prev) => [...prev, {
-							role: "system",
-							content: `**Modelos disponibles en Ollama (${models.length}):**\n\n${modelsText}\n\nUsa \`/cambioModelo <nombre>\` para cambiar el modelo activo.`,
-							timestamp: new Date(),
-						}]);
+						const modelsText = models.map((m: { name: string }) => `- **${m.name}**`).join("\n");
+						setMessages((prev) => [
+							...prev,
+							{
+								role: "system",
+								content: `**Modelos disponibles en Ollama (${models.length}):**\n\n${modelsText}\n\nUsa \`/cambioModelo <nombre>\` para cambiar el modelo activo.`,
+								timestamp: new Date(),
+							},
+						]);
 					}
 				}
 				break;
@@ -372,88 +416,114 @@ export const AgentChat: React.FC = () => {
 			case "task_created": {
 				const taskRunId = msg.payload?.runId as number;
 				const taskText = msg.payload?.text as string;
-				setMessages((prev) => [...prev, {
-					role: "system",
-					content: `\u2705 Tarea creada (#${taskRunId}): **${taskText}**`,
-					timestamp: new Date(),
-				}]);
+				setMessages((prev) => [
+					...prev,
+					{
+						role: "system",
+						content: `\u2705 Tarea creada (#${taskRunId}): **${taskText}**`,
+						timestamp: new Date(),
+					},
+				]);
 				break;
 			}
 		}
 	};
 
-	const sendMessage = useCallback((text: string, quotedMessage?: { content: string; role: string; timestamp?: string } | null) => {
-		const chatId = currentChatId || "dashboard";
-		const promptEstimate = Math.ceil(text.length / 4);
-		setMessages((prev) => [...prev, { role: "user", content: text, timestamp: new Date(), usage: { promptTokens: promptEstimate, completionTokens: 0, totalTokens: promptEstimate } }]);
-		setTotalPromptTokens((p) => p + promptEstimate);
-		setInput("");
-		setIsProcessing(true);
-		// Clear tool calls from previous response when new message is sent
-		setCurrentToolCalls([]);
+	const sendMessage = useCallback(
+		(text: string, quotedMessage?: { content: string; role: string; timestamp?: string } | null) => {
+			const chatId = currentChatId || "dashboard";
+			const promptEstimate = Math.ceil(text.length / 4);
+			setMessages((prev) => [
+				...prev,
+				{
+					role: "user",
+					content: text,
+					timestamp: new Date(),
+					usage: { promptTokens: promptEstimate, completionTokens: 0, totalTokens: promptEstimate },
+				},
+			]);
+			setTotalPromptTokens((p) => p + promptEstimate);
+			setInput("");
+			setIsProcessing(true);
+			// Clear tool calls from previous response when new message is sent
+			setCurrentToolCalls([]);
 
-		const payload: Record<string, unknown> = { chatId, text };
-		if (quotedMessage) {
-			payload.quotedMessage = quotedMessage;
-		}
-		if (attachments.length > 0) {
-			payload.attachments = attachments;
-		}
-		sendWs("user_message", payload);
-		setAttachments([]);  // Clear attachments after sending
-	}, [currentChatId, sendWs, attachments]);
-
-	const executeCommand = useCallback((cmdText: string) => {
-		const cmd = COMMANDS.find((c) => cmdText.startsWith(c.cmd));
-		if (!cmd) return false;
-
-		if (cmd.cmd === "/ayuda") {
-			const helpText = COMMANDS.map((c) => `${c.cmd} - ${c.desc}`).join("\n");
-			setMessages((prev) => [...prev, {
-				role: "system",
-				content: `Comandos disponibles:\n${helpText}`,
-				
-timestamp: new Date(),
-			}]);
-		} else if (cmd.cmd === "/buscar") {
-			const query = cmdText.slice("/buscar".length).trim();
-			if (query) {
-				sendMessage(`Busca en internet: ${query}`);
-			} else {
-				setInput("/buscar: ");
-				setTimeout(() => inputRef.current?.focus(), 0);
+			const payload: Record<string, unknown> = { chatId, text };
+			if (quotedMessage) {
+				payload.quotedMessage = quotedMessage;
 			}
-		} else if (cmd.cmd === "/nuevaTarea") {
-			sendWs("new_task", {});
-		} else if (cmd.cmd === "/modelos") {
-			sendWs("list_ollama_models", {});
-		} else if (cmd.cmd === "/cambioModelo") {
-			const modelName = cmdText.slice("/cambioModelo".length).trim();
-			if (modelName) {
-				sendWs("general_config_update", { model: modelName });
-				setMessages((prev) => [...prev, {
-					role: "system",
-					content: `✅ Cambiando modelo activo a: **${modelName}**`,
-					
-timestamp: new Date(),
-				}]);
-			} else {
-				setMessages((prev) => [...prev, {
-					role: "system",
-					content: "Usa: /cambioModelo <nombre_del_modelo>",
-					
-timestamp: new Date(),
-				}]);
+			if (attachments.length > 0) {
+				payload.attachments = attachments;
 			}
-		} else if (cmd.cmd === "/tools") {
-			sendWs("list_tools", {});
-		} else {
-			return false;
-		}
-		setInput("");
-		setShowCommands(false);
-		return true;
-	}, [sendMessage, sendWs]);
+			sendWs("user_message", payload);
+			setAttachments([]); // Clear attachments after sending
+		},
+		[currentChatId, sendWs, attachments]
+	);
+
+	const executeCommand = useCallback(
+		(cmdText: string) => {
+			const cmd = COMMANDS.find((c) => cmdText.startsWith(c.cmd));
+			if (!cmd) return false;
+
+			if (cmd.cmd === "/ayuda") {
+				const helpText = COMMANDS.map((c) => `${c.cmd} - ${c.desc}`).join("\n");
+				setMessages((prev) => [
+					...prev,
+					{
+						role: "system",
+						content: `Comandos disponibles:\n${helpText}`,
+
+						timestamp: new Date(),
+					},
+				]);
+			} else if (cmd.cmd === "/buscar") {
+				const query = cmdText.slice("/buscar".length).trim();
+				if (query) {
+					sendMessage(`Busca en internet: ${query}`);
+				} else {
+					setInput("/buscar: ");
+					setTimeout(() => inputRef.current?.focus(), 0);
+				}
+			} else if (cmd.cmd === "/nuevaTarea") {
+				sendWs("new_task", {});
+			} else if (cmd.cmd === "/modelos") {
+				sendWs("list_ollama_models", {});
+			} else if (cmd.cmd === "/cambioModelo") {
+				const modelName = cmdText.slice("/cambioModelo".length).trim();
+				if (modelName) {
+					sendWs("general_config_update", { model: modelName });
+					setMessages((prev) => [
+						...prev,
+						{
+							role: "system",
+							content: `✅ Cambiando modelo activo a: **${modelName}**`,
+
+							timestamp: new Date(),
+						},
+					]);
+				} else {
+					setMessages((prev) => [
+						...prev,
+						{
+							role: "system",
+							content: "Usa: /cambioModelo <nombre_del_modelo>",
+
+							timestamp: new Date(),
+						},
+					]);
+				}
+			} else if (cmd.cmd === "/tools") {
+				sendWs("list_tools", {});
+			} else {
+				return false;
+			}
+			setInput("");
+			setShowCommands(false);
+			return true;
+		},
+		[sendMessage, sendWs]
+	);
 
 	const handleSend = useCallback(() => {
 		const text = input.trim();
@@ -493,7 +563,7 @@ timestamp: new Date(),
 			sendMessage(text, {
 				content: replyTo.content,
 				role: replyTo.role,
-				timestamp: replyTo.timestamp instanceof Date ? replyTo.timestamp.toISOString() : replyTo.timestamp
+				timestamp: replyTo.timestamp instanceof Date ? replyTo.timestamp.toISOString() : replyTo.timestamp,
 			});
 		} else {
 			sendMessage(text);
@@ -514,7 +584,7 @@ timestamp: new Date(),
 	const handleKeyDown = (e: React.KeyboardEvent) => {
 		// Command palette navigation
 		if (showCommands) {
-			const filtered = COMMANDS.filter(c => c.cmd.includes(commandFilter) || commandFilter === "/");
+			const filtered = COMMANDS.filter((c) => c.cmd.includes(commandFilter) || commandFilter === "/");
 			if (e.key === "ArrowDown") {
 				e.preventDefault();
 				setSelectedCmdIndex((prev) => Math.min(prev + 1, filtered.length - 1));
@@ -601,20 +671,24 @@ timestamp: new Date(),
 	};
 
 	// Feature: edit handlers-
-	const handleStartEdit = useCallback((index: number) => {
-		setEditingIndex(index);
-		setEditValue(messages[index].content);
-	}, [messages]);
+	const handleStartEdit = useCallback(
+		(index: number) => {
+			setEditingIndex(index);
+			setEditValue(messages[index].content);
+		},
+		[messages]
+	);
 
-	const handleSaveEdit = useCallback((index: number) => {
-		setMessages((prev) =>
-			prev.map((msg, i) =>
-				i === index ? { ...msg, content: editValue, timestamp: new Date() } : msg
-			)
-		);
-		setEditingIndex(null);
-		setEditValue("");
-	}, [editValue]);
+	const handleSaveEdit = useCallback(
+		(index: number) => {
+			setMessages((prev) =>
+				prev.map((msg, i) => (i === index ? { ...msg, content: editValue, timestamp: new Date() } : msg))
+			);
+			setEditingIndex(null);
+			setEditValue("");
+		},
+		[editValue]
+	);
 
 	const handleCancelEdit = useCallback(() => {
 		setEditingIndex(null);
@@ -632,16 +706,20 @@ timestamp: new Date(),
 
 		messages.forEach((msg) => {
 			const roleLabel =
-				msg.role === "user" ? "Usuario" :
-				msg.role === "assistant" ? "Asistente" :
-				msg.role === "system" ? "Sistema" : "Herramienta";
+				msg.role === "user"
+					? "Usuario"
+					: msg.role === "assistant"
+						? "Asistente"
+						: msg.role === "system"
+							? "Sistema"
+							: "Herramienta";
 			const time = new Date(msg.timestamp).toLocaleString();
 			md += `## ${roleLabel} (${time})\n\n`;
 			md += `${msg.content}\n\n`;
 			if (msg.usage) {
 				md += `> Tokens: ${msg.usage.promptTokens}? / ${msg.usage.completionTokens}?\n\n`;
 			}
-			md += \n\n`;
+			md += "\n\n---\n\n";
 		});
 
 		const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
@@ -656,41 +734,49 @@ timestamp: new Date(),
 	// Computed values-
 	const currentChat = chats.find((c) => c.id === currentChatId);
 
-	const filteredChats = chats.filter((c) =>
-		c.title.toLowerCase().includes(chatSearch.toLowerCase())
-	);
+	const filteredChats = chats.filter((c) => c.title.toLowerCase().includes(chatSearch.toLowerCase()));
 	const pinnedChats = filteredChats.filter((c) => c.pinned);
 	const recentChats = filteredChats.filter((c) => !c.pinned);
 
 	const filteredMessageIndices = chatSearchQuery
 		? messages
-			.map((msg, i) => ({ msg, i }))
-			.filter(({ msg }) => msg.content.toLowerCase().includes(chatSearchQuery.toLowerCase()))
+				.map((msg, i) => ({ msg, i }))
+				.filter(({ msg }) => msg.content.toLowerCase().includes(chatSearchQuery.toLowerCase()))
 		: messages.map((msg, i) => ({ msg, i }));
 
 	const filteredCount = filteredMessageIndices.length;
 
 	return (
-		<div className="card-glass" style={{
-			padding: "0",
-			overflow: "hidden",
-			display: "flex",
-			flexDirection: "column",
-			height: "100%",
-		}}>
-			{/* Compact bar: status + model + chat title + actions + stop + sidebar toggle */}
-			<div style={{
+		<div
+			className="card-glass"
+			style={{
+				padding: "0",
+				overflow: "hidden",
 				display: "flex",
-				alignItems: "center",
-				gap: "10px",
-				padding: "8px 16px",
-				borderBottom: "1px solid var(--border-light)",
-				flexShrink: 0,
-			}}>
-				<span style={{
-					width: "7px", height: "7px", borderRadius: "50%", flexShrink: 0,
-					background: connected ? "var(--success)" : "var(--error)",
-				}} />
+				flexDirection: "column",
+				height: "100%",
+			}}
+		>
+			{/* Compact bar: status + model + chat title + actions + stop + sidebar toggle */}
+			<div
+				style={{
+					display: "flex",
+					alignItems: "center",
+					gap: "10px",
+					padding: "8px 16px",
+					borderBottom: "1px solid var(--border-light)",
+					flexShrink: 0,
+				}}
+			>
+				<span
+					style={{
+						width: "7px",
+						height: "7px",
+						borderRadius: "50%",
+						flexShrink: 0,
+						background: connected ? "var(--success)" : "var(--error)",
+					}}
+				/>
 				<span style={{ fontSize: "11px", color: "var(--text-dim)", fontWeight: 500 }}>
 					{connected ? "Conectado" : "Desconectado"}
 				</span>
@@ -701,7 +787,7 @@ timestamp: new Date(),
 				)}
 				{(totalPromptTokens > 0 || totalCompletionTokens > 0) && (
 					<span style={{ fontSize: "10px", color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
-					Tokens: {totalPromptTokens + totalCompletionTokens}
+						Tokens: {totalPromptTokens + totalCompletionTokens}
 					</span>
 				)}
 				<span style={{ flex: 1 }} />
@@ -715,8 +801,11 @@ timestamp: new Date(),
 					title="Buscar en el chat"
 					style={{
 						background: chatSearchOpen ? "rgba(79,140,255,0.15)" : "none",
-						border: "none", color: "var(--text-muted)",
-						cursor: "pointer", padding: "4px", display: "flex",
+						border: "none",
+						color: "var(--text-muted)",
+						cursor: "pointer",
+						padding: "4px",
+						display: "flex",
 						borderRadius: "4px",
 					}}
 				>
@@ -728,8 +817,12 @@ timestamp: new Date(),
 					onClick={exportChat}
 					title="Exportar chat como Markdown"
 					style={{
-						background: "none", border: "none", color: "var(--text-muted)",
-						cursor: "pointer", padding: "4px", display: "flex",
+						background: "none",
+						border: "none",
+						color: "var(--text-muted)",
+						cursor: "pointer",
+						padding: "4px",
+						display: "flex",
 						borderRadius: "4px",
 					}}
 				>
@@ -737,30 +830,56 @@ timestamp: new Date(),
 				</button>
 				<span style={{ flex: 1 }} />
 				{isProcessing && (
-					<button type="button" onClick={handleCancel} title="Cancelar" style={{
-						background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)",
-						color: "var(--error)", padding: "4px 10px", borderRadius: "5px",
-						cursor: "pointer", fontSize: "10px", fontWeight: 600,
-						display: "flex", alignItems: "center", gap: "4px",
-					}}>
+					<button
+						type="button"
+						onClick={handleCancel}
+						title="Cancelar"
+						style={{
+							background: "rgba(239,68,68,0.1)",
+							border: "1px solid rgba(239,68,68,0.2)",
+							color: "var(--error)",
+							padding: "4px 10px",
+							borderRadius: "5px",
+							cursor: "pointer",
+							fontSize: "10px",
+							fontWeight: 600,
+							display: "flex",
+							alignItems: "center",
+							gap: "4px",
+						}}
+					>
 						<StopCircle size={12} /> Detener
 					</button>
 				)}
-				<button type="button" onClick={() => setChatSidebarOpen(!chatSidebarOpen)} style={{
-					background: "none", border: "none", color: "var(--text-muted)",
-					cursor: "pointer", padding: "2px", display: "flex",
-				}} title={chatSidebarOpen ? "Ocultar lista" : "Mostrar lista"}>
+				<button
+					type="button"
+					onClick={() => setChatSidebarOpen(!chatSidebarOpen)}
+					style={{
+						background: "none",
+						border: "none",
+						color: "var(--text-muted)",
+						cursor: "pointer",
+						padding: "2px",
+						display: "flex",
+					}}
+					title={chatSidebarOpen ? "Ocultar lista" : "Mostrar lista"}
+				>
 					{chatSidebarOpen ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
 				</button>
 			</div>
 
 			{/* Feature: search input bar */}
 			{chatSearchOpen && (
-				<div style={{
-					display: "flex", alignItems: "center", gap: "8px",
-					padding: "8px 16px", borderBottom: "1px solid var(--border-light)",
-					background: "rgba(79,140,255,0.03)",
-				}}>
+				<div
+					style={{
+						display: "flex",
+						alignItems: "center",
+						gap: "8px",
+						padding: "8px 16px",
+						borderBottom: "1px solid var(--border-light)",
+						background: "rgba(79,140,255,0.03)",
+					}}
+				>
 					<Search size={14} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
 					<input
 						type="text"
@@ -769,27 +888,42 @@ timestamp: new Date(),
 						placeholder="Buscar en mensajes..."
 						autoFocus
 						style={{
-							flex: 1, background: "transparent", border: "none",
-							color: "var(--text-main)", fontSize: "13px",
-							fontFamily: "inherit", outline: "none",
+							flex: 1,
+							background: "transparent",
+							border: "none",
+							color: "var(--text-main)",
+							fontSize: "13px",
+							fontFamily: "inherit",
+							outline: "none",
 						}}
 					/>
 					{chatSearchQuery && (
-						<span style={{
-							fontSize: "11px", color: "var(--text-dim)", whiteSpace: "nowrap",
-							fontWeight: filteredCount === 0 ? 600 : 400,
-						}}>
+						<span
+							style={{
+								fontSize: "11px",
+								color: "var(--text-dim)",
+								whiteSpace: "nowrap",
+								fontWeight: filteredCount === 0 ? 600 : 400,
+							}}
+						>
 							{filteredCount > 0
-								? `\ud83d\udd0d ${filteredCount} resultado${filteredCount === 1 ? "" : "s"}`
+								? `🔍 ${filteredCount} resultado${filteredCount === 1 ? "" : "s"}`
 								: "Sin resultados"}
 						</span>
 					)}
 					<button
 						type="button"
-						onClick={() => { setChatSearchOpen(false); setChatSearchQuery(""); }}
+						onClick={() => {
+							setChatSearchOpen(false);
+							setChatSearchQuery("");
+						}}
 						style={{
-							background: "none", border: "none", color: "var(--text-muted)",
-							cursor: "pointer", padding: "2px", display: "flex",
+							background: "none",
+							border: "none",
+							color: "var(--text-muted)",
+							cursor: "pointer",
+							padding: "2px",
+							display: "flex",
 						}}
 						title="Cerrar b\u00fasqueda"
 					>
@@ -802,49 +936,104 @@ timestamp: new Date(),
 			<div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
 				{/* Messages */}
 				<div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-					<div style={{ flex: 1, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
+					<div
+						style={{
+							flex: 1,
+							overflowY: "auto",
+							padding: "16px",
+							display: "flex",
+							flexDirection: "column",
+							gap: "12px",
+						}}
+					>
 						{filteredMessageIndices.length === 0 && chatSearchQuery && (
-							<div style={{ textAlign: "center", padding: "40px 20px", color: "var(--text-dim)", fontSize: "13px" }}>
+							<div
+								style={{
+									textAlign: "center",
+									padding: "40px 20px",
+									color: "var(--text-dim)",
+									fontSize: "13px",
+								}}
+							>
 								No se encontraron mensajes con &ldquo;{chatSearchQuery}&rdquo;
 							</div>
 						)}
 						{messages.length === 0 && !currentChatId && (
-							<div style={{ textAlign: "center", padding: "60px 20px", color: "var(--text-dim)", fontSize: "13px" }}>
-								<div style={{ fontWeight: 600, color: "var(--text-main)", marginBottom: "8px", fontSize: "15px" }}>
+							<div
+								style={{
+									textAlign: "center",
+									padding: "60px 20px",
+									color: "var(--text-dim)",
+									fontSize: "13px",
+								}}
+							>
+								<div
+									style={{
+										fontWeight: 600,
+										color: "var(--text-main)",
+										marginBottom: "8px",
+										fontSize: "15px",
+									}}
+								>
 									Agent Engine Listo
 								</div>
 								<div style={{ marginBottom: "20px", lineHeight: 1.6 }}>
 									Selecciona un chat existente o crea uno nuevo.
 								</div>
-								<button type="button" onClick={handleNewChat} style={{
-									padding: "10px 24px",
-									background: "linear-gradient(135deg, var(--accent), #7c3aed)",
-									border: "none", borderRadius: "8px", color: "white",
-									cursor: "pointer", fontSize: "13px", fontWeight: 600,
-									display: "inline-flex", alignItems: "center", gap: "8px",
-								}}>
+								<button
+									type="button"
+									onClick={handleNewChat}
+									style={{
+										padding: "10px 24px",
+										background: "linear-gradient(135deg, var(--accent), #7c3aed)",
+										border: "none",
+										borderRadius: "8px",
+										color: "white",
+										cursor: "pointer",
+										fontSize: "13px",
+										fontWeight: 600,
+										display: "inline-flex",
+										alignItems: "center",
+										gap: "8px",
+									}}
+								>
 									<Plus size={16} /> Nuevo Chat
 								</button>
 							</div>
 						)}
 						{messages.length === 0 && currentChatId && (
-							<div style={{ textAlign: "center", padding: "60px 20px", color: "var(--text-dim)", fontSize: "13px" }}>
+							<div
+								style={{
+									textAlign: "center",
+									padding: "60px 20px",
+									color: "var(--text-dim)",
+									fontSize: "13px",
+								}}
+							>
 								Chat vacío. Envía un mensaje para empezar.
 							</div>
 						)}
 						{filteredMessageIndices.map(({ msg, i }) => {
 							if (editingIndex === i) {
 								return (
-									<div key={i} style={{
-										display: "flex", flexDirection: "column",
-										alignItems: "flex-end", maxWidth: "80%",
-										alignSelf: "flex-end",
-									}}>
-										<div style={{
-											padding: "10px 14px", borderRadius: "12px",
-											background: "linear-gradient(135deg, var(--accent), #7c3aed)",
-											width: "100%",
-										}}>
+									<div
+										key={i}
+										style={{
+											display: "flex",
+											flexDirection: "column",
+											alignItems: "flex-end",
+											maxWidth: "80%",
+											alignSelf: "flex-end",
+										}}
+									>
+										<div
+											style={{
+												padding: "10px 14px",
+												borderRadius: "12px",
+												background: "linear-gradient(135deg, var(--accent), #7c3aed)",
+												width: "100%",
+											}}
+										>
 											<textarea
 												value={editValue}
 												onChange={(e) => setEditValue(e.target.value)}
@@ -859,28 +1048,42 @@ timestamp: new Date(),
 												}}
 												autoFocus
 												style={{
-													width: "100%", background: "rgba(255,255,255,0.1)",
+													width: "100%",
+													background: "rgba(255,255,255,0.1)",
 													border: "1px solid rgba(255,255,255,0.2)",
-													borderRadius: "6px", padding: "8px",
-													color: "white", fontSize: "13px",
-													fontFamily: "inherit", resize: "vertical",
-													minHeight: "60px", outline: "none",
+													borderRadius: "6px",
+													padding: "8px",
+													color: "white",
+													fontSize: "13px",
+													fontFamily: "inherit",
+													resize: "vertical",
+													minHeight: "60px",
+													outline: "none",
 												}}
 											/>
-											<div style={{
-												display: "flex", gap: "6px",
-												marginTop: "6px", justifyContent: "flex-end",
-											}}>
+											<div
+												style={{
+													display: "flex",
+													gap: "6px",
+													marginTop: "6px",
+													justifyContent: "flex-end",
+												}}
+											>
 												<button
 													type="button"
 													onClick={() => handleSaveEdit(i)}
 													style={{
 														background: "rgba(255,255,255,0.15)",
-														border: "none", borderRadius: "4px",
-														color: "white", cursor: "pointer",
-														padding: "4px 8px", display: "flex",
-														alignItems: "center", gap: "4px",
-														fontSize: "11px", fontWeight: 600,
+														border: "none",
+														borderRadius: "4px",
+														color: "white",
+														cursor: "pointer",
+														padding: "4px 8px",
+														display: "flex",
+														alignItems: "center",
+														gap: "4px",
+														fontSize: "11px",
+														fontWeight: 600,
 													}}
 												>
 													<Check size={14} /> Guardar
@@ -890,11 +1093,16 @@ timestamp: new Date(),
 													onClick={handleCancelEdit}
 													style={{
 														background: "rgba(255,255,255,0.08)",
-														border: "none", borderRadius: "4px",
-														color: "white", cursor: "pointer",
-														padding: "4px 8px", display: "flex",
-														alignItems: "center", gap: "4px",
-														fontSize: "11px", fontWeight: 600,
+														border: "none",
+														borderRadius: "4px",
+														color: "white",
+														cursor: "pointer",
+														padding: "4px 8px",
+														display: "flex",
+														alignItems: "center",
+														gap: "4px",
+														fontSize: "11px",
+														fontWeight: 600,
 													}}
 												>
 													<X size={14} /> Cancelar
@@ -911,88 +1119,128 @@ timestamp: new Date(),
 									index={i}
 									onEdit={handleStartEdit}
 									onImageClick={setExpandedImage}
-
 									onReply={(idx, content, role, timestamp) => {
 										setReplyTo({ index: idx, content, role, timestamp });
 									}}
 									onToggleSave={(_idx, role, content, timestamp, isSaved) => {
-
 										sendWs(isSaved ? "unsave_message" : "save_message", {
 											chatId: currentChatId || "dashboard",
 											messageRole: role,
 											messageContent: content,
-											messageTimestamp: timestamp instanceof Date ? timestamp.toISOString() : timestamp
+											messageTimestamp:
+												timestamp instanceof Date ? timestamp.toISOString() : timestamp,
 										});
 									}}
-								isSaved={savedMessages.has((currentChatId || 'dashboard') + '|' + msg.content.substring(0, 50))}
+									isSaved={savedMessages.has(
+										(currentChatId || "dashboard") + "|" + msg.content.substring(0, 50)
+									)}
 								/>
 							);
 						})}
 
 						{/* Feature: collapsible tool calls */}
 						{currentToolCalls.length > 0 && (
-							<div style={{
-								padding: "12px",
-								background: "rgba(79,140,255,0.05)",
-								border: "1px solid rgba(79,140,255,0.1)",
-								borderRadius: "8px",
-							}}>
+							<div
+								style={{
+									padding: "12px",
+									background: "rgba(79,140,255,0.05)",
+									border: "1px solid rgba(79,140,255,0.1)",
+									borderRadius: "8px",
+								}}
+							>
 								<div
 									onClick={() => setCollapsedTools(!collapsedTools)}
 									style={{
-										fontSize: "11px", fontWeight: 700,
+										fontSize: "11px",
+										fontWeight: 700,
 										color: "var(--accent)",
 										marginBottom: collapsedTools ? 0 : "8px",
-										cursor: "pointer", display: "flex",
-										alignItems: "center", gap: "4px",
+										cursor: "pointer",
+										display: "flex",
+										alignItems: "center",
+										gap: "4px",
 										userSelect: "none",
 									}}
 								>
 									{collapsedTools ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
 									<Terminal size={12} /> Herramientas ({currentToolCalls.length})
 								</div>
-								{!collapsedTools && currentToolCalls.map((tc, i) => (
-									<div key={i} style={{
-										display: "flex", alignItems: "flex-start",
-										gap: "8px", padding: "6px 0", fontSize: "12px",
-									}}>
-										<Wrench size={12} style={{
-											marginTop: "2px", color: "var(--text-muted)",
-											flexShrink: 0,
-										}} />
-										<div style={{ flex: 1 }}>
-											<div style={{ fontWeight: 600, color: "var(--text-main)" }}>
-												{tc.toolName}
+								{!collapsedTools &&
+									currentToolCalls.map((tc, i) => (
+										<div
+											key={i}
+											style={{
+												display: "flex",
+												alignItems: "flex-start",
+												gap: "8px",
+												padding: "6px 0",
+												fontSize: "12px",
+											}}
+										>
+											<Wrench
+												size={12}
+												style={{
+													marginTop: "2px",
+													color: "var(--text-muted)",
+													flexShrink: 0,
+												}}
+											/>
+											<div style={{ flex: 1 }}>
+												<div style={{ fontWeight: 600, color: "var(--text-main)" }}>
+													{tc.toolName}
+												</div>
+												<div style={{ color: "var(--text-dim)", fontSize: "11px" }}>
+													{tc.args ? JSON.stringify(tc.args).substring(0, 100) : ""}
+												</div>
+												{tc.status === "done" && (
+													<div
+														style={{
+															color: "var(--success)",
+															fontSize: "10px",
+															marginTop: "2px",
+														}}
+													>
+														✅ Completado
+													</div>
+												)}
+												{tc.status === "error" && (
+													<div
+														style={{
+															color: "var(--error)",
+															fontSize: "10px",
+															marginTop: "2px",
+														}}
+													>
+														\u274c Fall\u00f3
+													</div>
+												)}
+												{tc.status === "pending" && (
+													<div
+														style={{
+															color: "var(--warning)",
+															fontSize: "10px",
+															marginTop: "2px",
+														}}
+													>
+														\u23f3 Ejecutando...
+													</div>
+												)}
 											</div>
-											<div style={{ color: "var(--text-dim)", fontSize: "11px" }}>
-												{tc.args ? JSON.stringify(tc.args).substring(0, 100) : ""}
-											</div>
-											{tc.status === "done" && (
-												<div style={{ color: "var(--success)", fontSize: "10px", marginTop: "2px" }}>
-													✅ Completado
-												</div>
-											)}
-											{tc.status === "error" && (
-												<div style={{ color: "var(--error)", fontSize: "10px", marginTop: "2px" }}>
-													\u274c Fall\u00f3
-												</div>
-											)}
-											{tc.status === "pending" && (
-												<div style={{ color: "var(--warning)", fontSize: "10px", marginTop: "2px" }}>
-													\u23f3 Ejecutando...
-												</div>
-											)}
 										</div>
-									</div>
-								))}
+									))}
 							</div>
 						)}
 
 						{/* Feature: auto suggestions */}
 						{suggestions.length > 0 && (
-							<div style={{
-								display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "8px",
-							}}>
+							<div
+								style={{
+									display: "flex",
+									flexWrap: "wrap",
+									gap: "8px",
+									marginTop: "8px",
+								}}
+							>
 								{suggestions.map((s, idx) => (
 									<button
 										key={idx}
@@ -1018,8 +1266,21 @@ timestamp: new Date(),
 						)}
 
 						{isProcessing && (
-							<div style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: "8px", color: "var(--text-muted)", fontSize: "13px" }}>
-								<div className="typing-indicator"><span /><span /><span /></div>
+							<div
+								style={{
+									padding: "12px 16px",
+									display: "flex",
+									alignItems: "center",
+									gap: "8px",
+									color: "var(--text-muted)",
+									fontSize: "13px",
+								}}
+							>
+								<div className="typing-indicator">
+									<span />
+									<span />
+									<span />
+								</div>
 								Pensando...
 							</div>
 						)}
@@ -1028,46 +1289,93 @@ timestamp: new Date(),
 
 					{/* Queue bar */}
 					{messageQueue.length > 0 && (
-						<div style={{
-							padding: "6px 16px", borderTop: "1px solid var(--border-light)",
-							display: "flex", alignItems: "center", gap: "8px",
-							fontSize: "11px", color: "var(--text-dim)",
-						}}>
+						<div
+							style={{
+								padding: "6px 16px",
+								borderTop: "1px solid var(--border-light)",
+								display: "flex",
+								alignItems: "center",
+								gap: "8px",
+								fontSize: "11px",
+								color: "var(--text-dim)",
+							}}
+						>
 							<span style={{ fontWeight: 600, color: "var(--accent)", whiteSpace: "nowrap" }}>
 								{messageQueue.length}/3 mensajes en cola
 							</span>
 							<div style={{ flex: 1, display: "flex", gap: "4px", overflow: "hidden" }}>
 								{messageQueue.map((q, i) => (
-									<span key={i} style={{
-										display: "inline-flex", alignItems: "center", gap: "4px",
-										background: "rgba(79,140,255,0.08)", border: "1px solid rgba(79,140,255,0.15)",
-										borderRadius: "4px", padding: "2px 6px", fontSize: "10px",
-										color: "var(--text-main)", maxWidth: "140px",
-									}}>
-										<span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+									<span
+										key={i}
+										style={{
+											display: "inline-flex",
+											alignItems: "center",
+											gap: "4px",
+											background: "rgba(79,140,255,0.08)",
+											border: "1px solid rgba(79,140,255,0.15)",
+											borderRadius: "4px",
+											padding: "2px 6px",
+											fontSize: "10px",
+											color: "var(--text-main)",
+											maxWidth: "140px",
+										}}
+									>
+										<span
+											style={{
+												overflow: "hidden",
+												textOverflow: "ellipsis",
+												whiteSpace: "nowrap",
+											}}
+										>
 											{q}
 										</span>
-										<button type="button" onClick={() => setMessageQueue((prev) => prev.filter((_, idx) => idx !== i))}
-											style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", padding: 0, display: "flex" }}
-											title="Quitar de la cola">
+										<button
+											type="button"
+											onClick={() =>
+												setMessageQueue((prev) => prev.filter((_, idx) => idx !== i))
+											}
+											style={{
+												background: "none",
+												border: "none",
+												color: "var(--text-muted)",
+												cursor: "pointer",
+												padding: 0,
+												display: "flex",
+											}}
+											title="Quitar de la cola"
+										>
 											<X size={10} />
 										</button>
 									</span>
 								))}
 							</div>
-							<button type="button" onClick={() => setMessageQueue([])}
+							<button
+								type="button"
+								onClick={() => setMessageQueue([])}
 								style={{
-									background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.15)",
-									borderRadius: "4px", color: "var(--error)", cursor: "pointer",
-									padding: "2px 8px", fontSize: "10px", fontWeight: 600, whiteSpace: "nowrap",
-								}}>
+									background: "rgba(239,68,68,0.08)",
+									border: "1px solid rgba(239,68,68,0.15)",
+									borderRadius: "4px",
+									color: "var(--error)",
+									cursor: "pointer",
+									padding: "2px 8px",
+									fontSize: "10px",
+									fontWeight: 600,
+									whiteSpace: "nowrap",
+								}}
+							>
 								Vaciar cola
 							</button>
 						</div>
 					)}
 
 					{/* Input */}
-					<div style={{ padding: "12px 16px", borderTop: messageQueue.length > 0 ? "none" : "1px solid var(--border-light)" }}>
+					<div
+						style={{
+							padding: "12px 16px",
+							borderTop: messageQueue.length > 0 ? "none" : "1px solid var(--border-light)",
+						}}
+					>
 						{/* Hidden file input */}
 						<input
 							type="file"
@@ -1081,19 +1389,43 @@ timestamp: new Date(),
 						{attachments.length > 0 && (
 							<div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "8px" }}>
 								{attachments.map((att, i) => (
-									<div key={i} style={{
-										display: "flex", alignItems: "center", gap: "4px",
-										background: "rgba(79,140,255,0.1)", border: "1px solid rgba(79,140,255,0.2)",
-										borderRadius: "6px", padding: "4px 8px", fontSize: "11px",
-										color: "var(--accent)", maxWidth: "200px",
-									}}>
-										<span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+									<div
+										key={i}
+										style={{
+											display: "flex",
+											alignItems: "center",
+											gap: "4px",
+											background: "rgba(79,140,255,0.1)",
+											border: "1px solid rgba(79,140,255,0.2)",
+											borderRadius: "6px",
+											padding: "4px 8px",
+											fontSize: "11px",
+											color: "var(--accent)",
+											maxWidth: "200px",
+										}}
+									>
+										<span
+											style={{
+												overflow: "hidden",
+												textOverflow: "ellipsis",
+												whiteSpace: "nowrap",
+											}}
+										>
 											{att.name}
 										</span>
-										<button type="button" onClick={() => removeAttachment(i)} title="Eliminar archivo" style={{
-											background: "none", border: "none", color: "var(--text-muted)",
-											cursor: "pointer", padding: "1px", display: "flex",
-										}}>
+										<button
+											type="button"
+											onClick={() => removeAttachment(i)}
+											title="Eliminar archivo"
+											style={{
+												background: "none",
+												border: "none",
+												color: "var(--text-muted)",
+												cursor: "pointer",
+												padding: "1px",
+												display: "flex",
+											}}
+										>
 											<X size={12} />
 										</button>
 									</div>
@@ -1103,23 +1435,45 @@ timestamp: new Date(),
 
 						{/* Feature: reply bar */}
 						{replyTo && (
-							<div style={{
-								display: "flex", alignItems: "center", gap: "8px",
-								background: "rgba(79,140,255,0.08)",
-								border: "1px solid rgba(79,140,255,0.15)",
-								borderRadius: "8px", padding: "8px 12px", marginBottom: "8px",
-								fontSize: "11px", color: "var(--text-main)",
-							}}>
+							<div
+								style={{
+									display: "flex",
+									alignItems: "center",
+									gap: "8px",
+									background: "rgba(79,140,255,0.08)",
+									border: "1px solid rgba(79,140,255,0.15)",
+									borderRadius: "8px",
+									padding: "8px 12px",
+									marginBottom: "8px",
+									fontSize: "11px",
+									color: "var(--text-main)",
+								}}
+							>
 								<Reply size={12} style={{ color: "var(--accent)", flexShrink: 0 }} />
-								<span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-									{"Respondiendo a " + (replyTo.role === "user" ? "Usuario" : "Asistente") + ": " + replyTo.content.substring(0, 60) + "..."}
+								<span
+									style={{
+										flex: 1,
+										overflow: "hidden",
+										textOverflow: "ellipsis",
+										whiteSpace: "nowrap",
+									}}
+								>
+									{"Respondiendo a " +
+										(replyTo.role === "user" ? "Usuario" : "Asistente") +
+										": " +
+										replyTo.content.substring(0, 60) +
+										"..."}
 								</span>
 								<button
 									type="button"
 									onClick={() => setReplyTo(null)}
 									style={{
-										background: "none", border: "none", color: "var(--text-muted)",
-										cursor: "pointer", padding: "2px", display: "flex",
+										background: "none",
+										border: "none",
+										color: "var(--text-muted)",
+										cursor: "pointer",
+										padding: "2px",
+										display: "flex",
 									}}
 									title="Cancelar respuesta"
 								>
@@ -1128,12 +1482,25 @@ timestamp: new Date(),
 							</div>
 						)}
 						<div style={{ display: "flex", gap: "8px", alignItems: "flex-end", position: "relative" }}>
-							<button type="button" onClick={() => fileInputRef.current?.click()} style={{
-								background: "none", border: "1px solid var(--border-light)", borderRadius: "8px",
-								color: "var(--text-muted)", cursor: "pointer", padding: "10px",
-								display: "flex", alignItems: "center", justifyContent: "center",
-								flexShrink: 0, opacity: isProcessing ? 0.5 : 1,
-							}} disabled={isProcessing} title="Adjuntar archivo">
+							<button
+								type="button"
+								onClick={() => fileInputRef.current?.click()}
+								style={{
+									background: "none",
+									border: "1px solid var(--border-light)",
+									borderRadius: "8px",
+									color: "var(--text-muted)",
+									cursor: "pointer",
+									padding: "10px",
+									display: "flex",
+									alignItems: "center",
+									justifyContent: "center",
+									flexShrink: 0,
+									opacity: isProcessing ? 0.5 : 1,
+								}}
+								disabled={isProcessing}
+								title="Adjuntar archivo"
+							>
 								<Paperclip size={18} />
 							</button>
 							<textarea
@@ -1153,75 +1520,180 @@ timestamp: new Date(),
 									}
 								}}
 								onKeyDown={handleKeyDown}
-								placeholder={isProcessing ? (messageQueue.length >= 3 ? "Cola llena (3/3)" : "Escribe, se encolar\u00e1 al enviar...") : "Pregunta al agente..."}
+								placeholder={
+									isProcessing
+										? messageQueue.length >= 3
+											? "Cola llena (3/3)"
+											: "Escribe, se encolar\u00e1 al enviar..."
+										: "Pregunta al agente..."
+								}
 								rows={2}
 								style={{
-									flex: 1, background: "rgba(255,255,255,0.03)", border: "1px solid var(--border-light)",
-									borderRadius: "8px", padding: "10px 14px", color: "var(--text-main)",
-									fontSize: "13px", fontFamily: "inherit", resize: "none",
+									flex: 1,
+									background: "rgba(255,255,255,0.03)",
+									border: "1px solid var(--border-light)",
+									borderRadius: "8px",
+									padding: "10px 14px",
+									color: "var(--text-main)",
+									fontSize: "13px",
+									fontFamily: "inherit",
+									resize: "none",
 								}}
 							/>
 							{/* Command palette dropdown */}
 							{showCommands && (
-								<div style={{
-									position: "absolute", bottom: "100%", left: 0, right: 0,
-									background: "var(--bg-surface)", border: "1px solid var(--border-light)",
-									borderRadius: "8px", boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
-									overflow: "hidden", zIndex: 100,
-								}}>
-									{COMMANDS.filter(c => c.cmd.includes(commandFilter) || commandFilter === "/").map((c, i) => (
-										<div key={c.cmd} onClick={() => { executeCommand(c.cmd); }}
-											style={{
-												padding: "8px 12px", cursor: "pointer", fontSize: "12px",
-												background: i === selectedCmdIndex ? "rgba(79,140,255,0.1)" : "transparent",
-												color: "var(--text-main)", borderBottom: "1px solid var(--border-light)",
-												display: "flex", justifyContent: "space-between", gap: "12px",
-											}}
-											onMouseEnter={() => setSelectedCmdIndex(i)}>
-											<span style={{ fontWeight: 600, color: "var(--accent)" }}>{c.cmd}</span>
-											<span style={{ color: "var(--text-dim)", fontSize: "11px" }}>{c.desc}</span>
-										</div>
-									))}
+								<div
+									style={{
+										position: "absolute",
+										bottom: "100%",
+										left: 0,
+										right: 0,
+										background: "var(--bg-surface)",
+										border: "1px solid var(--border-light)",
+										borderRadius: "8px",
+										boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+										overflow: "hidden",
+										zIndex: 100,
+									}}
+								>
+									{COMMANDS.filter((c) => c.cmd.includes(commandFilter) || commandFilter === "/").map(
+										(c, i) => (
+											<div
+												key={c.cmd}
+												onClick={() => {
+													executeCommand(c.cmd);
+												}}
+												style={{
+													padding: "8px 12px",
+													cursor: "pointer",
+													fontSize: "12px",
+													background:
+														i === selectedCmdIndex ? "rgba(79,140,255,0.1)" : "transparent",
+													color: "var(--text-main)",
+													borderBottom: "1px solid var(--border-light)",
+													display: "flex",
+													justifyContent: "space-between",
+													gap: "12px",
+												}}
+												onMouseEnter={() => setSelectedCmdIndex(i)}
+											>
+												<span style={{ fontWeight: 600, color: "var(--accent)" }}>{c.cmd}</span>
+												<span style={{ color: "var(--text-dim)", fontSize: "11px" }}>
+													{c.desc}
+												</span>
+											</div>
+										)
+									)}
 								</div>
 							)}
-							<button type="button" onClick={handleSend} disabled={(!input.trim()) || (isProcessing && messageQueue.length >= 3)} title={
-								isProcessing && messageQueue.length >= 3 ? "M\u00e1ximo 3 mensajes en cola" : "Enviar mensaje"
-							} style={{
-								padding: "10px 16px", background: "linear-gradient(135deg, var(--accent), #7c3aed)",
-								border: "none", borderRadius: "8px", color: "white",
-								cursor: (!input.trim() || (isProcessing && messageQueue.length >= 3)) ? "not-allowed" : "pointer",
-								opacity: (!input.trim() || (isProcessing && messageQueue.length >= 3)) ? 0.5 : 1,
-								display: "flex", alignItems: "center", justifyContent: "center",
-							}}>
+							<button
+								type="button"
+								onClick={handleSend}
+								disabled={!input.trim() || (isProcessing && messageQueue.length >= 3)}
+								title={
+									isProcessing && messageQueue.length >= 3
+										? "M\u00e1ximo 3 mensajes en cola"
+										: "Enviar mensaje"
+								}
+								style={{
+									padding: "10px 16px",
+									background: "linear-gradient(135deg, var(--accent), #7c3aed)",
+									border: "none",
+									borderRadius: "8px",
+									color: "white",
+									cursor:
+										!input.trim() || (isProcessing && messageQueue.length >= 3)
+											? "not-allowed"
+											: "pointer",
+									opacity: !input.trim() || (isProcessing && messageQueue.length >= 3) ? 0.5 : 1,
+									display: "flex",
+									alignItems: "center",
+									justifyContent: "center",
+								}}
+							>
 								<Send size={18} />
 							</button>
 						</div>
 					</div>
 
 					{/* Footer stats */}
-					<div style={{
-						display: "flex", justifyContent: "space-between", alignItems: "center",
-						padding: "4px 16px", borderTop: "1px solid var(--border-light)",
-						fontSize: "9px", color: "var(--text-dim)",
-					}}>
-						<span>Tokens: {totalPromptTokens + totalCompletionTokens} ({"\u25b3"} {totalPromptTokens} {"\u25bd"} {totalCompletionTokens})</span>
+					<div
+						style={{
+							display: "flex",
+							justifyContent: "space-between",
+							alignItems: "center",
+							padding: "4px 16px",
+							borderTop: "1px solid var(--border-light)",
+							fontSize: "9px",
+							color: "var(--text-dim)",
+						}}
+					>
+						<span>
+							Tokens: {totalPromptTokens + totalCompletionTokens} ({"\u25b3"} {totalPromptTokens}{" "}
+							{"\u25bd"} {totalCompletionTokens})
+						</span>
 						<span>{new Date().toLocaleTimeString()}</span>
 					</div>
 				</div>
 
 				{/* Chat Sidebar (right) */}
 				{chatSidebarOpen && (
-					<div style={{
-						width: "260px", borderLeft: "1px solid var(--border-light)",
-						display: "flex", flexDirection: "column", overflow: "hidden", flexShrink: 0,
-					}}>
+					<div
+						style={{
+							width: "260px",
+							borderLeft: "1px solid var(--border-light)",
+							display: "flex",
+							flexDirection: "column",
+							overflow: "hidden",
+							flexShrink: 0,
+						}}
+					>
 						<div style={{ padding: "12px", borderBottom: "1px solid var(--border-light)" }}>
 							<div style={{ display: "flex", gap: "6px" }}>
-								<div style={{ flex: 1, display: "flex", alignItems: "center", gap: "6px", background: "rgba(255,255,255,0.03)", border: "1px solid var(--border-light)", borderRadius: "6px", padding: "6px 10px" }}>
+								<div
+									style={{
+										flex: 1,
+										display: "flex",
+										alignItems: "center",
+										gap: "6px",
+										background: "rgba(255,255,255,0.03)",
+										border: "1px solid var(--border-light)",
+										borderRadius: "6px",
+										padding: "6px 10px",
+									}}
+								>
 									<Search size={12} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
-									<input type="text" value={chatSearch} onChange={(e) => setChatSearch(e.target.value)} placeholder="Buscar chat..." style={{ background: "none", border: "none", color: "var(--text-main)", fontSize: "11px", fontFamily: "inherit", outline: "none", width: "100%" }} />
+									<input
+										type="text"
+										value={chatSearch}
+										onChange={(e) => setChatSearch(e.target.value)}
+										placeholder="Buscar chat..."
+										style={{
+											background: "none",
+											border: "none",
+											color: "var(--text-main)",
+											fontSize: "11px",
+											fontFamily: "inherit",
+											outline: "none",
+											width: "100%",
+										}}
+									/>
 								</div>
-								<button type="button" onClick={handleNewChat} style={{ background: "rgba(79,140,255,0.1)", border: "1px solid rgba(79,140,255,0.2)", borderRadius: "6px", color: "var(--accent)", cursor: "pointer", padding: "6px 8px", display: "flex", alignItems: "center" }} title="Nuevo chat">
+								<button
+									type="button"
+									onClick={handleNewChat}
+									style={{
+										background: "rgba(79,140,255,0.1)",
+										border: "1px solid rgba(79,140,255,0.2)",
+										borderRadius: "6px",
+										color: "var(--accent)",
+										cursor: "pointer",
+										padding: "6px 8px",
+										display: "flex",
+										alignItems: "center",
+									}}
+									title="Nuevo chat"
+								>
 									<Plus size={14} />
 								</button>
 							</div>
@@ -1229,14 +1701,45 @@ timestamp: new Date(),
 						<div style={{ flex: 1, overflowY: "auto", padding: "8px" }}>
 							{pinnedChats.length > 0 && (
 								<>
-									<div style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", padding: "4px 8px", textTransform: "uppercase", letterSpacing: "1px" }}>Fijados</div>
+									<div
+										style={{
+											fontSize: "10px",
+											fontWeight: 600,
+											color: "var(--text-muted)",
+											padding: "4px 8px",
+											textTransform: "uppercase",
+											letterSpacing: "1px",
+										}}
+									>
+										Fijados
+									</div>
 									{pinnedChats.map((chat) => renderChatItem(chat))}
 									<div style={{ height: "8px" }} />
 								</>
 							)}
-							<div style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", padding: "4px 8px", textTransform: "uppercase", letterSpacing: "1px" }}>Recientes</div>
+							<div
+								style={{
+									fontSize: "10px",
+									fontWeight: 600,
+									color: "var(--text-muted)",
+									padding: "4px 8px",
+									textTransform: "uppercase",
+									letterSpacing: "1px",
+								}}
+							>
+								Recientes
+							</div>
 							{recentChats.length === 0 && pinnedChats.length === 0 && (
-								<div style={{ textAlign: "center", padding: "24px", color: "var(--text-dim)", fontSize: "11px" }}>No hay chats. Crea uno nuevo.</div>
+								<div
+									style={{
+										textAlign: "center",
+										padding: "24px",
+										color: "var(--text-dim)",
+										fontSize: "11px",
+									}}
+								>
+									No hay chats. Crea uno nuevo.
+								</div>
 							)}
 							{recentChats.map((chat) => renderChatItem(chat))}
 						</div>
@@ -1249,7 +1752,12 @@ timestamp: new Date(),
 				title="Eliminar chat"
 				message="\u00bfEst\u00e1s seguro de eliminar este chat? Esta acci\u00f3n no se puede deshacer."
 				confirmText="Eliminar"
-				onConfirm={() => { if (confirmDelete) { handleDeleteChat(confirmDelete); setConfirmDelete(null); } }}
+				onConfirm={() => {
+					if (confirmDelete) {
+						handleDeleteChat(confirmDelete);
+						setConfirmDelete(null);
+					}
+				}}
 				onCancel={() => setConfirmDelete(null)}
 				danger
 			/>
@@ -1278,10 +1786,18 @@ timestamp: new Date(),
 				<div
 					onClick={() => setExpandedImage(null)}
 					style={{
-						position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-						background: "rgba(0,0,0,0.85)", zIndex: 9999,
-						display: "flex", alignItems: "center", justifyContent: "center",
-						cursor: "pointer", padding: "40px",
+						position: "fixed",
+						top: 0,
+						left: 0,
+						right: 0,
+						bottom: 0,
+						background: "rgba(0,0,0,0.85)",
+						zIndex: 9999,
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "center",
+						cursor: "pointer",
+						padding: "40px",
 					}}
 				>
 					<img
@@ -1289,8 +1805,10 @@ timestamp: new Date(),
 						alt="Imagen ampliada"
 						onClick={(e) => e.stopPropagation()}
 						style={{
-							maxWidth: "90%", maxHeight: "90%",
-							borderRadius: "12px", objectFit: "contain",
+							maxWidth: "90%",
+							maxHeight: "90%",
+							borderRadius: "12px",
+							objectFit: "contain",
 						}}
 					/>
 				</div>
@@ -1304,18 +1822,53 @@ timestamp: new Date(),
 		const isRenaming = renamingChat === chat.id;
 
 		return (
-			<div key={chat.id} style={{
-				padding: "8px", marginBottom: "2px", borderRadius: "6px", cursor: "pointer",
-				background: isActive ? "rgba(79,140,255,0.1)" : "transparent",
-				border: isActive ? "1px solid rgba(79,140,255,0.2)" : "1px solid transparent",
-				transition: "all 0.15s",
-			}}>
+			<div
+				key={chat.id}
+				style={{
+					padding: "8px",
+					marginBottom: "2px",
+					borderRadius: "6px",
+					cursor: "pointer",
+					background: isActive ? "rgba(79,140,255,0.1)" : "transparent",
+					border: isActive ? "1px solid rgba(79,140,255,0.2)" : "1px solid transparent",
+					transition: "all 0.15s",
+				}}
+			>
 				{isRenaming ? (
 					<div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
-						<input type="text" value={renameValue} onChange={(e) => setRenameValue(e.target.value)}
-							onKeyDown={(e) => { if (e.key === "Enter") handleRenameChat(chat.id); if (e.key === "Escape") setRenamingChat(null); }}
-							autoFocus style={{ flex: 1, background: "rgba(255,255,255,0.05)", border: "1px solid var(--accent)", borderRadius: "4px", padding: "4px 8px", color: "var(--text-main)", fontSize: "11px", fontFamily: "inherit", outline: "none" }} />
-						<button type="button" onClick={() => handleRenameChat(chat.id)} style={{ background: "rgba(79,140,255,0.1)", border: "none", borderRadius: "4px", color: "var(--accent)", cursor: "pointer", padding: "4px" }}>
+						<input
+							type="text"
+							value={renameValue}
+							onChange={(e) => setRenameValue(e.target.value)}
+							onKeyDown={(e) => {
+								if (e.key === "Enter") handleRenameChat(chat.id);
+								if (e.key === "Escape") setRenamingChat(null);
+							}}
+							autoFocus
+							style={{
+								flex: 1,
+								background: "rgba(255,255,255,0.05)",
+								border: "1px solid var(--accent)",
+								borderRadius: "4px",
+								padding: "4px 8px",
+								color: "var(--text-main)",
+								fontSize: "11px",
+								fontFamily: "inherit",
+								outline: "none",
+							}}
+						/>
+						<button
+							type="button"
+							onClick={() => handleRenameChat(chat.id)}
+							style={{
+								background: "rgba(79,140,255,0.1)",
+								border: "none",
+								borderRadius: "4px",
+								color: "var(--accent)",
+								cursor: "pointer",
+								padding: "4px",
+							}}
+						>
 							<Save size={12} />
 						</button>
 					</div>
@@ -1323,30 +1876,105 @@ timestamp: new Date(),
 					<div onClick={() => handleSwitchChat(chat.id)} style={{ cursor: "pointer" }}>
 						<div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
 							<MessageSquare size={12} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
-							<span style={{ fontSize: "12px", fontWeight: isActive ? 600 : 400, color: "var(--text-main)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+							<span
+								style={{
+									fontSize: "12px",
+									fontWeight: isActive ? 600 : 400,
+									color: "var(--text-main)",
+									flex: 1,
+									overflow: "hidden",
+									textOverflow: "ellipsis",
+									whiteSpace: "nowrap",
+								}}
+							>
 								{chat.title}
 							</span>
 						</div>
 						{chat.lastMessage && (
-							<div style={{ fontSize: "10px", color: "var(--text-dim)", marginLeft: "18px", marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+							<div
+								style={{
+									fontSize: "10px",
+									color: "var(--text-dim)",
+									marginLeft: "18px",
+									marginTop: "2px",
+									overflow: "hidden",
+									textOverflow: "ellipsis",
+									whiteSpace: "nowrap",
+								}}
+							>
 								{chat.lastMessage}
 							</div>
 						)}
 						{chat.messageCount !== undefined && (
-							<div style={{ fontSize: "10px", color: "var(--text-dim)", marginLeft: "18px", marginTop: "2px", display: "flex", alignItems: "center", gap: "4px" }}>
+							<div
+								style={{
+									fontSize: "10px",
+									color: "var(--text-dim)",
+									marginLeft: "18px",
+									marginTop: "2px",
+									display: "flex",
+									alignItems: "center",
+									gap: "4px",
+								}}
+							>
 								<MessageSquare size={9} />
-								<span>{chat.messageCount} mensaje{chat.messageCount === 1 ? "" : "s"}</span>
+								<span>
+									{chat.messageCount} mensaje{chat.messageCount === 1 ? "" : "s"}
+								</span>
 							</div>
 						)}
 						{isActive && (
 							<div style={{ display: "flex", gap: "2px", marginTop: "4px", marginLeft: "18px" }}>
-								<button type="button" onClick={(e) => { e.stopPropagation(); setRenamingChat(chat.id); setRenameValue(chat.title); }} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", padding: "2px 4px" }} title="Renombrar">
+								<button
+									type="button"
+									onClick={(e) => {
+										e.stopPropagation();
+										setRenamingChat(chat.id);
+										setRenameValue(chat.title);
+									}}
+									style={{
+										background: "none",
+										border: "none",
+										color: "var(--text-muted)",
+										cursor: "pointer",
+										padding: "2px 4px",
+									}}
+									title="Renombrar"
+								>
 									<Edit3 size={10} />
 								</button>
-								<button type="button" onClick={(e) => { e.stopPropagation(); handlePinChat(chat.id); }} style={{ background: "none", border: "none", color: chat.pinned ? "var(--accent)" : "var(--text-muted)", cursor: "pointer", padding: "2px 4px" }} title={chat.pinned ? "Desfijar" : "Fijar"}>
+								<button
+									type="button"
+									onClick={(e) => {
+										e.stopPropagation();
+										handlePinChat(chat.id);
+									}}
+									style={{
+										background: "none",
+										border: "none",
+										color: chat.pinned ? "var(--accent)" : "var(--text-muted)",
+										cursor: "pointer",
+										padding: "2px 4px",
+									}}
+									title={chat.pinned ? "Desfijar" : "Fijar"}
+								>
 									{chat.pinned ? <PinOff size={10} /> : <Pin size={10} />}
 								</button>
-								<button type="button" onClick={(e) => { e.stopPropagation(); setConfirmDelete(chat.id); }} style={{ background: "none", border: "none", color: "var(--error)", cursor: "pointer", padding: "2px 4px" }} title="Eliminar">
+								<button
+									type="button"
+									onClick={(e) => {
+										e.stopPropagation();
+										setConfirmDelete(chat.id);
+									}}
+									style={{
+										background: "none",
+										border: "none",
+										color: "var(--error)",
+										cursor: "pointer",
+										padding: "2px 4px",
+									}}
+									title="Eliminar"
+								>
 									<Trash2 size={10} />
 								</button>
 							</div>
@@ -1371,15 +1999,26 @@ interface MessageBubbleProps {
 	isSaved?: boolean;
 }
 
-const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index, onEdit, onImageClick, onReply, onToggleSave, isSaved }) => {
+const MessageBubble: React.FC<MessageBubbleProps> = ({
+	message,
+	index,
+	onEdit,
+	onImageClick,
+	onReply,
+	onToggleSave,
+	isSaved,
+}) => {
 	const isUser = message.role === "user";
 	const isSystem = message.role === "system";
 
 	const images = extractImagesFromContent(message.content);
 
-
 	if (isSystem) {
-		return <div style={{ textAlign: "center", padding: "8px 16px", fontSize: "12px", color: "var(--text-dim)" }}>{message.content}</div>;
+		return (
+			<div style={{ textAlign: "center", padding: "8px 16px", fontSize: "12px", color: "var(--text-dim)" }}>
+				{message.content}
+			</div>
+		);
 	}
 
 	const handleClick = () => {
@@ -1414,13 +2053,17 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index, onEdit, o
 			}}
 			onClick={handleClick}
 		>
-			<div style={{
-				padding: "10px 14px", borderRadius: "12px",
-				background: isUser ? "linear-gradient(135deg, var(--accent), #7c3aed)" : "rgba(255,255,255,0.05)",
-				border: isUser ? "none" : "1px solid var(--border-light)",
-				color: isUser ? "white" : "var(--text-main)",
-				fontSize: "13px", lineHeight: 1.5,
-			}}>
+			<div
+				style={{
+					padding: "10px 14px",
+					borderRadius: "12px",
+					background: isUser ? "linear-gradient(135deg, var(--accent), #7c3aed)" : "rgba(255,255,255,0.05)",
+					border: isUser ? "none" : "1px solid var(--border-light)",
+					color: isUser ? "white" : "var(--text-main)",
+					fontSize: "13px",
+					lineHeight: 1.5,
+				}}
+			>
 				{isUser ? (
 					<div style={{ whiteSpace: "pre-wrap" }}>{message.content}</div>
 				) : (
@@ -1430,12 +2073,45 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index, onEdit, o
 							code({ className, children, ...props }) {
 								const isInline = !className;
 								if (isInline) {
-									return <code style={{ background: "rgba(255,255,255,0.05)", padding: "2px 6px", borderRadius: "3px", fontSize: "12px" }} {...props}>{children}</code>;
+									return (
+										<code
+											style={{
+												background: "rgba(255,255,255,0.05)",
+												padding: "2px 6px",
+												borderRadius: "3px",
+												fontSize: "12px",
+											}}
+											{...props}
+										>
+											{children}
+										</code>
+									);
 								}
-								return <pre style={{ background: "rgba(0,0,0,0.3)", padding: "12px", borderRadius: "8px", overflow: "auto", fontSize: "12px" }}><code {...props}>{children}</code></pre>;
+								return (
+									<pre
+										style={{
+											background: "rgba(0,0,0,0.3)",
+											padding: "12px",
+											borderRadius: "8px",
+											overflow: "auto",
+											fontSize: "12px",
+										}}
+									>
+										<code {...props}>{children}</code>
+									</pre>
+								);
 							},
 							a({ href, children }) {
-								return <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)" }}>{children}</a>;
+								return (
+									<a
+										href={href}
+										target="_blank"
+										rel="noopener noreferrer"
+										style={{ color: "var(--accent)" }}
+									>
+										{children}
+									</a>
+								);
 							},
 						}}
 					>
@@ -1468,10 +2144,22 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index, onEdit, o
 					</div>
 				)}
 			</div>
-			<div style={{ fontSize: "10px", color: "var(--text-dim)", marginTop: "4px", padding: "0 4px", display: "flex", gap: "8px", alignItems: "center" }}>
+			<div
+				style={{
+					fontSize: "10px",
+					color: "var(--text-dim)",
+					marginTop: "4px",
+					padding: "0 4px",
+					display: "flex",
+					gap: "8px",
+					alignItems: "center",
+				}}
+			>
 				<span>{message.timestamp.toLocaleTimeString()}</span>
 				{!isUser && message.usage && (
-					<span>{message.usage.promptTokens} ↑ / {message.usage.completionTokens} ↓</span>
+					<span>
+						{message.usage.promptTokens} ↑ / {message.usage.completionTokens} ↓
+					</span>
 				)}
 				<span style={{ flex: 1 }} />
 				{/* Feature: reply button */}
@@ -1480,12 +2168,20 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index, onEdit, o
 					onClick={handleReply}
 					title="Responder"
 					style={{
-						background: "none", border: "none", color: "var(--text-muted)",
-						cursor: "pointer", padding: "2px", display: "flex",
+						background: "none",
+						border: "none",
+						color: "var(--text-muted)",
+						cursor: "pointer",
+						padding: "2px",
+						display: "flex",
 						opacity: 0.6,
 					}}
-					onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; }}
-					onMouseLeave={(e) => { e.currentTarget.style.opacity = "0.6"; }}
+					onMouseEnter={(e) => {
+						e.currentTarget.style.opacity = "1";
+					}}
+					onMouseLeave={(e) => {
+						e.currentTarget.style.opacity = "0.6";
+					}}
 				>
 					<Reply size={10} />
 				</button>
@@ -1495,13 +2191,20 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index, onEdit, o
 					onClick={handleToggleSave}
 					title={isSaved ? "Quitar de guardados" : "Guardar mensaje"}
 					style={{
-						background: "none", border: "none",
+						background: "none",
+						border: "none",
 						color: isSaved ? "var(--warning)" : "var(--text-muted)",
-						cursor: "pointer", padding: "2px", display: "flex",
+						cursor: "pointer",
+						padding: "2px",
+						display: "flex",
 						opacity: isSaved ? 1 : 0.6,
 					}}
-					onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; }}
-					onMouseLeave={(e) => { e.currentTarget.style.opacity = isSaved ? "1" : "0.6"; }}
+					onMouseEnter={(e) => {
+						e.currentTarget.style.opacity = "1";
+					}}
+					onMouseLeave={(e) => {
+						e.currentTarget.style.opacity = isSaved ? "1" : "0.6";
+					}}
 				>
 					<Star size={10} fill={isSaved ? "var(--warning)" : "none"} />
 				</button>
@@ -1509,9 +2212,3 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index, onEdit, o
 		</div>
 	);
 };
-
-
-
-
-
-

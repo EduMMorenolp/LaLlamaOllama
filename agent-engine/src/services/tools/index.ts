@@ -21,4 +21,4 @@ export function registerAllTools(brain: BrainClient): void {
 }
 
 export { toolRegistry } from "./registry.js";
-export type { ToolSpec, ToolContext, ToolDefinition, ToolHandler } from "./types.js";
+export type { ToolContext, ToolDefinition, ToolHandler, ToolSpec } from "./types.js";

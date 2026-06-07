@@ -30,7 +30,7 @@ export function subscribeRunEvents(
 		onChunk?: (text: string) => void;
 		onComplete?: (result: AgentResult) => void;
 		onError?: (message: string) => void;
-	},
+	}
 ): () => void {
 	const listeners: Array<{ event: string; handler: (...args: any[]) => void }> = [];
 

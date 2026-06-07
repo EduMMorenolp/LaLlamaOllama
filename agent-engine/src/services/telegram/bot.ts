@@ -1,14 +1,14 @@
 import TelegramBot from "node-telegram-bot-api";
-import type { AppConfig } from "../config.js";
-import type { BrainClient } from "../brain/client.js";
-import { runAgent } from "../agent/runAgent.js";
-import { listAllUsers } from "../db/users.js";
-import { listExperts, getGeneralConfig } from "../db/experts.js";
-import { getOrCreateChannelChat } from "../db/chats.js";
-import { saveMessage } from "../db/messages.js";
 import { logger } from "../../utils/logger.js";
-import { handleTelegramCommand } from "./commands.js";
+import { runAgent } from "../agent/runAgent.js";
+import type { BrainClient } from "../brain/client.js";
+import type { AppConfig } from "../config.js";
+import { getOrCreateChannelChat } from "../db/chats.js";
+import { getGeneralConfig, listExperts } from "../db/experts.js";
+import { saveMessage } from "../db/messages.js";
+import { listAllUsers } from "../db/users.js";
 import { handleCallbackQuery } from "./callbacks.js";
+import { handleTelegramCommand } from "./commands.js";
 
 let bot: TelegramBot | null = null;
 let activeToken: string | null = null;
@@ -139,9 +139,7 @@ export async function startTelegram(): Promise<void> {
 
 			if (tagMatch) {
 				const tagName = tagMatch[1].toLowerCase();
-				const expert = experts.find(
-					(e) => e.name.toLowerCase().replace(/[^a-z0-9]/g, "") === tagName
-				);
+				const expert = experts.find((e) => e.name.toLowerCase().replace(/[^a-z0-9]/g, "") === tagName);
 				if (expert) {
 					logger.info(`🎯 Tag detected for expert: ${expert.name}`);
 					const cleanMessage = text.replace(tagMatch[0], "").trim();
@@ -149,9 +147,7 @@ export async function startTelegram(): Promise<void> {
 				}
 			} else {
 				// Orchestrator mode
-				const orquestador = experts.find((e) =>
-					e.name.toLowerCase().includes("orquestador")
-				);
+				const orquestador = experts.find((e) => e.name.toLowerCase().includes("orquestador"));
 				if (orquestador) {
 					finalUserText = `(OBLIGATORIO: ACTÚA COMO ORQUESTADOR. REGLAS: ${orquestador.system_prompt})\nConsulta: ${text}`;
 				}
@@ -166,9 +162,11 @@ export async function startTelegram(): Promise<void> {
 				telegramChatId: chatId,
 				skipPersistUserMsg: true,
 				onStatus: (statusText: string) => {
-					bot!.sendMessage(chatId, `⏳ <i>${statusText}</i>`, {
-						parse_mode: "HTML",
-					}).catch(() => {});
+					bot!
+						.sendMessage(chatId, `⏳ <i>${statusText}</i>`, {
+							parse_mode: "HTML",
+						})
+						.catch(() => {});
 				},
 				onTyping: (isTyping: boolean) => {
 					if (isTyping) {
@@ -183,15 +181,13 @@ export async function startTelegram(): Promise<void> {
 			}
 
 			// Send response
-			await bot!
-				.sendMessage(chatId, result.text, { parse_mode: "Markdown" })
-				.catch(async () => {
-					try {
-						await bot!.sendMessage(chatId, result.text, { parse_mode: "HTML" });
-					} catch {
-						await bot!.sendMessage(chatId, result.text);
-					}
-				});
+			await bot!.sendMessage(chatId, result.text, { parse_mode: "Markdown" }).catch(async () => {
+				try {
+					await bot!.sendMessage(chatId, result.text, { parse_mode: "HTML" });
+				} catch {
+					await bot!.sendMessage(chatId, result.text);
+				}
+			});
 		} catch (err) {
 			const errMsg = err instanceof Error ? err.message : String(err);
 			logger.error(`❌ Telegram error: ${errMsg}`);

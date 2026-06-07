@@ -1,26 +1,22 @@
-import cors from "cors";
-import express, { type Request, type Response, type NextFunction } from "express";
-import rateLimit from "express-rate-limit";
 import { createServer } from "node:http";
+import cors from "cors";
+import express, { type NextFunction, type Request, type Response } from "express";
+import rateLimit from "express-rate-limit";
+import type { BrainClient } from "../services/brain/client.js";
 import type { AppConfig } from "../services/config.js";
-import { toolRegistry } from "../services/tools/registry.js";
-import { logger } from "../utils/logger.js";
-import { listExperts, getGeneralConfig } from "../services/db/experts.js";
-import { listAllUsers } from "../services/db/users.js";
-import { listModels } from "../services/db/models.js";
 import { getDb } from "../services/db/connection.js";
+import { getGeneralConfig, listExperts } from "../services/db/experts.js";
+import { listModels } from "../services/db/models.js";
+import { getRun, getRunEvents, listRunsByFilters } from "../services/db/runs.js";
+import { listAllUsers } from "../services/db/users.js";
 import {
-	listRunsByFilters,
-	getRun,
-	getRunEvents,
-} from "../services/db/runs.js";
-import {
+	chunkAndIndexFile,
+	deleteKnowledgeFile,
 	listKnowledgeFiles,
 	saveKnowledgeFile,
-	deleteKnowledgeFile,
-	chunkAndIndexFile,
 } from "../services/knowledge/index.js";
-import type { BrainClient } from "../services/brain/client.js";
+import { toolRegistry } from "../services/tools/registry.js";
+import { logger } from "../utils/logger.js";
 
 const apiLimiter = rateLimit({
 	windowMs: 60 * 1000,
@@ -31,11 +27,13 @@ const apiLimiter = rateLimit({
 
 export function startApiServer(config: AppConfig, brain?: BrainClient) {
 	const app = express();
-	app.use(cors({
-		origin: (config as any).allowedOrigins?.length ? (config as any).allowedOrigins : ["http://localhost:8081"],
-		methods: ["GET", "POST", "PUT", "DELETE"],
-		allowedHeaders: ["Content-Type", "X-API-Key"],
-	}));
+	app.use(
+		cors({
+			origin: (config as any).allowedOrigins?.length ? (config as any).allowedOrigins : ["http://localhost:8081"],
+			methods: ["GET", "POST", "PUT", "DELETE"],
+			allowedHeaders: ["Content-Type", "X-API-Key"],
+		})
+	);
 	app.use(express.json({ limit: "10mb" }));
 
 	app.use("/api", apiLimiter);
@@ -51,7 +49,6 @@ export function startApiServer(config: AppConfig, brain?: BrainClient) {
 	}
 	app.use("/api", authMiddleware);
 
-	
 	// -- Brain Proxy -----------------------------------------------------
 	app.get("/api/memory/search", async (req: Request, res: Response) => {
 		if (!brain) {
@@ -92,7 +89,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient) {
 			res.status(502).json({ error: "Brain stats failed", detail: msg });
 		}
 	});
-// Health endpoint
+	// Health endpoint
 	app.get("/health", (_req: Request, res: Response) => {
 		res.json({
 			status: "ok",

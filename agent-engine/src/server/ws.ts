@@ -1,10 +1,10 @@
-import { type IncomingMessage } from "node:http";
-import { WebSocketServer, type WebSocket } from "ws";
-import type { AppConfig } from "../services/config.js";
+import type { IncomingMessage } from "node:http";
+import { type WebSocket, WebSocketServer } from "ws";
 import { createMessage } from "../gateway/protocol.js";
+import type { BrainClient } from "../services/brain/client.js";
+import type { AppConfig } from "../services/config.js";
 import { logger } from "../utils/logger.js";
 import { registerWsHandlers } from "./handlers.js";
-import type { BrainClient } from "../services/brain/client.js";
 
 export class WsServer {
 	private wss: WebSocketServer;
@@ -31,10 +31,12 @@ export class WsServer {
 					const msg = JSON.parse(raw.toString());
 					handlers.handleMessage(clientId, ws, msg);
 				} catch (err) {
-					ws.send(createMessage("error", {
-						message: "Invalid message format",
-						code: "PARSE_ERROR",
-					}));
+					ws.send(
+						createMessage("error", {
+							message: "Invalid message format",
+							code: "PARSE_ERROR",
+						})
+					);
 				}
 			});
 

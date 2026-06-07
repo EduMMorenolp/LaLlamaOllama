@@ -1,7 +1,7 @@
+import { logger } from "../../utils/logger.js";
 import type { AgentOptions, AgentResult } from "../agent/types.js";
 import { createRun, updateRun } from "../db/runs.js";
-import { ensureRunQueue, enqueueAgentRun } from "../queue/runQueue.js";
-import { logger } from "../../utils/logger.js";
+import { enqueueAgentRun, ensureRunQueue } from "../queue/runQueue.js";
 import { subscribeRunEvents } from "./runEvents.js";
 
 function serializeOptions(opts: AgentOptions) {
