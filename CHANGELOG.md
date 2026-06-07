@@ -7,6 +7,34 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 
 ## [Unreleased]
 
+### 📋 Sistema de Tareas: Arreglado, mejorado y con tareas autoejecutables (2026-06-07)
+
+#### Agent Engine
+- **🐛 Fix: `new_task` ahora procesa tareas** — El handler WS crea el run y lo encola en el orquestrador (`submitAgentRun`), en vez de dejarlo en "queued" para siempre
+- **➕ Estados nuevos**: `cancelled` (tarea cancelada por usuario), `scheduled` (tarea programada para futuro)
+- **➕ `runs.ts`: `cancelRun()`** — Setea status a "cancelled"
+- **➕ `runs.ts`: filtro `origin`** en `listRunsByFilters`
+- **➕ `orchestrator/index.ts`**: `submitAgentRun` acepta `runId` opcional y retorna `runId` en el resultado
+- **➕ `scheduled-tasks.ts` (NUEVO)** — CRUD completo para tareas programadas: `listScheduledTasks()`, `getScheduledTask()`, `createScheduledTask()`, `updateScheduledTask()`, `deleteScheduledTask()`, `toggleScheduledTask()`, `getDueTasks()`
+- **➕ Tabla `scheduled_tasks`** en SQLite con columnas: name, cron_expression, task_text, mode_id, enabled, last_run_at, next_run_at
+- **➕ Protocolo WS**: 12 nuevos tipos (`new_task`, `cancel_task`, `task_created`, `task_status`, `task_completed`, `task_failed`, `task_cancelled`, `list_scheduled_tasks`, `create_scheduled_task`, `update_scheduled_task`, `delete_scheduled_task`, `toggle_scheduled_task`, `scheduled_tasks_list`)
+- **➕ Broadcast de estado de tareas** — `runQueue.ts` ahora emite `task_status` vía WS a todos los clientes cuando un run cambia a running/completed/failed
+- **➕ REST endpoints**: `GET/POST/PUT/DELETE /api/scheduled-tasks`, `POST /api/scheduled-tasks/:id/toggle`
+- **➕ 3 nuevas tools**: `create_task` (crea y ejecuta tarea), `cancel_task` (cancela tarea por ID), `schedule_task` (programa tarea recurrente con expresión cron)
+- **🔄 `cron.ts` reescrito** — Task scheduler cada 60s que evalúa `getDueTasks()` y ejecuta las que corresponden mediante `submitAgentRun()`. Mantiene cleanup de sesiones cada 30min
+- **➕ Seeds actualizados**: todos los modos por defecto incluyen `create_task` y `cancel_task`; `desarrollador` y `evolutivo` además incluyen `schedule_task`
+
+#### Agent Frontend
+- **➕ WS en tiempo real** — `Tareas.tsx` recibe eventos `task_created`, `task_status`, `task_cancelled`, `task_completed`, `task_failed` y actualiza la lista sin polling
+- **➕ Filtro `cancelled`** en el listado de tareas
+- **➕ Botón "Cancelar"** en tareas con estado `queued`/`running` → envía WS `cancel_task`
+- **➕ Botón "Nueva Tarea"** + modal con textarea → envía WS `new_task`
+- **➕ Sub-tabs "Historial" / "Programadas"** — Pestaña separada para gestionar tareas autoejecutables
+- **➕ Pestaña "Programadas"**: CRUD completo — crear/editar/eliminar tareas programadas, toggle enable/disable, ejecutar ahora
+- **➕ Indicador de origen** — Icono 🌐📱⏰🔧 según origen de la tarea (web/telegram/scheduler/tool)
+- **➕ `/nuevaTarea` mejorado** — Abre modal de creación de tarea en vez de enviar WS vacío
+- **➕ Modal "Nueva Tarea Programada"** con inputs para nombre, expresión cron, texto y modo selector
+
 ### 🎭 Sistema de Modos: Personalidad, herramientas y configuración por modo (2026-06-07)
 
 #### Agent Engine

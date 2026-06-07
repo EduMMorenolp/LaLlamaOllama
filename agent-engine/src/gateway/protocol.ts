@@ -30,8 +30,14 @@ export type WsMessageType =
 	| "model_update"
 	// Tasks
 	| "list_tasks"
-	// Favorites / Saved messages
-	| "task_created"
+	| "new_task"
+	| "cancel_task"
+	// Scheduled tasks
+	| "list_scheduled_tasks"
+	| "create_scheduled_task"
+	| "update_scheduled_task"
+	| "delete_scheduled_task"
+	| "toggle_scheduled_task"
 	| "save_message"
 	| "unsave_message"
 	| "list_saved_messages"
@@ -74,7 +80,15 @@ export type WsMessageType =
 	| "action_log"
 	| "ollama_models"
 	| "telegram_message"
-	| "docker_info";
+	| "docker_info"
+	// Task events
+	| "task_created"
+	| "task_status"
+	| "task_completed"
+	| "task_failed"
+	| "task_cancelled"
+	| "scheduled_tasks_list";
+
 
 export interface UserMessagePayload {
 	chatId: string;

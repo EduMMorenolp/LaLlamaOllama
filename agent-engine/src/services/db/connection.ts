@@ -133,7 +133,22 @@ export function getDb(dbPath?: string): Database.Database {
 			created_by TEXT DEFAULT '',
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+
+
+		CREATE TABLE IF NOT EXISTS scheduled_tasks (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			cron_expression TEXT NOT NULL,
+			task_text TEXT NOT NULL,
+			mode_id TEXT DEFAULT NULL,
+			origin TEXT DEFAULT 'scheduler',
+			schedule_type TEXT DEFAULT 'cron',
+			enabled INTEGER DEFAULT 1,
+			last_run_at DATETIME DEFAULT NULL,
+			next_run_at DATETIME DEFAULT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		);
+		CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_enabled ON scheduled_tasks(enabled);
 	`);
 
 	// ─── Migrations ───────────────────────────────────────────────────────

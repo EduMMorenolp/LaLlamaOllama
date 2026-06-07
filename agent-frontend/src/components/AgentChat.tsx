@@ -25,6 +25,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useWs } from "../contexts/WebSocketContext";
+import { useToast } from "../contexts/ToastContext";
 import { ConfirmModal } from "./ConfirmModal";
 
 // Types
@@ -152,8 +153,11 @@ export const AgentChat: React.FC = () => {
 	const [showCommands, setShowCommands] = useState(false);
 	const [commandFilter, setCommandFilter] = useState("");
 	const [selectedCmdIndex, setSelectedCmdIndex] = useState(0);
+  const [showNewTaskModal, setShowNewTaskModal] = useState(false);
+  const [newTaskText, setNewTaskText] = useState("");
 
 	const { connected, send: sendWs, subscribe } = useWs();
+  const { show: showToast } = useToast();
 
 	const scrollToBottom = () => {
 		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -534,7 +538,7 @@ export const AgentChat: React.FC = () => {
 					setTimeout(() => inputRef.current?.focus(), 0);
 				}
 			} else if (cmd.cmd === "/nuevaTarea") {
-				sendWs("new_task", {});
+				setShowNewTaskModal(true);
 			} else if (cmd.cmd === "/modelos") {
 				sendWs("list_ollama_models", {});
 			} else if (cmd.cmd === "/cambioModelo") {
@@ -1847,6 +1851,113 @@ export const AgentChat: React.FC = () => {
 				}}
 				danger
 			/>
+
+			{/* Nueva Tarea Modal */}
+
+			{showNewTaskModal && (
+				<div
+					style={{
+						position: "fixed",
+						top: 0,
+						left: 0,
+						right: 0,
+						bottom: 0,
+						background: "rgba(0,0,0,0.7)",
+						backdropFilter: "blur(4px)",
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "center",
+						zIndex: 1000,
+					}}
+					onClick={() => setShowNewTaskModal(false)}
+				>
+					<div
+						style={{
+							background: "var(--bg-surface)",
+							border: "1px solid var(--border)",
+							borderRadius: "16px",
+							width: "500px",
+							maxWidth: "90vw",
+							padding: "24px",
+						}}
+						onClick={(e) => e.stopPropagation()}
+					>
+						<h3 style={{ margin: "0 0 16px", fontSize: "16px", fontWeight: 700, color: "var(--text-main)" }}>
+							Nueva Tarea
+						</h3>
+						<div style={{ marginBottom: "16px" }}>
+							<label style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", display: "block", marginBottom: "4px" }}>
+								Descripci\u00F3n de la tarea
+							</label>
+							<textarea
+								value={newTaskText}
+								onChange={(e) => setNewTaskText(e.target.value)}
+								placeholder="Describe la tarea a ejecutar..."
+								rows={4}
+								autoFocus
+								style={{
+									width: "100%",
+									background: "rgba(255,255,255,0.03)",
+									border: "1px solid var(--border-light)",
+									borderRadius: "6px",
+									padding: "8px 12px",
+									color: "var(--text-main)",
+									fontSize: "13px",
+									fontFamily: "inherit",
+									resize: "vertical",
+									outline: "none",
+									boxSizing: "border-box",
+								}}
+							/>
+						</div>
+						<div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+							<button
+								type="button"
+								onClick={() => {
+									setShowNewTaskModal(false);
+									setNewTaskText("");
+								}}
+								style={{
+									padding: "8px 20px",
+									background: "rgba(255,255,255,0.05)",
+									border: "1px solid var(--border-light)",
+									borderRadius: "8px",
+									color: "var(--text-main)",
+									cursor: "pointer",
+									fontSize: "12px",
+									fontWeight: 600,
+								}}
+							>
+								Cancelar
+							</button>
+							<button
+								type="button"
+								onClick={() => {
+									if (!newTaskText.trim()) return;
+									sendWs("new_task", { text: newTaskText.trim() });
+									setNewTaskText("");
+									setShowNewTaskModal(false);
+									showToast("Tarea enviada", "success");
+								}}
+								disabled={!newTaskText.trim()}
+								style={{
+									padding: "8px 20px",
+									background: "linear-gradient(135deg, var(--accent), #7c3aed)",
+									border: "none",
+									borderRadius: "8px",
+									color: "white",
+									cursor: "pointer",
+									fontSize: "12px",
+									fontWeight: 600,
+									opacity: !newTaskText.trim() ? 0.5 : 1,
+								}}
+							>
+								Crear Tarea
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
 
 			{/* Feature: image lightbox overlay */}
 			{expandedImage && (

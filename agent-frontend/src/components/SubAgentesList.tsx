@@ -10,6 +10,16 @@ interface SubAgent {
 	temperature: number;
 }
 
+interface ToolInfo {
+	spec: {
+		function: {
+			name: string;
+			description: string;
+		};
+	};
+	enabled: boolean;
+}
+
 export const SubAgentesList: React.FC = () => {
 	const { connected, send: sendWs, subscribe } = useWs();
 	const [configModel, setConfigModel] = useState("");
@@ -23,6 +33,7 @@ export const SubAgentesList: React.FC = () => {
 	});
 	const [showAgentForm, setShowAgentForm] = useState(false);
 	const [ollamaModels, setOllamaModels] = useState<string[]>([]);
+	const [toolsList, setToolsList] = useState<ToolInfo[]>([]);
 
 	useEffect(() => {
 		return subscribe((msg) => {
@@ -45,6 +56,13 @@ export const SubAgentesList: React.FC = () => {
 					setOllamaModels(models.map((m) => m.name));
 					break;
 				}
+				case "tools_list": {
+					const toolList = msg.payload?.tools as ToolInfo[];
+					if (Array.isArray(toolList)) {
+						setToolsList(toolList);
+					}
+					break;
+				}
 			}
 		});
 	}, [subscribe]);
@@ -55,8 +73,18 @@ export const SubAgentesList: React.FC = () => {
 			sendWs("get_status", {});
 			sendWs("list_experts", {});
 			sendWs("list_ollama_models", {});
+			sendWs("list_tools", {});
 		}
 	}, [connected, sendWs]);
+
+	const toggleNewAgentTool = (toolName: string) => {
+		setNewAgent((prev) => ({
+			...prev,
+			tools: prev.tools.includes(toolName)
+				? prev.tools.filter((t) => t !== toolName)
+				: [...prev.tools, toolName],
+		}));
+	};
 
 	const handleCreateAgent = () => {
 		if (!newAgent.name.trim()) return;
@@ -372,6 +400,47 @@ Prioriza soluciones simples, seguras y mantenibles. Documenta cada cambio.`,
 							placeholder="You are an expert agent specialized in..."
 						/>
 					</div>
+					{/* Tools selector */}
+					<div style={{ marginBottom: "8px" }}>
+						<label
+							style={{
+								fontSize: "10px",
+								fontWeight: 600,
+								color: "var(--text-muted)",
+								display: "block",
+								marginBottom: "6px",
+							}}
+						>
+							Herramientas permitidas ({newAgent.tools.length}/{toolsList.length})
+						</label>
+						<div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+							{toolsList.map((tool) => {
+								const toolName = tool.spec.function.name;
+								const isSelected = newAgent.tools.includes(toolName);
+								return (
+									<button
+										key={toolName}
+										type="button"
+										onClick={() => toggleNewAgentTool(toolName)}
+										style={{
+											padding: "4px 8px",
+											borderRadius: "4px",
+											border: "1px solid",
+											borderColor: isSelected ? "rgba(79,140,255,0.3)" : "var(--border-light)",
+											background: isSelected ? "rgba(79,140,255,0.1)" : "transparent",
+											color: isSelected ? "var(--accent)" : "var(--text-dim)",
+											cursor: "pointer",
+											fontSize: "10px",
+											fontFamily: "var(--font-mono)",
+											transition: "all 0.15s ease",
+										}}
+									>
+										{isSelected ? "✅ " : "  "}{toolName}
+									</button>
+								);
+							})}
+						</div>
+					</div>
 					<button type="button" onClick={handleCreateAgent} style={actionBtnStyle}>
 						<Save size={14} style={{ marginRight: "4px" }} /> Crear Agente
 					</button>
@@ -389,18 +458,18 @@ Prioriza soluciones simples, seguras y mantenibles. Documenta cada cambio.`,
 					key={agent.name}
 					style={{
 						display: "flex",
-						alignItems: "center",
+						alignItems: "flex-start",
 						gap: "8px",
 						padding: "10px 0",
 						borderBottom: "1px solid var(--border-light)",
 						justifyContent: "space-between",
 					}}
 				>
-					<div>
+					<div style={{ flex: 1, minWidth: 0 }}>
 						<div style={{ fontWeight: 600, fontSize: "13px", color: "var(--text-main)" }}>
 							@{agent.name}
 						</div>
-						<div style={{ fontSize: "11px", color: "var(--accent)", fontFamily: "monospace" }}>
+						<div style={{ fontSize: "11px", color: "var(--accent)", fontFamily: "monospace", marginBottom: "2px" }}>
 							{agent.model || "(default)"}
 						</div>
 						<div
@@ -415,6 +484,25 @@ Prioriza soluciones simples, seguras y mantenibles. Documenta cada cambio.`,
 							{agent.system_prompt.substring(0, 120)}
 							{agent.system_prompt.length > 120 ? "..." : ""}
 						</div>
+						{agent.tools && agent.tools.length > 0 && (
+							<div style={{ display: "flex", flexWrap: "wrap", gap: "3px", marginTop: "6px" }}>
+								{agent.tools.map((t) => (
+									<span
+										key={t}
+										style={{
+											padding: "1px 6px",
+											borderRadius: "3px",
+											background: "rgba(79,140,255,0.08)",
+											color: "var(--accent)",
+											fontSize: "9px",
+											fontFamily: "var(--font-mono)",
+										}}
+									>
+										{t}
+									</span>
+								))}
+							</div>
+						)}
 					</div>
 					<button
 						type="button"
@@ -426,6 +514,7 @@ Prioriza soluciones simples, seguras y mantenibles. Documenta cada cambio.`,
 							cursor: "pointer",
 							opacity: 0.5,
 							padding: "4px",
+							flexShrink: 0,
 						}}
 					>
 						<Trash2 size={14} />

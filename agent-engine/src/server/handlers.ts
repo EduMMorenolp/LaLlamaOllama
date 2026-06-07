@@ -49,6 +49,16 @@ import { setSetting } from "../services/db/settings.js";
 import { toolRegistry } from "../services/tools/registry.js";
 import { logger } from "../utils/logger.js";
 import type { WsServer } from "./ws.js";
+import { submitAgentRun } from "../services/orchestrator/index.js";
+import { cancelRun } from "../services/db/runs.js";
+import {
+	listScheduledTasks,
+	getScheduledTask,
+	createScheduledTask,
+	updateScheduledTask,
+	deleteScheduledTask,
+	toggleScheduledTask,
+} from "../services/db/scheduled-tasks.js";
 
 export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 	const config = loadConfig();
@@ -96,10 +106,10 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 				}
 				case "cancel": {
 					const chatId = (payload?.chatId as string) || clientId;
-					logger.agent(`[${chatId}] Cancel requested`);
+					logger.agent("[" + chatId + "] Cancel requested");
 					wsServer.sendToAll("assistant_done", {
 						chatId,
-						text: "🛑 Conversación cancelada.",
+						text: "Conversaci\u00f3n cancelada.",
 						model: "system",
 						latencyMs: 0,
 					});
@@ -133,7 +143,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 						const ok = toolRegistry.setEnabled(name, enabled);
 						ws.send(
 							createMessage("status", {
-								message: `Tool "${name}" ${enabled ? "enabled" : "disabled"} (${ok ? "ok" : "not found"})`,
+								message: "Tool \"" + name + "\" " + (enabled ? "enabled" : "disabled") + " (" + (ok ? "ok" : "not found") + ")",
 							})
 						);
 					}
@@ -144,7 +154,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 				case "list_ollama_models": {
 					const backendUrl = config.backendUrl;
 					axios
-						.get(`${backendUrl}/api/models`, {
+						.get(backendUrl + "/api/models", {
 							timeout: 3000,
 							headers: { "X-API-Key": config.apiKey },
 						})
@@ -187,7 +197,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					const userId = payload?.userId as string;
 					if (userId) {
 						userMap.set(clientId, userId);
-						logger.info(`✅ WebChat identified: ${clientId} -> ${userId}`);
+						logger.info("WebChat identified: " + clientId + " -> " + userId);
 						const gc = getGeneralConfig();
 						const effectiveModel = gc?.model || config.defaultModel;
 						ws.send(
@@ -216,7 +226,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 						telegram_user: payload?.telegram_user as string | undefined,
 						telegram_token: payload?.telegram_token as string | undefined,
 					});
-					logger.info(`✅ User registered: ${userId}`);
+					logger.info("User registered: " + userId);
 					ws.send(createMessage("list_users", { users: listAllUsers() }));
 					break;
 				}
@@ -230,7 +240,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 				case "user_delete": {
 					const dId = payload?.userId as string;
 					deleteUser(dId);
-					logger.info(`❌ User deleted: ${dId}`);
+					logger.info("User deleted: " + dId);
 					ws.send(createMessage("list_users", { users: listAllUsers() }));
 					break;
 				}
@@ -296,7 +306,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 									origin: m.origin,
 								})),
 								expertName: chat?.expertName || null,
-								text: storedMessages.length === 0 ? "Este chat no tiene mensajes aún." : "",
+								text: storedMessages.length === 0 ? "Este chat no tiene mensajes a\u00fan." : "",
 								model: "Sistema",
 							})
 						);
@@ -329,7 +339,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 				case "general_config_update": {
 					const cfg = payload as Record<string, unknown>;
 					logger.info(
-						`[Config] Update: model="${cfg.model}", temperature=${cfg.temperature}, history_limit=${cfg.history_limit}`
+						"Config update: model=" + cfg.model + ", temperature=" + cfg.temperature + ", history_limit=" + cfg.history_limit
 					);
 					// Preserve existing system_prompt if not provided in the update
 					const existing_gc = getGeneralConfig() as Record<string, unknown> | null;
@@ -371,7 +381,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					}
 					const mode = getMode(name);
 					if (!mode) {
-						ws.send(createMessage("error", { message: `Mode '${name}' not found` }));
+						ws.send(createMessage("error", { message: "Mode '" + name + "' not found" }));
 						break;
 					}
 					setActiveMode(name);
@@ -406,7 +416,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 						history_limit: mode.history_limit,
 					});
 
-					logger.info(`[Modes] Active mode set to '${name}' via WS`);
+					logger.info("[Modes] Active mode set to '" + name + "' via WS");
 					ws.send(createMessage("set_active_mode", { success: true, mode: getActiveMode() }));
 					break;
 				}
@@ -453,11 +463,11 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 						config.telegramBotToken = token;
 						if (allowedUsers) config.telegramAllowedUsers = allowedUsers;
 						startTelegram().catch((err) => {
-							logger.error(`Failed to start Telegram: ${err}`);
+							logger.error("Failed to start Telegram: " + err);
 						});
 					} else if (!enabled) {
 						stopTelegram().catch((err) => {
-							logger.error(`Failed to stop Telegram: ${err}`);
+							logger.error("Failed to stop Telegram: " + err);
 						});
 					}
 					// Broadcast status to ALL connected clients
@@ -472,7 +482,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					});
 					ws.send(
 						createMessage("status", {
-							message: `Telegram ${enabled ? "started" : "stopped"}`,
+							message: "Telegram " + (enabled ? "started" : "stopped"),
 							telegramActive: tg.running,
 						})
 					);
@@ -495,7 +505,6 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					break;
 				}
 
-				// Task history
 				// Docker/Container info
 				case "get_docker_info": {
 					try {
@@ -524,6 +533,78 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					const chatId = (payload?.chatId as string) || userId;
 					const runId = createRun({ chatId, userText: taskText, origin: "web", status: "queued" });
 					ws.send(createMessage("task_created", { runId, chatId, text: taskText, status: "queued" }));
+					// Enqueue the task for processing in the background
+					submitAgentRun({ chatId, userText: taskText, origin: "web", runId }).catch((err: unknown) => {
+						logger.error("[Tasks] new_task failed: " + (err instanceof Error ? err.message : String(err)));
+					});
+					break;
+				}
+
+				// Task management
+				case "cancel_task": {
+					const runIdStr = payload?.runId as string;
+					const runId = parseInt(runIdStr, 10);
+					if (isNaN(runId)) {
+						ws.send(createMessage("error", { message: "Invalid runId", code: "INVALID_RUN_ID" }));
+						break;
+					}
+					const { getRun } = await import("../services/db/runs.js");
+					const run = getRun(runId);
+					if (!run) {
+						ws.send(createMessage("error", { message: "Run not found", code: "RUN_NOT_FOUND" }));
+						break;
+					}
+					if (run.status !== "queued" && run.status !== "running") {
+						ws.send(createMessage("error", { message: "Cannot cancel task with status '" + run.status + "'", code: "INVALID_STATUS" }));
+						break;
+					}
+					cancelRun(runId);
+					wsServer.sendToAll("task_cancelled" as any, { runId, chatId: run.chatId, text: run.userText });
+					ws.send(createMessage("task_cancelled", { runId, status: "cancelled" }));
+					break;
+				}
+
+				case "list_scheduled_tasks": {
+					const tasks = listScheduledTasks();
+					ws.send(createMessage("scheduled_tasks_list", { tasks }));
+					break;
+				}
+
+				case "create_scheduled_task": {
+					const name = payload?.name as string;
+					const cron_expression = payload?.cron_expression as string;
+					const task_text = payload?.task_text as string;
+					const mode_id = payload?.mode_id as string;
+					if (!name || !cron_expression || !task_text) {
+						ws.send(createMessage("error", { message: "Missing required fields: name, cron_expression, task_text" }));
+						break;
+					}
+					const id = createScheduledTask({ name, cron_expression, task_text, mode_id });
+					ws.send(createMessage("scheduled_tasks_list", { tasks: listScheduledTasks() }));
+					break;
+				}
+
+				case "update_scheduled_task": {
+					const id = parseInt(payload?.id as string, 10);
+					if (isNaN(id)) { ws.send(createMessage("error", { message: "Invalid id" })); break; }
+					updateScheduledTask(id, payload as any);
+					ws.send(createMessage("scheduled_tasks_list", { tasks: listScheduledTasks() }));
+					break;
+				}
+
+				case "delete_scheduled_task": {
+					const id = parseInt(payload?.id as string, 10);
+					if (isNaN(id)) { ws.send(createMessage("error", { message: "Invalid id" })); break; }
+					deleteScheduledTask(id);
+					ws.send(createMessage("scheduled_tasks_list", { tasks: listScheduledTasks() }));
+					break;
+				}
+
+				case "toggle_scheduled_task": {
+					const id = parseInt(payload?.id as string, 10);
+					if (isNaN(id)) { ws.send(createMessage("error", { message: "Invalid id" })); break; }
+					toggleScheduledTask(id);
+					ws.send(createMessage("scheduled_tasks_list", { tasks: listScheduledTasks() }));
 					break;
 				}
 
@@ -590,7 +671,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 				default:
 					ws.send(
 						createMessage("error", {
-							message: `Unknown message type: ${type}`,
+							message: "Unknown message type: " + type,
 							code: "UNKNOWN_TYPE",
 						})
 					);
@@ -604,7 +685,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 			attachments?: Array<{ name: string; type: string; data: string }>,
 			quotedMessage?: { content: string; role: string; timestamp?: string }
 		) {
-			logger.agent(`[${chatId}] Received: "${text.substring(0, 100)}..."`);
+			logger.agent("[" + chatId + "] Received: \"" + text.substring(0, 100) + "...\"");
 
 			try {
 				const result = await runAgent({
@@ -645,17 +726,17 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 
 				// Auto-save to brain if meaningful
 				if (result.text.length > 50) {
-					const title = `Agent chat: ${text.substring(0, 60)}...`;
+					const title = "Agent chat: " + text.substring(0, 60) + "...";
 					await brain.saveMemory(
 						"decision",
 						title,
-						`**User**: ${text}\n\n**Agent**: ${result.text.substring(0, 2000)}`
+						"**User**: " + text + "\n\n**Agent**: " + result.text.substring(0, 2000)
 					);
 				}
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err);
-				logger.error(`[${chatId}] Agent error: ${msg}`);
-				wsServer.sendToAll("error", { chatId, message: `Error: ${msg}` });
+				logger.error("[" + chatId + "] Agent error: " + msg);
+				wsServer.sendToAll("error", { chatId, message: "Error: " + msg });
 			}
 		},
 	};

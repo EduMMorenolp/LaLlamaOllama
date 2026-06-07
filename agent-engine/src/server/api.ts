@@ -7,7 +7,15 @@ import type { AppConfig } from "../services/config.js";
 import { getDb } from "../services/db/connection.js";
 import { getGeneralConfig, listExperts } from "../services/db/experts.js";
 import { listModels } from "../services/db/models.js";
-import { getRun, getRunEvents, listRunsByFilters } from "../services/db/runs.js";
+import { getRun, getRunEvents, listRunsByFilters, cancelRun } from "../services/db/runs.js";
+import {
+	listScheduledTasks,
+	getScheduledTask,
+	createScheduledTask,
+	updateScheduledTask,
+	deleteScheduledTask,
+	toggleScheduledTask,
+} from "../services/db/scheduled-tasks.js";
 import { listAllUsers } from "../services/db/users.js";
 import {
 	chunkAndIndexFile,
@@ -159,6 +167,54 @@ export function startApiServer(config: AppConfig, brain?: BrainClient) {
 		}
 		const events = getRunEvents(id);
 		res.json({ run, events });
+	});
+
+
+
+	// Scheduled tasks (auto-executable)
+	app.get("/api/scheduled-tasks", (_req: Request, res: Response) => {
+		const tasks = listScheduledTasks();
+		res.json({ tasks });
+	});
+
+	app.get("/api/scheduled-tasks/:id", (req: Request, res: Response) => {
+		const id = parseInt(req.params.id, 10);
+		if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+		const task = getScheduledTask(id);
+		if (!task) { res.status(404).json({ error: "Not found" }); return; }
+		res.json({ task });
+	});
+
+	app.post("/api/scheduled-tasks", (req: Request, res: Response) => {
+		const { name, cron_expression, task_text, mode_id } = req.body;
+		if (!name || !cron_expression || !task_text) {
+			res.status(400).json({ error: "Missing required fields" });
+			return;
+		}
+		const id = createScheduledTask({ name, cron_expression, task_text, mode_id });
+		const task = getScheduledTask(id);
+		res.json({ task });
+	});
+
+	app.put("/api/scheduled-tasks/:id", (req: Request, res: Response) => {
+		const id = parseInt(req.params.id, 10);
+		if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+		updateScheduledTask(id, req.body);
+		res.json({ task: getScheduledTask(id) });
+	});
+
+	app.delete("/api/scheduled-tasks/:id", (req: Request, res: Response) => {
+		const id = parseInt(req.params.id, 10);
+		if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+		deleteScheduledTask(id);
+		res.json({ success: true });
+	});
+
+	app.post("/api/scheduled-tasks/:id/toggle", (req: Request, res: Response) => {
+		const id = parseInt(req.params.id, 10);
+		if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+		toggleScheduledTask(id);
+		res.json({ task: getScheduledTask(id) });
 	});
 
 	// Knowledge (RAG)

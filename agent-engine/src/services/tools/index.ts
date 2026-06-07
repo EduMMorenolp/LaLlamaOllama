@@ -1,4 +1,4 @@
-import type { BrainClient } from "../brain/client.js";
+﻿import type { BrainClient } from "../brain/client.js";
 import { registerBashTool } from "./bash.js";
 import { registerCalcTool } from "./calc.js";
 import { registerDelegateTool } from "./delegate.js";
@@ -15,6 +15,9 @@ import { registerTranslateTool } from "./translate.js";
 import { registerWeatherTool } from "./weather.js";
 import { registerWebSearchTool } from "./web-search.js";
 import { registerEditFileTool, registerWriteFileTool } from "./write-file.js";
+import { registerCreateTaskTool } from "./create-task.js";
+import { registerCancelTaskTool } from "./cancel-task.js";
+import { registerScheduleTaskTool } from "./schedule-task.js";
 
 export function registerAllTools(brain: BrainClient): void {
 	registerBashTool();
@@ -37,9 +40,15 @@ export function registerAllTools(brain: BrainClient): void {
 	registerKnowledgeSearchTool();
 
 	// Modo Evolutivo meta-tools
+		// Task tools
+	registerCreateTaskTool();
+	registerCancelTaskTool();
+	registerScheduleTaskTool();
+
 	registerEvolutivoTools();
 }
 
 export { toolRegistry } from "./registry.js";
 export { setWsServer } from "./tool-bridge.js";
 export type { ToolContext, ToolDefinition, ToolHandler, ToolSpec } from "./types.js";
+

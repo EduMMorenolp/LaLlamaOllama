@@ -12,7 +12,7 @@ export interface QueueAgentRunPayload {
 	chatId: string;
 	userText: string;
 	attachments?: Array<{ name: string; type: string; data: string }>;
-	origin?: "web" | "telegram";
+	origin?: string;
 	telegramChatId?: number;
 	skipPersistUserMsg?: boolean;
 }
@@ -39,9 +39,22 @@ function forwardRunEvent(
 	publishRunEvent(runId, type, payload as never);
 }
 
+async function broadcastTaskStatus(runId: number, status: string, extra: Record<string, unknown> = {}) {
+	try {
+		const { getWsServer } = await import("../tools/tool-bridge.js");
+		const wsServer = getWsServer();
+		if (wsServer) {
+			wsServer.sendToAll("task_status" as any, { runId, status, ...extra });
+		}
+	} catch {
+		// ignore - WS server may not be available
+	}
+}
+
 async function processQueuedRun(payload: QueueAgentRunPayload): Promise<AgentResult> {
 	const { config, brain } = getRuntimeContext();
 	updateRun(payload.runId, { status: "running" });
+	broadcastTaskStatus(payload.runId, "running");
 
 	const result = await runAgentCore({
 		chatId: payload.chatId,
@@ -67,6 +80,7 @@ async function processQueuedRun(payload: QueueAgentRunPayload): Promise<AgentRes
 		resultText: result.text,
 		latencyMs: result.latencyMs,
 	});
+	broadcastTaskStatus(payload.runId, "completed");
 	forwardRunEvent(payload.runId, "status", { text: "Run completado" });
 	return result;
 }
@@ -99,6 +113,7 @@ export function ensureRunQueue(): boolean {
 		runWorker.on("failed", (job, err) => {
 			if (job?.data && typeof job.data === "object") {
 				const payload = job.data as QueueAgentRunPayload;
+				broadcastTaskStatus(payload.runId, "failed", { error: err.message });
 				updateRun(payload.runId, { status: "failed", errorText: err.message });
 				forwardRunEvent(payload.runId, "error", { message: err.message });
 			}

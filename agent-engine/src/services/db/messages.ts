@@ -1,4 +1,4 @@
-import { touchChat } from "./chats.js";
+﻿import { touchChat } from "./chats.js";
 import { getDb } from "./connection.js";
 
 export interface StoredMessage {
@@ -7,7 +7,7 @@ export interface StoredMessage {
 	chatId?: string;
 	role: string;
 	content: string;
-	origin: "web" | "telegram";
+	origin: string;
 	expertName?: string | null;
 	created_at?: string;
 }
@@ -37,3 +37,4 @@ export function getMessagesByUser(userId: string, limit = 50): StoredMessage[] {
 		.prepare("SELECT * FROM messages WHERE userId = ? ORDER BY created_at ASC LIMIT ?")
 		.all(userId, limit) as StoredMessage[];
 }
+

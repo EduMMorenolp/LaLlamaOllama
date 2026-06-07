@@ -1,4 +1,7 @@
-﻿import TelegramBot from "node-telegram-bot-api";
+﻿import * as crypto from "node:crypto";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import TelegramBot from "node-telegram-bot-api";
 import { logger } from "../../utils/logger.js";
 import { runAgent } from "../agent/runAgent.js";
 import type { BrainClient } from "../brain/client.js";
@@ -18,6 +21,8 @@ let errorCount = 0;
 let _config: AppConfig | null = null;
 let _brain: BrainClient | null = null;
 let _wsServer: WsServer | null = null;
+
+const TELEGRAM_ATTACHMENTS_DIR = "knowledge/telegram";
 
 export function getBot(): TelegramBot | null {
 	return bot;
@@ -69,6 +74,51 @@ export async function stopTelegram(): Promise<void> {
 	}
 }
 
+/**
+ * Download a file from Telegram to the workspace knowledge directory.
+ * Returns { name, path } or null on failure.
+ */
+async function downloadTelegramFile(
+	fileId: string,
+	subDir: string,
+	extension: string
+): Promise<{ name: string; path: string } | null> {
+	if (!bot || !_config) return null;
+
+	try {
+		const fileInfo = await bot.getFile(fileId);
+		if (!fileInfo.file_path) {
+			logger.warn(`[TG] getFile returned no file_path for ${fileId}`);
+			return null;
+		}
+
+		const attachDir = path.join(_config.workspaceDir, TELEGRAM_ATTACHMENTS_DIR, subDir);
+		fs.mkdirSync(attachDir, { recursive: true });
+
+		const ext = extension.startsWith(".") ? extension : `.${extension}`;
+		const uniqueName = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}${ext}`;
+		const destPath = path.join(attachDir, uniqueName);
+
+		const downloadedPath = await bot.downloadFile(fileId, attachDir);
+		// downloadFile saves with the original filename; rename to our unique name
+		if (downloadedPath !== destPath) {
+			try {
+				fs.renameSync(downloadedPath, destPath);
+			} catch {
+				// If rename fails (e.g. cross-device), copy and delete
+				fs.copyFileSync(downloadedPath, destPath);
+				fs.unlinkSync(downloadedPath);
+			}
+		}
+
+		logger.info(`[TG] File saved: ${destPath} (${fileInfo.file_size ? `${(fileInfo.file_size / 1024).toFixed(1)} KB` : "unknown size"})`);
+		return { name: uniqueName, path: destPath };
+	} catch (err) {
+		logger.warn(`[TG] Failed to download file ${fileId}: ${err instanceof Error ? err.message : String(err)}`);
+		return null;
+	}
+}
+
 export async function startTelegram(): Promise<void> {
 	if (!_config || !_brain) {
 		logger.warn("[Telegram] Config or Brain not initialized. Call initTelegramDeps() first.");
@@ -107,12 +157,13 @@ export async function startTelegram(): Promise<void> {
 	// ────────────────────────────────────────────────────────────────────────────────
 	bot.on("message", async (msg: TelegramBot.Message) => {
 		const chatId = msg.chat.id;
-		const text = msg.text ?? "";
+		const text = msg.caption ?? msg.text ?? "";
 		const username = msg.from?.username ?? "";
 		const firstName = msg.from?.first_name ?? "";
+		const hasAttachments = !!(msg.audio || msg.document || msg.voice || msg.video || (msg.photo && msg.photo.length > 0));
 
 		// 🔍 DEBUG: log ALL incoming messages regardless of anything
-		logger.info(`📥 [TG-DEBUG] Message received — chatId: ${chatId}, from: @${username || firstName}, text: "${text.slice(0, 100)}"`);
+		logger.info(`📥 [TG-DEBUG] Message received — chatId: ${chatId}, from: @${username || firstName}, text: "${text.slice(0, 100)}"${hasAttachments ? " [HAS ATTACHMENTS]" : ""}`);
 		logger.info(`📥 [TG-DEBUG] AllowedUsers in config: [${_config!.telegramAllowedUsers.join(", ")}]`);
 		logger.info(`📥 [TG-DEBUG] Checking username "${username}" against allowedUsers: ${_config!.telegramAllowedUsers.includes(username)}`);
 		logger.info(`📥 [TG-DEBUG] Checking cleanUsername "${username.replace(/^@/, "").toLowerCase()}": ${_config!.telegramAllowedUsers.includes(username.replace(/^@/, "").toLowerCase())}`);
@@ -157,17 +208,65 @@ export async function startTelegram(): Promise<void> {
 
 		const startTime = Date.now();
 		try {
-			// Typing indicator (dentro del try para no matar el handler si falla)
+			// ── Download attachments ─────────────────────────────────────────────
+			const attachments: Array<{ name: string; type: string; data: string }> = [];
+
+			// Audio
+			if (msg.audio) {
+				const file = await downloadTelegramFile(msg.audio.file_id, "audio", "ogg");
+				if (file) attachments.push({ name: file.name, type: "audio/ogg", data: file.path });
+			}
+
+			// Document (general file)
+			if (msg.document) {
+				const origName = msg.document.file_name || "file";
+				const ext = path.extname(origName).slice(1) || "bin";
+				const mime = msg.document.mime_type || "application/octet-stream";
+				const file = await downloadTelegramFile(msg.document.file_id, "documents", ext);
+				if (file) attachments.push({ name: file.name, type: mime, data: file.path });
+			}
+
+			// Voice message
+			if (msg.voice) {
+				const file = await downloadTelegramFile(msg.voice.file_id, "voice", "ogg");
+				if (file) attachments.push({ name: file.name, type: "audio/ogg", data: file.path });
+			}
+
+			// Video
+			if (msg.video) {
+				const file = await downloadTelegramFile(msg.video.file_id, "videos", "mp4");
+				if (file) attachments.push({ name: file.name, type: "video/mp4", data: file.path });
+			}
+
+			// Photo (use highest resolution)
+			if (msg.photo && msg.photo.length > 0) {
+				const best = msg.photo[msg.photo.length - 1];
+				const file = await downloadTelegramFile(best.file_id, "images", "jpg");
+				if (file) attachments.push({ name: file.name, type: "image/jpeg", data: file.path });
+			}
+
+			// ── Continue processing ─────────────────────────────────────────────
+
+			// Typing indicator
 			bot!.sendChatAction(chatId, "typing").catch(() => {});
 
 			const channelChat = getOrCreateChannelChat(effectiveUserId, "telegram");
+
+			// Build message content (text + attachment summary)
+			let contentForDb = text;
+			if (attachments.length > 0) {
+				const fileList = attachments.map((a) => `[${a.type}] ${a.name}`).join(", ");
+				contentForDb = text
+					? `${text}\n\n📎 Archivos adjuntos: ${fileList}`
+					: `📎 Archivos adjuntos: ${fileList}`;
+			}
 
 			// Persist user message
 			saveMessage({
 				userId: effectiveUserId,
 				chatId: channelChat.id,
 				role: "user",
-				content: text,
+				content: contentForDb,
 				origin: "telegram",
 			});
 
@@ -176,13 +275,13 @@ export async function startTelegram(): Promise<void> {
 				_wsServer.sendToAll("telegram_message", {
 					chatId: channelChat.id,
 					role: "user",
-					content: text,
+					content: contentForDb,
 					timestamp: Date.now()
 				});
 			}
 
 			// Expert tagging (@AgentName)
-			let finalUserText = text;
+			let finalUserText = text || (attachments.length > 0 ? "Archivos adjuntos enviados." : "");
 			const experts = listExperts();
 			const tagMatch = text.match(/^@([a-zA-Z0-9_]+)\b/i);
 
@@ -202,10 +301,11 @@ export async function startTelegram(): Promise<void> {
 				}
 			}
 
-			logger.info(`[TG] Running agent for chatId=${channelChat.id} text="${text.slice(0, 60)}"`);
+			logger.info(`[TG] Running agent for chatId=${channelChat.id} text="${text.slice(0, 60)}" attachments=${attachments.length}`);
 			const result = await runAgent({
 				chatId: channelChat.id,
 				userText: finalUserText,
+				attachments: attachments.length > 0 ? attachments : undefined,
 				config: _config!,
 				brain: _brain!,
 				origin: "telegram",
