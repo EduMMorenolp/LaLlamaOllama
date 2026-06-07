@@ -1,11 +1,11 @@
-﻿import { Check, ChevronDown, ChevronLeft, ChevronRight, Download, Edit3, MessageSquare, Paperclip, Pin, PinOff, Plus, Reply, Save, Search, Send, Star, StopCircle, Terminal, Trash2, Wrench, X } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Download, Edit3, MessageSquare, Paperclip, Pin, PinOff, Plus, Reply, Save, Search, Send, Star, StopCircle, Terminal, Trash2, Wrench, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useWs } from "../contexts/WebSocketContext";
 import { ConfirmModal } from "./ConfirmModal";
 
-// ─── Types ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+// Types
 
 interface TokenUsage {
 	promptTokens: number;
@@ -41,7 +41,7 @@ interface ChatEntry {
 
 }
 
-// ─── Utility: extract images from message content ──────────────────────────────────────────────────────────────────────
+// Utility: extract images from message content
 
 function extractImagesFromContent(content: string): string[] {
 	const images: string[] = [];
@@ -66,7 +66,7 @@ function extractImagesFromContent(content: string): string[] {
 	return images;
 }
 
-// ─── Main Component ──────────────────────────────────────────────────────────────────────────────────────────────────
+// Main Component
 
 export const AgentChat: React.FC = () => {
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -76,7 +76,7 @@ export const AgentChat: React.FC = () => {
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 
-	// ─── Chat management ──────────────────────────────────────────────────────────────────────────────────────────────
+	// Chat management-
 	const [chats, setChats] = useState<ChatEntry[]>([]);
 	const [currentChatId, setCurrentChatId] = useState<string | null>(null);
 	const [chatSidebarOpen, setChatSidebarOpen] = useState(true);
@@ -93,37 +93,36 @@ export const AgentChat: React.FC = () => {
 	const [confirmClearQueue, setConfirmClearQueue] = useState(false);
 	const messageQueueRef = useRef<string[]>([]);
 
-	// ─── Feature: search within chat ──────────────────────────────────────────────────────────────────────────────────
+	// Feature: search within chat-
 	const [chatSearchQuery, setChatSearchQuery] = useState("");
 	const [chatSearchOpen, setChatSearchOpen] = useState(false);
 
-	// ─── Feature: collapsible tools ───────────────────────────────────────────────────────────────────────────────────
+	// Feature: collapsible tools--
 	const [collapsedTools, setCollapsedTools] = useState(true);
 
-	// ─── Feature: edit messages ───────────────────────────────────────────────────────────────────────────────────────
+	// Feature: edit messages
 	const [editingIndex, setEditingIndex] = useState<number | null>(null);
 	const [editValue, setEditValue] = useState("");
 
-	// ─── Feature: image lightbox ──────────────────────────────────────────────────────────────────────────────────────
+	// Feature: image lightbox
 	const [expandedImage, setExpandedImage] = useState<string | null>(null);
 
-	// ��� Feature: reply to messages ����������������������������������������������������������������������������������
+	// Feature: reply to messages
 	const [replyTo, setReplyTo] = useState<{ index: number; content: string; role: string; timestamp: Date } | null>(null);
 
-	// ��� Feature: saved/favorited messages ��������������������������������������������������������������������������
+	// Feature: saved/favorited messages
 	const [savedMessages, setSavedMessages] = useState<Set<string>>(new Set());
 
-	// ��� Feature: auto suggestions ��������������������������������������������������������������������������������
+	// Feature: auto suggestions 
 	const [suggestions, setSuggestions] = useState<string[]>([]);
 
-	// ─── Slash commands ──────────────────────────────────────────────────────────────────────────────────────────────
+	// Slash commands-
 	const COMMANDS = [
-		{ cmd: "/ayuda", desc: "Muestra esta lista de comandos", action: () => setInput("/ayuda - Muestra esta lista de comandos\n/buscar <consulta> - Busca informaci\u00f3n en internet\n/nuevaTarea - Crear una nueva tarea\n/modelo <nombre> - Cambiar el modelo activo\n/temperatura <0-2> - Ajustar la temperatura\n/chat nuevo - Crear un nuevo chat\n/tools - Listar herramientas disponibles") },
-		{ cmd: "/buscar", desc: "Busca informaci\u00f3n en internet", action: () => {} },
-		{ cmd: "/nuevaTarea", desc: "Crear una nueva tarea", action: () => { sendWs("new_task", {}); } },
-		{ cmd: "/modelo", desc: "Cambiar el modelo activo", action: () => {} },
-		{ cmd: "/temperatura", desc: "Ajustar la temperatura (0-2)", action: () => {} },
-		{ cmd: "/chat nuevo", desc: "Crear un nuevo chat", action: () => { handleNewChat(); } },
+		{ cmd: "/ayuda", desc: "Muestra esta lista de comandos", action: () => {} },
+		{ cmd: "/buscar", desc: "Busca informaci�n en internet", action: () => {} },
+		{ cmd: "/nuevaTarea", desc: "Crear una nueva tarea", action: () => {} },
+		{ cmd: "/modelos", desc: "Listar modelos disponibles en Ollama", action: () => {} },
+		{ cmd: "/cambioModelo", desc: "Cambiar el modelo activo: /cambioModelo <nombre>", action: () => {} },
 		{ cmd: "/tools", desc: "Listar herramientas disponibles", action: () => {} },
 	];
 	const [showCommands, setShowCommands] = useState(false);
@@ -330,6 +329,56 @@ export const AgentChat: React.FC = () => {
 				break;
 			}
 
+
+			case "tools_list": {
+				const tools = msg.payload?.tools as Array<{ function: { name: string; description: string } }>;
+				if (tools && Array.isArray(tools)) {
+					const toolsText = tools
+						.filter((t) => t?.function?.name)
+						.map((t) => `- **${t.function.name}**: ${t.function.description || "Sin descripci�n"}`)
+						.join("\n");
+					setMessages((prev) => [...prev, {
+						role: "system",
+						content: `**Herramientas disponibles (${tools.length}):**\n\n${toolsText}`,
+						timestamp: new Date(),
+					}]);
+				}
+				break;
+			}
+
+			case "ollama_models": {
+				const models = msg.payload?.models as Array<{ name: string }>;
+				if (models && Array.isArray(models)) {
+					if (models.length === 0) {
+						setMessages((prev) => [...prev, {
+							role: "system",
+							content: "No se encontraron modelos en Ollama.",
+							timestamp: new Date(),
+						}]);
+					} else {
+						const modelsText = models
+							.map((m: { name: string }) => `- **${m.name}**`)
+							.join("\n");
+						setMessages((prev) => [...prev, {
+							role: "system",
+							content: `**Modelos disponibles en Ollama (${models.length}):**\n\n${modelsText}\n\nUsa \`/cambioModelo <nombre>\` para cambiar el modelo activo.`,
+							timestamp: new Date(),
+						}]);
+					}
+				}
+				break;
+			}
+
+			case "task_created": {
+				const taskRunId = msg.payload?.runId as number;
+				const taskText = msg.payload?.text as string;
+				setMessages((prev) => [...prev, {
+					role: "system",
+					content: `\u2705 Tarea creada (#${taskRunId}): **${taskText}**`,
+					timestamp: new Date(),
+				}]);
+				break;
+			}
 		}
 	};
 
@@ -357,28 +406,45 @@ export const AgentChat: React.FC = () => {
 	const executeCommand = useCallback((cmdText: string) => {
 		const cmd = COMMANDS.find((c) => cmdText.startsWith(c.cmd));
 		if (!cmd) return false;
+
 		if (cmd.cmd === "/ayuda") {
 			const helpText = COMMANDS.map((c) => `${c.cmd} - ${c.desc}`).join("\n");
 			setMessages((prev) => [...prev, {
 				role: "system",
 				content: `Comandos disponibles:\n${helpText}`,
-				timestamp: new Date(),
+				
+timestamp: new Date(),
 			}]);
 		} else if (cmd.cmd === "/buscar") {
 			const query = cmdText.slice("/buscar".length).trim();
 			if (query) {
 				sendMessage(`Busca en internet: ${query}`);
 			} else {
-				setMessages((prev) => [...prev, {
-					role: "system",
-					content: "Usa: /buscar <tu consulta>",
-					timestamp: new Date(),
-				}]);
+				setInput("/buscar: ");
+				setTimeout(() => inputRef.current?.focus(), 0);
 			}
 		} else if (cmd.cmd === "/nuevaTarea") {
 			sendWs("new_task", {});
-		} else if (cmd.cmd === "/chat nuevo") {
-			sendWs("chat_update", { action: "create", title: "Nuevo chat" });
+		} else if (cmd.cmd === "/modelos") {
+			sendWs("list_ollama_models", {});
+		} else if (cmd.cmd === "/cambioModelo") {
+			const modelName = cmdText.slice("/cambioModelo".length).trim();
+			if (modelName) {
+				sendWs("general_config_update", { model: modelName });
+				setMessages((prev) => [...prev, {
+					role: "system",
+					content: `✅ Cambiando modelo activo a: **${modelName}**`,
+					
+timestamp: new Date(),
+				}]);
+			} else {
+				setMessages((prev) => [...prev, {
+					role: "system",
+					content: "Usa: /cambioModelo <nombre_del_modelo>",
+					
+timestamp: new Date(),
+				}]);
+			}
 		} else if (cmd.cmd === "/tools") {
 			sendWs("list_tools", {});
 		} else {
@@ -392,6 +458,22 @@ export const AgentChat: React.FC = () => {
 	const handleSend = useCallback(() => {
 		const text = input.trim();
 		if (!text || !connected) return;
+
+		// Check if it's a /buscar: prefix (Discord-like parameter input)
+		if (text.startsWith("/buscar: ")) {
+			const query = text.slice("/buscar: ".length).trim();
+			if (query) {
+				sendMessage(`Busca en internet: ${query}`);
+				setInput("");
+				return;
+			}
+		}
+
+		// Check if it's a /cambioModelo command with parameter
+		if (text.startsWith("/cambioModelo ")) {
+			executeCommand(text);
+			return;
+		}
 
 		// Check if it's a slash command
 		if (text.startsWith("/")) {
@@ -460,7 +542,7 @@ export const AgentChat: React.FC = () => {
 		}
 	};
 
-	// ─── Chat CRUD ────────────────────────────────────────────────────────────────────────────────────────────────────
+	// Chat CRUD--
 	const handleNewChat = () => sendWs("chat_update", { action: "create", title: "Nuevo chat" });
 
 	const handleSwitchChat = (chatId: string) => {
@@ -518,7 +600,7 @@ export const AgentChat: React.FC = () => {
 		setAttachments((prev) => prev.filter((_, i) => i !== index));
 	};
 
-	// ─── Feature: edit handlers ────────────────────────────────────────────────────────────────────────────────────────
+	// Feature: edit handlers-
 	const handleStartEdit = useCallback((index: number) => {
 		setEditingIndex(index);
 		setEditValue(messages[index].content);
@@ -539,14 +621,14 @@ export const AgentChat: React.FC = () => {
 		setEditValue("");
 	}, []);
 
-	// ─── Feature: export chat as markdown ─────────────────────────────────────────────────────────────────────────────
+	// Feature: export chat as markdown--
 	const exportChat = useCallback(() => {
 		const title = chats.find((c) => c.id === currentChatId)?.title || "chat";
 		const date = new Date().toISOString().split("T")[0];
 		const chatId = currentChatId || "export";
 
 		let md = `# Chat - ${title}\n\n`;
-		md += `*Exportado el ${new Date().toLocaleString()}*\n\n---\n\n`;
+		md += `*Exportado el ${new Date().toLocaleString()}*\n\\n\n`;
 
 		messages.forEach((msg) => {
 			const roleLabel =
@@ -557,9 +639,9 @@ export const AgentChat: React.FC = () => {
 			md += `## ${roleLabel} (${time})\n\n`;
 			md += `${msg.content}\n\n`;
 			if (msg.usage) {
-				md += `> Tokens: ${msg.usage.promptTokens}△ / ${msg.usage.completionTokens}▽\n\n`;
+				md += `> Tokens: ${msg.usage.promptTokens}? / ${msg.usage.completionTokens}?\n\n`;
 			}
-			md += `---\n\n`;
+			md += \n\n`;
 		});
 
 		const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
@@ -571,7 +653,7 @@ export const AgentChat: React.FC = () => {
 		URL.revokeObjectURL(url);
 	}, [chats, currentChatId, messages]);
 
-	// ─── Computed values ──────────────────────────────────────────────────────────────────────────────────────────────
+	// Computed values-
 	const currentChat = chats.find((c) => c.id === currentChatId);
 
 	const filteredChats = chats.filter((c) =>
@@ -747,7 +829,7 @@ export const AgentChat: React.FC = () => {
 						)}
 						{messages.length === 0 && currentChatId && (
 							<div style={{ textAlign: "center", padding: "60px 20px", color: "var(--text-dim)", fontSize: "13px" }}>
-								Chat vac\u00edo. Env\u00eda un mensaje para empezar.
+								Chat vacío. Envía un mensaje para empezar.
 							</div>
 						)}
 						{filteredMessageIndices.map(({ msg, i }) => {
@@ -1216,7 +1298,7 @@ export const AgentChat: React.FC = () => {
 		</div>
 	);
 
-	// ─── Render Chat Item ──────────────────────────────────────────────────────────────────────────────────────────────
+	// Render Chat Item
 	function renderChatItem(chat: ChatEntry) {
 		const isActive = chat.id === currentChatId;
 		const isRenaming = renamingChat === chat.id;
@@ -1276,7 +1358,7 @@ export const AgentChat: React.FC = () => {
 	}
 };
 
-// ─── Message Bubble Component ─────────────────────────────────────────────────────────────────────────────────────────
+// Message Bubble Component
 
 interface MessageBubbleProps {
 	message: ChatMessage;

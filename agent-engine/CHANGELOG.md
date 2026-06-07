@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Añadido
+- **➕ Handler WS `new_task`** — Crea un run en la DB con estado "queued". Responde con `task_created`
 - **💬 Reply / Quoted Messages** — Campo `quotedMessage` en `AgentOptions`. El contenido citado se inyecta como blockquote en el prompt del agente. Extraído del payload WS en `user_message`
 - **⭐ Favoritos / Saved Messages** — Nueva tabla `saved_messages` en SQLite. Archivo `savedMessages.ts` con 4 funciones DB. 4 handlers WS: `save_message`, `unsave_message`, `list_saved_messages`, `is_message_saved`
 - **💡 Auto Suggestions** — Nuevo servicio `services/agent/suggestions.ts`. Genera 2-3 preguntas de seguimiento vía LLM. Se dispara async después de `assistant_done`. Evento WS `suggestions`
@@ -19,6 +20,8 @@
 - Campo `history_limit` en tabla `sub_agents` (migración automática)
 
 ### Cambiado
+- **`buildPrompt.ts`**: sección "Uso de herramientas - CRÍTICO" con regla de oro, prohibiciones explícitas, y ejemplos concretos. Nueva sección "Sistema de Tareas y Conocimiento" con comandos Slash
+- **`read-url.ts`**: nueva función `htmlToText()` para limpiar HTML/JS. User-Agent actualizado a Chrome 125 real. Detección automática de contenido HTML
 - **`buildPrompt.ts`**: instrucción explícita para usar `tool_calls` cuando el usuario pida ejecutar herramientas, en vez de describirlas en texto
 - **`get_status`**: ahora usa `gc?.model || config.defaultModel` (DB) en lugar de solo `config.defaultModel` (env var), consistente con el handler `identify`
 

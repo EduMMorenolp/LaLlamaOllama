@@ -7,6 +7,28 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 
 ## [Unreleased]
 
+### 🔧 Slash Commands: Limpieza y nuevas funcionalidades (2026-06-06)
+
+#### Agent Frontend
+- **🗑️ Eliminados**: `/temperatura` (redundante), `/chat nuevo` (hay icono)
+- **🔄 `/modelo` → `/modelos`**: Ahora lista los modelos disponibles en Ollama con nombres exactos
+- **➕ `/cambioModelo <nombre>`**: Nuevo comando para cambiar el modelo activo al instante. Envía `general_config_update` y muestra confirmación
+- **🔧 `/tools` arreglado**: Ahora muestra la lista formateada de herramientas con nombre y descripción
+- **🔧 `/nuevaTarea` arreglado**: Crea una tarea (run) en la base de datos y muestra confirmación con ID
+- **🎨 `/buscar` estilo Discord**: Si escribís `/buscar` sin consulta, el input cambia a `/buscar: ` y espera el texto. Como Discord. Al apretar Enter se ejecuta la búsqueda
+- **Nuevos handlers WS**: `tools_list`, `ollama_models`, `task_created` en `handleWsMessage`
+
+#### Agent Engine
+- **➕ Handler `new_task`**: Crea un run en la DB con status "queued". Responde con `task_created`
+
+### 🔧 Hotfix: Forzar ejecución de herramientas + Mejora read_url + Contador de mensajes (2026-06-06)
+
+#### Agent Engine
+- **🔧 System prompt reforzado** — Nueva sección "Uso de herramientas - CRÍTICO" con regla de oro, prohibiciones explícitas (no describir, no preguntar, no mostrar JSON) y ejemplos concretos de cuándo ejecutar tools automáticamente
+- **🔧 Conciencia del sistema de tareas** — El agente ahora conoce los 7 comandos Slash del frontend y sabe cómo responder cuando el usuario pide "agregar una tarea"
+- **🔧 read_url mejorado** — Nueva función `htmlToText()` que limpia HTML/JS de las respuestas. Detecta contenido HTML automáticamente. User-Agent actualizado a Chrome 125 real para evitar bloqueos de buscadores
+- **📊 Contador de mensajes** — Nueva sección en el header del chat mostrando "↓ N ↑ M" (enviados/recibidos)
+
 ### 🚀 Fase 2: Citas/Reply, Favoritos, Sugerencias Automáticas, Historial de Sesiones (2026-06-06)
 
 #### Agent Engine

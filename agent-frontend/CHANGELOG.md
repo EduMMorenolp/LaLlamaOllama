@@ -3,6 +3,12 @@
 ## [Unreleased]
 
 ### Añadido
+- **➕ `/cambioModelo <nombre>`** — Nuevo comando para cambiar modelo activo vía `general_config_update`
+- **🎨 `/buscar` estilo Discord** — Sin consulta → input cambia a `/buscar: ` y espera texto como Discord
+- **🔧 `/tools` funcional** — Muestra lista formateada de herramientas con nombre + descripción
+- **🔧 `/nuevaTarea` funcional** — Crea tarea en DB, muestra confirmación con ID
+- **🔄 `/modelo` → `/modelos`** — Lista modelos Ollama disponibles con nombres exactos
+- **Handlers WS**: `tools_list`, `ollama_models`, `task_created` agregados
 - **💬 Citas / Reply** — Botón "Reply" en cada burbuja, barra contextual sobre el input, `quotedMessage` en payload WS
 - **⭐ Favoritos / Saved Messages** — Botón Star toggle (relleno/outline), tracking local con Set, handlers WS save/unsave
 - **💡 Sugerencias automáticas** — Chips clicables entre tool calls y "Pensando...". Se llena input al hacer clic
@@ -30,6 +36,7 @@
 - Configuración General persistente (modelo, temp, history_limit)
 
 ### Cambiado
+- **📊 Contador de mensajes en header** — Muestra "↓ N ↑ M" (enviados/recibidos) entre el título del chat y los botones. Solo visible cuando hay mensajes
 - **Bugfix: switch statement en handleWsMessage** — El `case "error"` estaba fuera del `switch` por una llave `}` prematura. El manejador de errores nunca se ejecutaba. Corregido eliminando la llave extra
 - **Chat siempre montado** — `<AgentChat />` usa `display:none` en vez de render condicional, preservando WS subscriptions al cambiar de tab
 - **Fix duplicación de respuestas** — `assistant_done` reemplaza el último mensaje del streaming en vez de agregar uno nuevo

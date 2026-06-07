@@ -1,4 +1,4 @@
-﻿import { type WebSocket } from "ws";
+import { type WebSocket } from "ws";
 import { runAgent } from "../services/agent/runAgent.js";
 import type { BrainClient } from "../services/brain/client.js";
 import { loadConfig } from "../services/config.js";
@@ -30,7 +30,7 @@ import { saveMessageToFavorites, unsaveMessage, listSavedMessages, isMessageSave
 import { generateSuggestions } from "../services/agent/suggestions.js";
 import { getChatWithStats } from "../services/db/chats.js";
 import { listModels, upsertModel, deleteModel, type ModelEntry } from "../services/db/models.js";
-import { listRunsByFilters } from "../services/db/runs.js";
+import { listRunsByFilters, createRun } from "../services/db/runs.js";
 import { resetSession, pushSessionMessages } from "../services/agent/runAgentCore.js";
 import { startTelegram, stopTelegram, initTelegramDeps } from "../services/telegram/bot.js";
 import axios from "axios";
@@ -80,7 +80,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					logger.agent(`[${chatId}] Cancel requested`);
 					wsServer.sendToAll("assistant_done", {
 						chatId,
-						text: "? Conversaciï¿½n cancelada.",
+						text: "✅ Conversación cancelada.",
 						model: "system",
 						latencyMs: 0,
 					});
@@ -274,7 +274,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 									origin: m.origin,
 								})),
 								expertName: chat?.expertName || null,
-								text: storedMessages.length === 0 ? "Este chat no tiene mensajes aï¿½n." : "",
+								text: storedMessages.length === 0 ? "Este chat no tiene mensajes aún." : "",
 								model: "Sistema",
 							})
 						);
@@ -332,7 +332,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					const token = payload?.botToken as string;
 					const enabled = payload?.enabled as boolean;
 					if (enabled && token) {
-						// TODO: usar variable de mï¿½dulo en vez de process.env
+						// TODO: usar variable de modulo en vez de process.env
 						process.env.TELEGRAM_BOT_TOKEN = token;
 						startTelegram().catch((err) => {
 							logger.error(`Failed to start Telegram: ${err}`);
@@ -372,6 +372,17 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					ws.send(createMessage("list_tasks", { runs }));
 					break;
 				}
+
+				// New task
+				case "new_task": {
+					const userId = userMap.get(clientId) ?? clientId;
+					const taskText = (payload?.text as string) || "Nueva tarea";
+					const chatId = (payload?.chatId as string) || userId;
+					const runId = createRun({ chatId, userText: taskText, origin: "web", status: "queued" });
+					ws.send(createMessage("task_created", { runId, chatId, text: taskText, status: "queued" }));
+					break;
+				}
+
 
 				// Favorites / Saved messages
 				case "save_message": {

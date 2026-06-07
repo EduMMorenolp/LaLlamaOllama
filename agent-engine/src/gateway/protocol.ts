@@ -31,6 +31,7 @@ export type WsMessageType =
 	// Tasks
 	| "list_tasks"
 	// Favorites / Saved messages
+	| "task_created"
 	| "save_message"
 	| "unsave_message"
 	| "list_saved_messages"
