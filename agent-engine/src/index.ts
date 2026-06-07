@@ -6,7 +6,7 @@ import { WsServer } from "./server/ws.js";
 import { BrainClient } from "./services/brain/client.js";
 import { loadConfig } from "./services/config.js";
 import { getDb } from "./services/db/connection.js";
-import { setSetting } from "./services/db/settings.js";
+import { getSetting, setSetting } from "./services/db/settings.js";
 import { detectDockerInfo } from "./services/docker-info.js";
 import { initOrchestrator } from "./services/orchestrator/index.js";
 import { setRuntimeContext } from "./services/runtime.js";
@@ -73,21 +73,44 @@ async function bootstrap() {
 		logger.info(`  - ${name} (${toolRegistry.isEnabled(name) ? "enabled" : "disabled"})`);
 	}
 
-	// 8. Initialize Telegram dependencies
-	initTelegramDeps(config, brain);
+	// 8. Load Telegram config from DB (persists frontend settings across restarts)
+	if (!config.telegramBotToken || config.telegramBotToken === "123456:ABCDEF") {
+		try {
+			const savedToken = getSetting("telegram_bot_token");
+			if (savedToken) {
+				config.telegramBotToken = savedToken;
+				logger.info("[Telegram] Token loaded from DB (overrides .env)");
+			}
+			const savedUsers = getSetting("telegram_allowed_users");
+			if (savedUsers) {
+				try {
+					config.telegramAllowedUsers = JSON.parse(savedUsers);
+				} catch {
+					config.telegramAllowedUsers = savedUsers.split(",").filter(Boolean);
+				}
+			}
+		} catch {
+			logger.warn("[Telegram] Could not load config from DB");
+		}
+	}
 
-	// 9. Start Telegram bot if token configured
+	// 9. Start servers
+	startApiServer(config, brain);
+	const wsServer = new WsServer(config, brain);
+
+	// 10. Initialize Telegram dependencies
+	initTelegramDeps(config, brain, wsServer);
+
+	// 11. Start Telegram bot if token configured
 	if (config.telegramBotToken) {
 		await startTelegram();
 	} else {
 		logger.info("[Telegram] No token configured. Skipping.");
 	}
 
-	// 10. Start servers
-	startApiServer(config, brain);
-	const wsServer = new WsServer(config, brain);
 
-	// 11. Background jobs
+
+	// 12. Background jobs
 	startCronJobs(brain);
 
 	// Handle shutdown

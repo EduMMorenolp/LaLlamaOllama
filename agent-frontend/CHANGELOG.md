@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+### 📱 Telegram: Sección UI en Conexion.tsx
+
+#### Añadido
+- **➕ Sección Telegram en Conexion.tsx** — Nueva card con:
+  - Badge de estado (Activo/Inactivo) con colores semánticos
+  - Input de token (type=password) con placeholder de ejemplo
+  - Input de usuarios permitidos separados por coma con ayuda textual
+  - Botón principal "Iniciar Bot" / "Detener Bot" según estado actual
+  - Botón "Actualizar" para aplicar cambios sin reiniciar
+  - Nota informativa con referencia al comando `/ayuda`
+- **➕ Handlers WS**: Suscripción a `telegram_status` y `status` (telegramActive)
+- **➕ Fetch automático**: Al conectar WebSocket, envía `telegram_get_status`
+- **➕ Nuevo state**: `telegramRunning`, `telegramToken`, `telegramAllowedUsers`, `telegramSaving`
+- **➕ Icono Send** importado de lucide-react para la sección
+
 ### Añadido
 - **➕ `/cambioModelo <nombre>`** — Nuevo comando para cambiar modelo activo vía `general_config_update`
 - **🎨 `/buscar` estilo Discord** — Sin consulta → input cambia a `/buscar: ` y espera texto como Discord

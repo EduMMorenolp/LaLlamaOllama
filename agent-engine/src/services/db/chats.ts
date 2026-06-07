@@ -69,17 +69,17 @@ export function listChats(userId: string, expertName?: string | null): ChatEntry
 	return db.prepare(query).all(...params) as ChatEntry[];
 }
 
-export function listChannelChats(userId: string): ChatEntry[] {
+export function listChannelChats(_userId?: string): ChatEntry[] {
 	const db = getDb();
 	return db
 		.prepare(
 			`SELECT c.*,
 				(SELECT content FROM messages WHERE chatId = c.id ORDER BY created_at DESC LIMIT 1) as lastMessage
 			FROM chats c
-			WHERE c.userId = ? AND c.origin != 'web'
-			ORDER BY c.origin ASC`
+			WHERE c.origin != 'web'
+			ORDER BY c.updated_at DESC`
 		)
-		.all(userId) as ChatEntry[];
+		.all() as ChatEntry[];
 }
 
 export function getOrCreateChannelChat(userId: string, origin: string): ChatEntry {

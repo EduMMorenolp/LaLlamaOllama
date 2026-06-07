@@ -1,4 +1,4 @@
-import {
+﻿import {
 	Check,
 	ChevronDown,
 	ChevronLeft,
@@ -99,6 +99,7 @@ export const AgentChat: React.FC = () => {
 
 	// Chat management-
 	const [chats, setChats] = useState<ChatEntry[]>([]);
+	const [channelChats, setChannelChats] = useState<ChatEntry[]>([]);
 	const [currentChatId, setCurrentChatId] = useState<string | null>(null);
 	const [chatSidebarOpen, setChatSidebarOpen] = useState(true);
 	const [chatSearch, setChatSearch] = useState("");
@@ -142,7 +143,7 @@ export const AgentChat: React.FC = () => {
 	// Slash commands-
 	const COMMANDS = [
 		{ cmd: "/ayuda", desc: "Muestra esta lista de comandos", action: () => {} },
-		{ cmd: "/buscar", desc: "Busca informaci�n en internet", action: () => {} },
+		{ cmd: "/buscar", desc: "Busca informaciï¿½n en internet", action: () => {} },
 		{ cmd: "/nuevaTarea", desc: "Crear una nueva tarea", action: () => {} },
 		{ cmd: "/modelos", desc: "Listar modelos disponibles en Ollama", action: () => {} },
 		{ cmd: "/cambioModelo", desc: "Cambiar el modelo activo: /cambioModelo <nombre>", action: () => {} },
@@ -220,6 +221,9 @@ export const AgentChat: React.FC = () => {
 					if (activeChatId) {
 						setCurrentChatId(activeChatId);
 					}
+				}
+				if (msg.payload?.channelChats) {
+					setChannelChats(msg.payload.channelChats as ChatEntry[]);
 				}
 				break;
 			}
@@ -372,7 +376,7 @@ export const AgentChat: React.FC = () => {
 				if (tools && Array.isArray(tools)) {
 					const toolsText = tools
 						.filter((t) => t?.function?.name)
-						.map((t) => `- **${t.function.name}**: ${t.function.description || "Sin descripci�n"}`)
+						.map((t) => `- **${t.function.name}**: ${t.function.description || "Sin descripciï¿½n"}`)
 						.join("\n");
 					setMessages((prev) => [
 						...prev,
@@ -424,6 +428,30 @@ export const AgentChat: React.FC = () => {
 						timestamp: new Date(),
 					},
 				]);
+				break;
+			}
+			case "telegram_message": {
+				const msgChatId = msg.payload?.chatId as string;
+				const content = (msg.payload?.content as string) || "";
+				const role = (msg.payload?.role as string) || "user";
+				if (msgChatId === currentChatId) {
+					setMessages((prev) => [
+						...prev,
+						{
+							role: role as ChatMessage["role"],
+							content,
+							timestamp: new Date(),
+						},
+					]);
+				}
+				// Update sidebar lastMessage for this chat
+				if (content) {
+					setChannelChats((prev) =>
+						prev.map((c) =>
+							c.id === msgChatId ? { ...c, lastMessage: content.substring(0, 80) } : c
+							)
+					)
+				}
 				break;
 			}
 		}
@@ -497,7 +525,7 @@ export const AgentChat: React.FC = () => {
 						...prev,
 						{
 							role: "system",
-							content: `✅ Cambiando modelo activo a: **${modelName}**`,
+							content: `âœ… Cambiando modelo activo a: **${modelName}**`,
 
 							timestamp: new Date(),
 						},
@@ -737,6 +765,7 @@ export const AgentChat: React.FC = () => {
 	const filteredChats = chats.filter((c) => c.title.toLowerCase().includes(chatSearch.toLowerCase()));
 	const pinnedChats = filteredChats.filter((c) => c.pinned);
 	const recentChats = filteredChats.filter((c) => !c.pinned);
+	const telegramChats = channelChats.filter((c) => c.origin === "telegram");
 
 	const filteredMessageIndices = chatSearchQuery
 		? messages
@@ -785,7 +814,7 @@ export const AgentChat: React.FC = () => {
 						Model: {model}
 					</span>
 				)}
-				{(totalPromptTokens > 0 || totalCompletionTokens > 0) && (
+					{(totalPromptTokens > 0 || totalCompletionTokens > 0) && (
 					<span style={{ fontSize: "10px", color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
 						Tokens: {totalPromptTokens + totalCompletionTokens}
 					</span>
@@ -907,7 +936,7 @@ export const AgentChat: React.FC = () => {
 							}}
 						>
 							{filteredCount > 0
-								? `🔍 ${filteredCount} resultado${filteredCount === 1 ? "" : "s"}`
+								? `ðŸ” ${filteredCount} resultado${filteredCount === 1 ? "" : "s"}`
 								: "Sin resultados"}
 						</span>
 					)}
@@ -1010,7 +1039,7 @@ export const AgentChat: React.FC = () => {
 									fontSize: "13px",
 								}}
 							>
-								Chat vacío. Envía un mensaje para empezar.
+								Chat vacÃ­o. EnvÃ­a un mensaje para empezar.
 							</div>
 						)}
 						{filteredMessageIndices.map(({ msg, i }) => {
@@ -1200,7 +1229,7 @@ export const AgentChat: React.FC = () => {
 															marginTop: "2px",
 														}}
 													>
-														✅ Completado
+														âœ… Completado
 													</div>
 												)}
 												{tc.status === "error" && (
@@ -1717,6 +1746,24 @@ export const AgentChat: React.FC = () => {
 									<div style={{ height: "8px" }} />
 								</>
 							)}
+							{telegramChats.length > 0 && (
+								<>
+									<div
+										style={{
+											fontSize: "10px",
+											fontWeight: 600,
+											color: "var(--text-muted)",
+											padding: "4px 8px",
+											textTransform: "uppercase",
+											letterSpacing: "1px",
+										}}
+									>
+										📱 Telegram
+									</div>
+									{telegramChats.map((chat) => renderChatItem(chat))}
+									<div style={{ height: "8px" }} />
+								</>
+							)}
 							<div
 								style={{
 									fontSize: "10px",
@@ -2158,7 +2205,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 				<span>{message.timestamp.toLocaleTimeString()}</span>
 				{!isUser && message.usage && (
 					<span>
-						{message.usage.promptTokens} ↑ / {message.usage.completionTokens} ↓
+						{message.usage.promptTokens} â†‘ / {message.usage.completionTokens} â†“
 					</span>
 				)}
 				<span style={{ flex: 1 }} />
@@ -2212,3 +2259,4 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 		</div>
 	);
 };
+

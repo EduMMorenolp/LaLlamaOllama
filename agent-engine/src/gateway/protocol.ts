@@ -6,7 +6,7 @@ export interface WsMessage {
 }
 
 export type WsMessageType =
-	// Client → Server
+	// Client ? Server
 	| "user_message"
 	| "cancel"
 	| "get_status"
@@ -47,6 +47,7 @@ export type WsMessageType =
 	| "list_sessions_result"
 	// Telegram settings
 	| "telegram_update"
+	| "telegram_get_status"
 	// General config
 	| "get_general_config"
 	| "general_config_update"
@@ -55,17 +56,19 @@ export type WsMessageType =
 	| "get_docker_info"
 	// Ollama models
 	| "list_ollama_models"
-	// Server → Client
+	// Server ? Client
 	| "assistant_chunk"
 	| "assistant_done"
 	| "tool_call"
 	| "tool_result"
 	| "status"
+	| "telegram_status"
 	| "error"
 	| "tools_list"
 	| "action_log"
 	| "ollama_models"
-	| "docker_info";
+	| "telegram_message"
+	| "docker_info";
 
 export interface UserMessagePayload {
 	chatId: string;
@@ -111,3 +114,4 @@ export interface ErrorPayload {
 export function createMessage(type: WsMessageType, payload: Record<string, unknown>): string {
 	return JSON.stringify({ type, payload });
 }
+

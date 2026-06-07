@@ -1,4 +1,4 @@
-﻿import { Cable, Cpu, HardDrive, Monitor, Plus, Radio, Save, Trash2, Wifi, WifiOff } from "lucide-react";
+﻿import { Cable, Cpu, HardDrive, Monitor, Plus, Radio, Save, Send, Trash2, Wifi, WifiOff } from "lucide-react";
 import { useEffect, useState } from "react";
 import { config } from "../config";
 import { useWs } from "../contexts/WebSocketContext";
@@ -40,6 +40,13 @@ export const Conexion: React.FC = () => {
 	// Docker
 	const [dockerInfo, setDockerInfo] = useState<DockerInfo | null>(null);
 
+	// Telegram
+	const [telegramRunning, setTelegramRunning] = useState(false);
+	const [telegramToken, setTelegramToken] = useState("");
+	const [telegramTokenPreview, setTelegramTokenPreview] = useState<string | null>(null);
+	const [telegramAllowedUsers, setTelegramAllowedUsers] = useState("");
+	const [telegramSaving, setTelegramSaving] = useState(false);
+
 	// Subscribe to WS messages
 	useEffect(() => {
 		return subscribe((msg) => {
@@ -51,6 +58,20 @@ export const Conexion: React.FC = () => {
 				const info = msg.payload?.dockerInfo as DockerInfo | null;
 				setDockerInfo(info);
 			}
+			if (msg.type === "telegram_status") {
+				const active = msg.payload?.active === true || msg.payload?.running === true;
+				setTelegramRunning(active);
+				const users = msg.payload?.allowedUsers as string[] | undefined;
+				if (users) setTelegramAllowedUsers(users.join(", "));
+				const preview = msg.payload?.tokenPreview as string | undefined;
+				// Show preview only; never override user-typed token
+				setTelegramTokenPreview(preview || null);
+			}
+			if (msg.type === "status") {
+				if (msg.payload?.telegramActive !== undefined) {
+					setTelegramRunning(msg.payload.telegramActive === true);
+				}
+			}
 		});
 	}, [subscribe]);
 
@@ -59,6 +80,7 @@ export const Conexion: React.FC = () => {
 		if (connected) {
 			sendWs("list_models", {});
 			sendWs("get_docker_info", {});
+			sendWs("telegram_get_status", {});
 		}
 	}, [connected, sendWs]);
 
@@ -79,6 +101,44 @@ export const Conexion: React.FC = () => {
 
 	const handleDeleteModel = (name: string) => {
 		sendWs("model_update", { action: "delete", name });
+	};
+
+	// ─── Telegram handlers ────────────────────────────────────────────────
+	const handleTelegramSave = () => {
+		setTelegramSaving(true);
+		const users = telegramAllowedUsers
+			.split(",")
+			.map((u) => u.trim())
+			.filter(Boolean);
+		// Send user-typed token, or empty string to keep existing backend token
+		const token = telegramToken.trim();
+		sendWs("telegram_update", {
+			enabled: telegramRunning,
+			botToken: token || undefined, // undefined = keep existing
+			allowedUsers: users,
+		});
+		setTimeout(() => {
+			setTelegramSaving(false);
+			setTelegramToken(""); // clear field so preview shows again
+			sendWs("telegram_get_status", {});
+		}, 1500);
+	};
+
+	const handleTelegramToggle = () => {
+		if (telegramRunning) {
+			// Stop
+			setTelegramSaving(true);
+			sendWs("telegram_update", { enabled: false, botToken: undefined, allowedUsers: [] });
+			setTimeout(() => {
+				setTelegramRunning(false);
+				setTelegramSaving(false);
+				sendWs("telegram_get_status", {});
+			}, 1000);
+		} else {
+			// Start — token is required (either user-typed or existing on backend)
+			if (!telegramToken.trim() && !telegramTokenPreview) return;
+			handleTelegramSave();
+		}
 	};
 
 	return (
@@ -424,6 +484,160 @@ export const Conexion: React.FC = () => {
 						</div>
 					))
 				)}
+			</div>
+
+			{/* Telegram Bot */}
+			<div style={sectionCard}>
+				<div
+					style={{
+						display: "flex",
+						justifyContent: "space-between",
+						alignItems: "center",
+						marginBottom: "12px",
+					}}
+				>
+					<label style={{ ...sectionTitle, marginBottom: 0 }}>
+						<Send size={14} style={{ marginRight: "6px" }} />
+						Telegram Bot
+					</label>
+					<span
+						style={{
+							padding: "3px 10px",
+							borderRadius: "4px",
+							fontSize: "10px",
+							fontWeight: 700,
+							background: telegramRunning
+								? "rgba(34,197,94,0.15)"
+								: "rgba(255,255,255,0.03)",
+							color: telegramRunning ? "var(--success)" : "var(--text-dim)",
+							border: `1px solid ${telegramRunning ? "rgba(34,197,94,0.3)" : "var(--border-light)"}`,
+						}}
+					>
+						{telegramRunning ? "Activo" : "Inactivo"}
+					</span>
+				</div>
+
+				<div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+					{/* Token input */}
+					<div>
+						<label
+							style={{
+								fontSize: "10px",
+								fontWeight: 600,
+								color: "var(--text-muted)",
+								display: "block",
+								marginBottom: "4px",
+								textTransform: "uppercase",
+								letterSpacing: "0.5px",
+							}}
+						>
+							Token del Bot
+						</label>
+						<input
+							type="password"
+							value={telegramToken}
+							onChange={(e) => setTelegramToken(e.target.value)}
+							placeholder={telegramTokenPreview || "123456:ABCdefGHIjklmNOPqrSTUvwXYZ"}
+							style={inputStyle}
+						/>
+						{telegramTokenPreview && !telegramToken && (
+							<div style={{ fontSize: "10px", color: "var(--text-dim)", marginTop: "4px" }}>
+								Token configurado: {telegramTokenPreview}
+							</div>
+						)}
+					</div>
+
+					{/* Allowed users input */}
+					<div>
+						<label
+							style={{
+								fontSize: "10px",
+								fontWeight: 600,
+								color: "var(--text-muted)",
+								display: "block",
+								marginBottom: "4px",
+								textTransform: "uppercase",
+								letterSpacing: "0.5px",
+							}}
+						>
+							Usuarios Permitidos
+						</label>
+						<input
+							type="text"
+							value={telegramAllowedUsers}
+							onChange={(e) => setTelegramAllowedUsers(e.target.value)}
+							placeholder="usuario1, usuario2, @usuario3"
+							style={inputStyle}
+						/>
+						<div style={{ fontSize: "10px", color: "var(--text-dim)", marginTop: "4px" }}>
+							Nombres de usuario de Telegram separados por coma.
+						</div>
+					</div>
+
+					{/* Actions */}
+					<div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
+						<button
+							type="button"
+							onClick={handleTelegramToggle}
+							disabled={telegramSaving || (!telegramRunning && !telegramToken.trim())}
+							style={{
+								...actionBtnStyle,
+								flex: 1,
+								justifyContent: "center",
+								background: telegramRunning
+									? "rgba(239,68,68,0.1)"
+									: "rgba(34,197,94,0.1)",
+								border: telegramRunning
+									? "1px solid rgba(239,68,68,0.2)"
+									: "1px solid rgba(34,197,94,0.2)",
+								color: telegramRunning ? "var(--error)" : "var(--success)",
+								opacity: telegramSaving || (!telegramRunning && !telegramToken.trim()) ? 0.5 : 1,
+								cursor:
+									telegramSaving || (!telegramRunning && !telegramToken.trim())
+										? "not-allowed"
+										: "pointer",
+							}}
+						>
+							{telegramSaving
+								? "Guardando..."
+								: telegramRunning
+									? "Detener Bot"
+									: "Iniciar Bot"}
+						</button>
+						{telegramRunning && (
+							<button
+								type="button"
+								onClick={handleTelegramSave}
+								disabled={telegramSaving}
+								style={{
+									...actionBtnStyle,
+									padding: "10px 16px",
+									opacity: telegramSaving ? 0.5 : 1,
+									cursor: telegramSaving ? "not-allowed" : "pointer",
+								}}
+							>
+								<Save size={14} style={{ marginRight: "4px" }} /> Actualizar
+							</button>
+						)}
+					</div>
+				</div>
+
+				{/* Info note */}
+				<div
+					style={{
+						fontSize: "10px",
+						color: "var(--text-dim)",
+						marginTop: "12px",
+						padding: "8px",
+						borderRadius: "4px",
+						background: "rgba(255,255,255,0.02)",
+						border: "1px solid var(--border-light)",
+						lineHeight: "1.5",
+					}}
+				>
+					El bot de Telegram permite interactuar con el Agent Engine desde Telegram.
+					Usá <code style={{ fontSize: "10px", background: "rgba(255,255,255,0.05)", padding: "1px 4px", borderRadius: "3px" }}>/ayuda</code> para ver los comandos disponibles.
+				</div>
 			</div>
 
 			{/* MCP Brain */}

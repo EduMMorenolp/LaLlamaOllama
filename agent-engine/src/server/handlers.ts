@@ -1,4 +1,4 @@
-import axios from "axios";
+﻿import axios from "axios";
 import type { WebSocket } from "ws";
 import { createMessage } from "../gateway/protocol.js";
 import { runAgent } from "../services/agent/runAgent.js";
@@ -35,7 +35,8 @@ import {
 } from "../services/db/savedMessages.js";
 import { deleteUser, listAllUsers, type UserProfile, upsertUser } from "../services/db/users.js";
 import { getDockerInfo } from "../services/runtime.js";
-import { initTelegramDeps, startTelegram, stopTelegram } from "../services/telegram/bot.js";
+import { getBot, getTelegramConfig, initTelegramDeps, setTelegramConfig, startTelegram, stopTelegram } from "../services/telegram/bot.js";
+import { setSetting } from "../services/db/settings.js";
 import { toolRegistry } from "../services/tools/registry.js";
 import { logger } from "../utils/logger.js";
 import type { WsServer } from "./ws.js";
@@ -45,7 +46,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 	const userMap = new Map<string, string>();
 
 	// Initialize telegram deps
-	initTelegramDeps(config, brain);
+	initTelegramDeps(config, brain, wsServer);
 
 	return {
 		handleMessage(clientId: string, ws: WebSocket, msg: unknown) {
@@ -89,7 +90,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					logger.agent(`[${chatId}] Cancel requested`);
 					wsServer.sendToAll("assistant_done", {
 						chatId,
-						text: "✅ Conversación cancelada.",
+						text: "🛑 Conversación cancelada.",
 						model: "system",
 						latencyMs: 0,
 					});
@@ -106,7 +107,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 							model: effectiveModel,
 							tools: toolRegistry.getToolNames(),
 							clients: wsServer.getClientCount(),
-							telegramActive: !!process.env.TELEGRAM_BOT_TOKEN,
+							telegramActive: getBot() !== null,
 						})
 					);
 					break;
@@ -177,7 +178,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					const userId = payload?.userId as string;
 					if (userId) {
 						userMap.set(clientId, userId);
-						logger.info(`?? WebChat identified: ${clientId} -> ${userId}`);
+						logger.info(`✅ WebChat identified: ${clientId} -> ${userId}`);
 						const gc = getGeneralConfig();
 						const effectiveModel = gc?.model || config.defaultModel;
 						ws.send(
@@ -206,7 +207,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 						telegram_user: payload?.telegram_user as string | undefined,
 						telegram_token: payload?.telegram_token as string | undefined,
 					});
-					logger.info(`?? User registered: ${userId}`);
+					logger.info(`✅ User registered: ${userId}`);
 					ws.send(createMessage("list_users", { users: listAllUsers() }));
 					break;
 				}
@@ -220,7 +221,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 				case "user_delete": {
 					const dId = payload?.userId as string;
 					deleteUser(dId);
-					logger.info(`??? User deleted: ${dId}`);
+					logger.info(`❌ User deleted: ${dId}`);
 					ws.send(createMessage("list_users", { users: listAllUsers() }));
 					break;
 				}
@@ -345,9 +346,22 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 				case "telegram_update": {
 					const token = payload?.botToken as string;
 					const enabled = payload?.enabled as boolean;
+					const allowedUsers = payload?.allowedUsers as string[] | undefined;
+
+					// Persist to DB so it survives restarts
+					if (token) {
+						setSetting("telegram_bot_token", token);
+					}
+					if (allowedUsers) {
+						setSetting("telegram_allowed_users", JSON.stringify(allowedUsers));
+					}
+
 					if (enabled && token) {
-						// TODO: usar variable de modulo en vez de process.env
-						process.env.TELEGRAM_BOT_TOKEN = token;
+						// Update config in bot.ts before starting
+						setTelegramConfig(token, allowedUsers || config.telegramAllowedUsers || []);
+						// Also update local config so subsequent reads are correct
+						config.telegramBotToken = token;
+						if (allowedUsers) config.telegramAllowedUsers = allowedUsers;
 						startTelegram().catch((err) => {
 							logger.error(`Failed to start Telegram: ${err}`);
 						});
@@ -356,10 +370,36 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 							logger.error(`Failed to stop Telegram: ${err}`);
 						});
 					}
+					// Broadcast status to ALL connected clients
+					const tg = getTelegramConfig();
+					wsServer.sendToAll("telegram_status", {
+						active: tg.running,
+						running: tg.running,
+						allowedUsers: tg.allowedUsers,
+						tokenPreview: tg.token
+							? tg.token.slice(0, 6) + "..." + tg.token.slice(-4)
+							: null,
+					});
 					ws.send(
 						createMessage("status", {
 							message: `Telegram ${enabled ? "started" : "stopped"}`,
-							telegramActive: !!process.env.TELEGRAM_BOT_TOKEN,
+							telegramActive: tg.running,
+						})
+					);
+					break;
+				}
+
+				// Telegram Status
+				case "telegram_get_status": {
+					const tg = getTelegramConfig();
+					ws.send(
+						createMessage("telegram_status", {
+							active: tg.running,
+							running: tg.running,
+							allowedUsers: tg.allowedUsers,
+							tokenPreview: tg.token
+								? tg.token.slice(0, 6) + "..." + tg.token.slice(-4)
+								: null,
 						})
 					);
 					break;

@@ -2,6 +2,32 @@
 
 ## [Unreleased]
 
+### 📱 Telegram: Fixes + Persistencia en DB + Nuevo handler WS
+
+#### Corregido
+- **🐛 Fix: telegram_get_status mostraba config vacía** — Usaba `config` local de `loadConfig()` (valores de env) en vez de `getTelegramConfig()` de bot.ts que lee el runtime `_config` actualizado
+- **🐛 Fix: telegram_update no persistía cambios** — Los cambios de token/usuarios por frontend se perdían al reiniciar el contenedor
+
+#### Añadido
+- **➕ `getTelegramConfig()` en bot.ts** — Expone `token`, `allowedUsers`, `running` desde el runtime config
+- **➕ Persistencia en DB** — `telegram_update` ahora guarda `telegram_bot_token` y `telegram_allowed_users` en la tabla `settings` de SQLite. Al iniciar, si no hay token en `.env`, se carga desde DB
+
+### 📱 Telegram: Fixes + Nuevo handler WS
+
+#### Corregido
+- **🐛 Fix: brain null en callbacks.ts** — `handleCallbackQuery` ahora recibe `brain: BrainClient | null`. Se agregó guard contra brain null con mensaje de error al chat. Se eliminó `null as never` en `runAgent()`
+- **🐛 Fix: telegram_update** — Ya no muta `process.env.TELEGRAM_BOT_TOKEN` directamente. Usa `setTelegramConfig()` para actualizar config en runtime
+
+#### Añadido
+- **➕ `setTelegramConfig(token, allowedUsers)`** en bot.ts — Actualiza `_config.telegramBotToken` y `_config.telegramAllowedUsers` en memoria
+- **➕ Handler WS `telegram_get_status`** — Devuelve `active`, `running`, `allowedUsers`, `tokenPreview`
+- **➕ `telegram_status`** en protocol.ts — Nuevo tipo de mensaje servidor → cliente
+- **➕ `telegram_get_status`** en protocol.ts — Nuevo tipo de mensaje cliente → servidor
+- **🔧 `telegram_update` ahora acepta `allowedUsers`** array de strings
+
+#### Cambiado
+- **🔧 `get_status`** ahora usa `getBot() !== null` en vez de `!!process.env.TELEGRAM_BOT_TOKEN` para reportar estado real del bot
+
 ### Añadido
 - **➕ Handler WS `new_task`** — Crea un run en la DB con estado "queued". Responde con `task_created`
 - **💬 Reply / Quoted Messages** — Campo `quotedMessage` en `AgentOptions`. El contenido citado se inyecta como blockquote en el prompt del agente. Extraído del payload WS en `user_message`

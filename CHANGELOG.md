@@ -7,6 +7,31 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 
 ## [Unreleased]
 
+### 📱 Telegram: Sección UI en Conexion + Fixes backend (2026-06-07)
+
+#### Agent Engine
+- **🐛 Fix: brain null en callbacks.ts** — Ahora `handleCallbackQuery` recibe `brain: BrainClient | null`, eliminando el `null as never` que rompía los inline buttons
+- **➕ `setTelegramConfig(token, allowedUsers)`** — Nueva función en bot.ts para actualizar config en runtime sin reiniciar el proceso
+- **🔧 `telegram_update` mejorado** — Ahora acepta `allowedUsers` array. Usa `setTelegramConfig()` antes de `startTelegram()`. Reporta estado real con `getBot() !== null`
+- **➕ Nuevo handler WS `telegram_get_status`** — Devuelve `active`, `running`, `allowedUsers`, `tokenPreview`
+
+#### Agent Engine
+- **🐛 Fix: telegram_get_status mostraba config vacía** — Usaba `config` local de `loadConfig()` (valores de env) en vez de `getTelegramConfig()` de bot.ts
+- **➕ Persistencia en DB** — `telegram_update` guarda token/usuarios en tabla `settings` de SQLite. Al iniciar, si no hay `.env`, carga desde DB
+- **➕ `getTelegramConfig()` en bot.ts** — Expone token, allowedUsers, running desde runtime config
+
+#### Agent Frontend
+- **➕ Sección Telegram en Conexion.tsx** — Nueva card con:
+  - Badge de estado (Activo/Inactivo) con colores verde/rojo
+  - Input de token (type=password)
+  - Input de usuarios permitidos separados por coma
+  - Botón "Iniciar Bot" / "Detener Bot" con toggle
+  - Botón "Actualizar" para aplicar cambios sin reiniciar
+  - Nota informativa con comando `/ayuda`
+- **🐛 Fix: preview del token no reemplaza input del usuario** — `telegramTokenPreview` separado de `telegramToken` para no enviar token enmascarado al backend
+- **➕ Handlers WS**: `telegram_status`, `telegram_get_status` en subscribe
+- **📡 Fetch automático**: Al conectar, pide `telegram_get_status`
+
 ### 🔧 Slash Commands: Limpieza y nuevas funcionalidades (2026-06-06)
 
 #### Agent Frontend
