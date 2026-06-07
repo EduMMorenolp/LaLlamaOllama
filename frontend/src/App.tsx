@@ -1,6 +1,7 @@
-import { Activity, Cable, Cpu, Eye, EyeOff, Layers, RefreshCw, Shield, Terminal, Zap } from "lucide-react";
+import { Activity, Bot, Cable, Cpu, Eye, EyeOff, Layers, RefreshCw, Shield, Terminal, Zap } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useState } from "react";
+import { AgentChat } from "./components/AgentChat";
 import { AiEngineTuner } from "./components/AiEngineTuner";
 import { BrainConsole } from "./components/BrainConsole";
 import { ChatPlayground } from "./components/ChatPlayground";
@@ -508,6 +509,8 @@ const App: React.FC = () => {
 				return { title: "DASHBOARD", sub: "Sistema Operando en Tiempo Real" };
 			case "playground":
 				return { title: "PLAYGROUND", sub: "Terminal de Inferencia Directa" };
+			case "agent":
+				return { title: "AGENT ENGINE", sub: "Agente de Codificación Autónomo" };
 			case "models":
 				return { title: "REPOSITORIO DE MODELOS", sub: "Gestiona tu Arsenal de LLMs Locales" };
 			case "security":
@@ -779,6 +782,8 @@ const App: React.FC = () => {
 						</div>
 					</div>
 				);
+			case "agent":
+				return <AgentChat />;
 			case "hardware":
 				return <HardwareSentinel status={status} />;
 			case "engine":
@@ -874,6 +879,20 @@ const App: React.FC = () => {
 								<div className="expert-info">
 									<span className="expert-name">Cerebro MCP</span>
 									<span className="expert-model">Base de Conocimiento</span>
+								</div>
+							</button>
+
+							<button
+								type="button"
+								className={`expert-item-wrap ${activeTab === "agent" ? "active" : ""}`}
+								onClick={() => setActiveTab("agent")}
+							>
+								<div className="expert-avatar" style={{ color: "var(--accent)" }}>
+									<Bot size={16} />
+								</div>
+								<div className="expert-info">
+									<span className="expert-name">Agent Engine</span>
+									<span className="expert-model">Coding Agent Autónomo</span>
 								</div>
 							</button>
 						</div>

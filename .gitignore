@@ -26,6 +26,10 @@ yarn-error.log*
 Thumbs.db
 .brain/
 lallama-memory.db
+agent-engine.db
+agent-engine.db-shm
+agent-engine.db-wal
+knowledge/
 
 # IDEs
 .vscode/settings.json

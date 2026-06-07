@@ -7,6 +7,270 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 
 ## [Unreleased]
 
+### 🚀 Fase 1: 5 Mejoras UX en Chat — Búsqueda, Exportación, Tool Calls Colapsables, Multi-modal, Edición (2026-06-06)
+
+#### Agent Frontend
+- **🔍 Búsqueda dentro del chat** — Nueva barra de búsqueda en el header del chat que filtra mensajes en tiempo real. Muestra contador de resultados y estado "Sin resultados"
+- **📤 Exportar conversación** — Botón de descarga que exporta todo el historial del chat a un archivo Markdown (`chat-{id}-{fecha}.md`) con estructura clara de roles y timestamps
+- **📦 Tool calls colapsables** — La sección de herramientas ahora es colapsable con un clic en el header. Badge con contador de herramientas. Ahorra espacio vertical cuando hay muchas tool calls
+- **🖼️ Multi-modal (imágenes inline)** — Las imágenes (Markdown, data:image, URLs con extensión de imagen) se renderizan inline con vista previa de 300px max-height. Click para ver en lightbox fullscreen
+- **✏️ Editar mensajes enviados** — Click en cualquier mensaje de usuario para editarlo. Textarea con Guardar/Cancelar. Enter guarda, Escape cancela
+- **Bugfix: switch statement** — El `case "error"` estaba fuera del switch por una llave `}` prematura en `handleWsMessage`. El manejador de errores nunca se ejecutaba. Corregido
+
+### 🚀 Mejoras en Chat: Tokens, Historial de Tools, Slash Commands (2026-06-06)
+
+#### Agent Engine
+- **Fix token counter** — Estimación de tokens cuando el modelo no los reporta (Ollama). Calcula prompt_tokens = chars/4 y completion_tokens = chars/4 en `runAgentCore.ts`
+- **Indexación automática de URLs** — Cuando `read_url` se ejecuta exitosamente, guarda automáticamente el contenido en el Brain como memoria tipo `knowledge` para búsquedas futuras
+
+#### Agent Frontend
+- **Historial persistente de herramientas** — Las tool calls ya no se borran al finalizar la respuesta. Permanecen visibles hasta el próximo mensaje del usuario
+- **"Pensando..." siempre visible** — El indicador de procesamiento ahora se muestra durante todo el tiempo que `isProcessing` sea true, independientemente de tool calls o streaming
+- **Slash commands** — Nuevo sistema de comandos tipo chat:
+  - `/ayuda` — Muestra lista de comandos disponibles
+  - `/buscar <consulta>` — Busca información en internet
+  - `/nuevaTarea` — Crea una nueva tarea
+  - `/modelo <nombre>` — Cambiar el modelo activo
+  - `/temperatura <0-2>` — Ajustar la temperatura
+  - `/chat nuevo` — Crear un nuevo chat
+  - `/tools` — Listar herramientas disponibles
+  - Navegación con flechas ↑↓ + Enter, cierre con Escape
+
+### 🚀 Agent Frontend: Cola de mensajes + Fix duplicación + System Prompt (2026-06-06)
+
+#### Agent Frontend
+- **Nueva cola de mensajes (max 3)** — Mientras el agente procesa una respuesta, los nuevos mensajes se encolan automáticamente y se envían cuando termina la actual
+- **Input siempre activo** — El textarea ya no se deshabilita durante procesamiento; el placeholder cambia contextualmente ("Escribe, se encolará...", "Cola llena (3/3)")
+- **Auto-despacho desde cola** — Cuando `isProcessing` pasa a `false`, el siguiente mensaje en cola se envía automáticamente
+- **UI de cola** — Barra visual entre mensajes e input con contador `N/3`, pills por mensaje con botón ✕ individual, y botón "Vaciar cola"
+- **Confirmación al cancelar con cola** — Modal que pregunta "Vaciar todo" vs "Solo cancelar respuesta" (conserva cola)
+- **Fix duplicación de respuestas** — `assistant_done` ahora reemplaza el último mensaje del streaming en vez de agregar uno nuevo, eliminando la duplicación que ocurría al finalizar cada respuesta
+- **Cola se vacía al cambiar de chat** — Previene mensajes huérfanos
+
+#### Agent Engine
+- **System prompt mejorado** — Ahora instruye explícitamente: *"Cuando el usuario te pida USAR, EJECUTAR o PROBAR una herramienta, debes llamarla mediante tool_calls, no describirla en texto ni mostrar JSON de ejemplo"*
+
+### 🧠 Agent Engine: Docker Awareness + Eliminación de Jarvis (2026-06-06)
+
+#### Agent Engine
+- **Nuevo servicio `docker-info.ts`** — Detección automática del entorno al iniciar:
+  - Si ejecuta dentro de Docker (`.dockerenv` / cgroup)
+  - CPUs lógicos, RAM total y límite del contenedor (cgroup v1/v2)
+  - GPU NVIDIA disponible (`nvidia-smi` + `NVIDIA_VISIBLE_DEVICES`)
+  - Disco disponible en el workspace (`df`)
+  - Se inyecta en el system prompt del agente como sección `## Entorno del agente`
+- **Nueva tabla `settings` en SQLite** — Almacenamiento key-value persistente para `docker_info` y otras configuraciones
+- **`AppConfig` ahora incluye `dockerInfo`** — La configuración del entorno está disponible en todo el runtime
+- **`RuntimeContext` extendido** — Incluye `dockerInfo` y nueva función `getDockerInfo()`
+- **Nuevo handler WS `get_docker_info`** — Expone la info del contenedor al frontend
+- **Corregido `get_status`** — Ahora usa el modelo de `__general__` (DB) en lugar de solo `config.defaultModel` (env var), consistente con el handler `identify`
+
+#### Agent Frontend
+- **Eliminada la pestaña "Jarvis"** — Se eliminó el asistente de voz (`Jarvis.tsx`) y la tab correspondiente del dashboard
+- **Nueva sección "Información del Contenedor"** en Conexión — Grid visual con CPU, RAM, GPU, Disco y badge Docker/Host
+- **Chat siempre montado** — `<AgentChat />` ahora se mantiene montado con `display:none` en vez de render condicional, evitando perder suscripciones WebSocket al cambiar de tab
+- **Corregida desincronización del modelo** — El Chat ahora recibe broadcasts de cambio de modelo aunque esté en segundo plano
+- **Eliminado hardcode de modelo en Agentes** — Ya no usa `localStorage` ni fallback `"llama3.2:3b"`; el modelo viene siempre del servidor
+
+### 🎨 Agent Frontend: Dashboard multi-sección + Chat persistente + Conocimiento (2026-06-04)
+
+#### Agent Frontend (nuevo)
+- **Nuevo proyecto standalone `agent-frontend/`** — React 19 + Vite 7 + TypeScript, puerto 8081.
+- **Dashboard de 6 secciones** con navegación lateral glassmorphism:
+  - **Chat** — chat multi-conversación con WebSocket, sidebar colapsable con búsqueda, crear/renombrar/eliminar/fijar chats.
+  - **Agentes** — Configuración General (modelo, temperatura slider 0–2, límite de historial 5–100), Telegram Bot, Tools toggles, CRUD de sub-agentes con WS propio.
+  - **Tareas** — listado de ejecuciones con filtros por estado, modal de detalle con línea de tiempo de eventos.
+  - **Conocimiento** — subida de archivos con chunking automático e indexación al MCP Brain, panel de búsqueda semántica.
+  - **Conexión** — estado WebSocket, CRUD de proveedores de modelos, información del MCP Brain.
+  - **Memoria** — búsqueda en el Brain (semántico/lexical/híbrido), estadísticas, modal de detalle.
+- **view-header eliminado en Chat** — máximo espacio para mensajes; solo barra compacta de 8px con estado, modelo, contador de tokens.
+- **Token counter** — muestra `▲prompt / ▼output` por mensaje y total `Σ` en la barra de estado.
+- **Auto-creación de chat** al enviar el primer mensaje si no hay chat seleccionado.
+- **Contenedor Docker** en `docker-compose.yml` (puerto 8081).
+
+#### Agent Engine
+- **Nuevos endpoints REST**:
+  - `GET /api/runs` — listado de ejecuciones con filtros (status, chatId, origin, limit).
+  - `GET /api/runs/:id` — detalle de ejecución con eventos.
+  - `GET /api/knowledge` — listar documentos indexados.
+  - `POST /api/knowledge` — subir archivo, chunkear, embedear y guardar como memoria `knowledge` en el Brain.
+  - `DELETE /api/knowledge/:id` — eliminar documento del Brain.
+- **Nuevo servicio `services/knowledge/index.ts`** — chunking por párrafos, lectura de archivos (txt, json, md), indexación vía REST al MCP Brain.
+- **Nuevas funciones DB** `listRunsByFilters()` y `getRunEvents()` en `services/db/runs.ts`.
+- **Fix: persistencia de chats** — los chats se creaban con `clientId` (WS connection ID volátil) como `userId` en vez del `userId` real del identify. Agregado `userMap<clientId → userId>` que se consulta en todas las operaciones de chat.
+- **Fix: auto-creación de chat en primer mensaje** — si el chatId no existe en la DB, se crea automáticamente con el texto del primer mensaje como título.
+
+#### Refactor
+- **Conexión y Agentes**: eliminada duplicación de Telegram y Tools. Conexión queda solo con Estado WS, Modelos CRUD y MCP Brain. Agentes mantiene Status, Default Model, Telegram, Tools, Sub-Agents.
+- **buildPrompt.ts reducido de ~60 a 4 líneas**: eliminado stack del proyecto, descripciones de tools (redundantes con OpenAI function calling API), reglas de formato, directivas y contexto. Ahorro estimado: 500-1000+ tokens/request.
+- **Directives y context como mensajes system separados**: ya no se hornean en el system prompt. Se inyectan como mensajes `system` adicionales que pueden trimerase independientemente.
+
+#### Configuración General persistente
+- **Nuevo campo `history_limit`** en tabla `sub_agents` (migración automática).
+- **WS messages**: `get_general_config` / `general_config_update` para leer y guardar configuración.
+- **`runAgentCore.ts`**: lee `model`, `temperature` e `history_limit` del experto `__general__` en DB. Ya no usa hardcoded `temperature: 0.3` ni `getMessages(chatId, 10)`.
+- **UI en Agentes**: slider de temperatura, input de límite de historial, modelo persistente con botón Guardar.
+
+#### Optimización de tokens
+- `temperature: 0.3` → `0.7` (más variación, menos patrones fijos).
+- Eliminado `brain.getContext(10)` del primer mensaje de sesión (ahorra 200-800 tokens).
+- Historial reducido de 20 a 10 mensajes (configurable vía general config).
+- Prompt modificado: "Usa herramientas solo si el usuario pide explícitamente... Para conversación normal, responde directamente sin preámbulos ni disculpas."
+
+#### Builds verificados
+- `agent-engine`: ✅ TypeScript 0 errores.
+- `agent-frontend`: ✅ TypeScript + Vite production build 0 errores (251 KB JS).
+
+### 🎙️ Nueva sección Jarvis: Asistente de Voz (2026-06-04)
+
+#### Agent Frontend
+- **Nuevo tab "Jarvis"** en la barra lateral entre Chat y Agentes.
+- **Nuevo componente Jarvis.tsx** — botón "Iniciar Jarvis" que solicita permiso de micrófono vía `getUserMedia`, maneja estados (idle/requesting/granted/denied/unavailable), errores (NotAllowedError, NotFoundError), y botón "Detener Jarvis" para liberar el stream.
+- **Indicador visual** animado cuando está escuchando, con glow effect y color verde.
+
+### 📎 File Upload + Chat Persistence + Model Selector + Grid Layout (2026-06-04)
+
+#### Agent Frontend
+- **Subida de archivos en Chat** — botón 📎 Paperclip junto al textarea, selector de archivos múltiple, lectura como base64 vía `FileReader.readAsDataURL()`, envío por WebSocket como `attachments` en `user_message`.
+- **Chips de archivos adjuntos** — barra de archivos seleccionados con nombre y botón X para remover, mostrada entre el input y el textarea.
+- **Select de modelos Ollama** — reemplazado input manual de texto por `<select>` dropdown que lista modelos disponibles desde Ollama vía nuevo WS `list_ollama_models`.
+- **Grid 2-columnas en Agentes** — General Config y Telegram ahora lado a lado en CSS grid, max-width ampliado a 900px, cards con altura completa (`height: 100%`).
+
+#### Agent Engine
+- **Attachments forwarding** — `handlers.ts` ahora extrae `attachments` del payload `user_message` y los pasa a `handleUserMessage` → `runAgent` (el core ya procesaba texto/JSON/imágenes).
+- **Fix: chat_create ahora envía activeChatId** — el frontend cambia inmediatamente al nuevo chat al crearlo. Eliminado el mensaje "Chat creado." que aparecía como respuesta del asistente.
+- **Sidebar refrescado post-respuesta** — después de cada `assistant_done`, se envía `list_chats` actualizado a todos los clientes para que el sidebar muestre el último mensaje.
+- **Nuevo WS `list_ollama_models`** — handler que consulta el backend (`/api/models`) con API key y retorna la lista de modelos instalados en Ollama.
+- **Nuevos tipos protocolo** — `list_ollama_models` (C→S) y `ollama_models` (S→C) en `protocol.ts`.
+
+### 🐛 Fixes: System prompt vacío + Tool listing + WS errors + Modelos Docker (2026-06-04)
+
+#### Agent Engine
+- **Fix: system prompt vacío** — `general_config_update` guardaba `system_prompt: ""` al no enviarlo desde el frontend, sobrescribiendo el prompt del build. Ahora preserva el existente si no se provee.
+- **Fix: fallback de system prompt** — `runAgentCore.ts` ahora usa `generalOverride?.system_prompt` (optional chaining), cayendo a `buildSystemPrompt()` si está vacío.
+- **Tool names en contexto** — se agrega mensaje system con la lista de herramientas disponibles (`toolRegistry.getToolNames()`) para que el modelo pueda responder cuando le pregunten.
+- **Fix: list_ollama_models desde Docker** — cambiado de `localhost:11434/api/tags` (inaccesible desde contenedor) a `backendUrl/api/models` con header `X-API-Key`.
+- **Mejora buildPrompt** — instrucciones más directas: sin disclaimers, permite listar herramientas, sin preámbulos ni disculpas.
+
+#### Agent Frontend
+- **Fix: WS "closed before connection established"** — ambos componentes (AgentChat, Agentes) ahora verifican `readyState` antes de cerrar WebSocket en cleanup de useEffect, evitando error en React StrictMode.
+
+### 🤖 Telegram Gateway + Sub-Agent System + Dashboard Settings (2026-06-02)
+
+#### Agent Engine
+- **Nuevo SQLite local** (`better-sqlite3`) para datos operacionales:
+  - `services/db/connection.ts` — singleton con 5 tablas: users, sub_agents, messages, chats, models.
+  - `services/db/users.ts` — CRUD de usuarios (userId, telegram_id, telegram_user, timezone).
+  - `services/db/experts.ts` — CRUD de sub-agentes (name, model, system_prompt, tools[], experts[]).
+  - `services/db/chats.ts` — persistencia de chats con título, pin, última actividad.
+  - `services/db/messages.ts` — mensajes persistentes por chatId con origen (web/telegram).
+  - `services/db/models.ts` — CRUD de modelos guardados (name, apiKey, baseUrl).
+- **Nuevo Telegram Bot** (`services/telegram/`):
+  - `services/telegram/bot.ts` — start/stop bot, message handler con autorización por whitelist.
+  - `services/telegram/commands.ts` — 8 comandos: /start, /agentes, /crear_agente, /borrar_agente, /reset, /model, /status, /tools, /profile.
+  - `services/telegram/callbacks.ts` — manejo de callback_query para botones inline.
+  - Tags @AgentName para invocar sub-agentes directamente desde Telegram.
+  - Modo Orquestador automático si existe agente "orquestador".
+  - Persistencia de mensajes en SQLite local.
+- **runAgent.ts mejorado**: nuevos callbacks `onStatus` (⏳ indicadores progreso) y `onTyping`. Nuevos campos `origin`, `telegramChatId`, `skipPersistUserMsg`. Persistencia automática a SQLite.
+- **appConfig.ts**: nuevos campos `dbPath`, `telegramBotToken`, `telegramAllowedUsers`.
+- **Protocolo WebSocket extendido**: 17 nuevos tipos de mensaje (expert_update, user_register, chat_update, switch_chat, telegram_update, etc.).
+- **server/handlers.ts**: manejo completo de expertos, usuarios, chats, modelos y Telegram.
+- **server/api.ts**: nuevos endpoints REST `/api/experts`, `/api/users`, `/api/models`, `/api/stats`.
+
+#### Frontend
+- **AgentChat.tsx expandido a dashboard completo** con 3 tabs:
+  - **Chat** — el chat existente con tool calls en tiempo real.
+  - **Settings** — selector de modelo, token de Telegram (con save), toggles de herramientas.
+  - **Sub-Agents** — listado, creación (nombre + modelo + system prompt) y eliminación de agentes expertos.
+
+#### Builds verificados
+- `agent-engine`: ✅ TypeScript 0 errores (con better-sqlite3 + node-telegram-bot-api).
+- `frontend`: ✅ TypeScript + Vite production build 0 errores (646 KB JS).
+
+### 🏗️ Arquitectura — Migración Agent Engine a Use Case Pattern + DI funcional (2026-06-02)
+
+#### Agent Engine
+- **Nueva estructura `services/`** con capas funcionales siguiendo el patrón de mcp-brain:
+  - `services/config.ts` — `AppConfig` interface + `loadConfig()` (desde env).
+  - `services/types.ts` — interfaces compartidas.
+  - `services/brain/` — `BrainClient` como dependencia fundamental (equivalente a `DatabaseService` en mcp-brain), con `saveMemory`, `searchMemories`, `getContext`.
+  - `services/agent/` — `runAgent()` (core loop multi-turno tool calling), `buildPrompt()`, `createClient()` (Ollama/OpenAI/OpenRouter).
+  - `services/tools/` — `ToolRegistry` singleton, `registerAllTools(brain)`, 8 herramientas (bash, read/write-file, glob, grep, read-url, delegate + memory-tools).
+  - `services/sessions/` — sesiones en memoria (`Map<string, SessionState>`), con `startSession`, `getSession`, `endSession`.
+  - `services/execution/` — logging de ejecuciones con `logExecution`, `getHistory`.
+  - `services/index.ts` — barrel principal con namespace exports.
+- **Nueva capa `server/`** reemplazando `gateway/server.ts`:
+  - `server/api.ts` — Express REST (health, tools list).
+  - `server/ws.ts` — WebSocket server como clase `WsServer`.
+  - `server/handlers.ts` — WebSocket message handlers separados.
+  - `server/cron.ts` — background jobs (cleanup cada 30min).
+- **`index.ts` bootstrap refactorizado**: `validateEnv()` → `loadConfig()` → `new BrainClient(config)` → `registerAllTools(brain)` → `startApiServer(config)` → `new WsServer(config, brain)`.
+- **Import fixes**: `ToolContext` movido de `registry.ts` a `types.ts`, actualizadas 7 herramientas.
+- **Directorios viejos eliminados**: `src/agent/`, `src/tools/`, `src/memory/`, `src/gateway/server.ts`.
+
+### 🐛 Correcciones
+
+#### Frontend
+- **Fix TS6133 en AgentChat.tsx** — se eliminaron 3 variables no usadas (`AlertCircle`, `chatId`, `text`) que rompían el build de Docker con exit code 2 por `noUnusedLocals` habilitado en tsconfig. ([#37](https://github.com/...))
+
+### 🧠 Agent Engine — Servicio de Agente de Codificación Autónomo (2026-06-01)
+
+#### Añadido
+- **Nuevo servicio standalone `agent-engine/`** — agente de codificación autónomo inspirado en ARGenteIA-Project:
+  - **Agent Loop** (`src/agent/loop.ts`): core de razonamiento con OpenAI SDK, soporte de tool calling multi-turno (máx 10 iteraciones), compactación de contexto automática, streaming de respuestas.
+  - **Multi-provider Models** (`src/agent/models.ts`): soporte para Ollama (vía backend proxy), OpenAI y OpenRouter, con detección automática de proveedor.
+  - **System Prompt Builder** (`src/agent/prompt.ts`): genera system prompt dinámico con herramientas disponibles, directivas del proyecto y contexto reciente del brain.
+  - **Tool Registry** (`src/tools/registry.ts`): registro y ejecución de herramientas con enable/disable dinámico.
+  - **8 herramientas integradas**:
+    - `bash` — ejecución segura de comandos shell con detección de patrones destructivos.
+    - `read_file` — lectura de archivos con límite de tamaño y protección path traversal.
+    - `write_file` / `edit_file` — creación y edición de archivos con creación automática de directorios.
+    - `glob` — búsqueda de archivos por patrón glob (**, *, ?) sin dependencias externas.
+    - `grep` — búsqueda de contenido con regex, filtro por extensión, exclusión automática de binarios.
+    - `read_url` — fetch de URLs con límite de tamaño y User-Agent personalizado.
+    - `delegate` — recomendación de delegación a agentes OpenCode especializados.
+    - `memorize` / `recall` / `get_context` — persistencia y consulta de memoria vía mcp-brain REST.
+
+- **Gateway WebSocket + REST** (`src/gateway/server.ts`):
+  - Servidor Express con endpoints `/health` y `/api/tools`.
+  - Servidor WebSocket con protocolo de mensajes (8 tipos): user_message, assistant_chunk, assistant_done, tool_call, tool_result, cancel, get_status, list_tools.
+  - Broadcasting de chunks, tool calls y errores a todos los clientes conectados.
+
+- **Integración con mcp-brain** (`src/memory/brain-client.ts`):
+  - Cliente REST para guardar/consultar memorias, iniciar/finalizar sesiones, obtener directivas y stats.
+  - Timeout de 10s con manejo graceful de errores (no bloquea si brain no responde).
+
+- **Nuevos endpoints REST en mcp-brain** (`src/server/api.ts`):
+  - `POST /api/memory` — guardar memoria (para integración con agent-engine).
+  - `GET /api/memory/context` — obtener contexto reciente como texto plano.
+  - `POST /api/sessions` — iniciar sesión de trabajo.
+  - `PUT /api/sessions/:id` — finalizar sesión con resumen.
+
+- **Nuevo componente `AgentChat.tsx`** en frontend:
+  - Chat interactivo con WebSocket al agent-engine.
+  - Visualización de tool calls en tiempo real con estados (pending/done/error).
+  - Indicador de conexión (connected/connecting/disconnected).
+  - Botón de cancelación de respuesta en curso.
+  - Mensajes de sistema, usuario y asistente con timestamps.
+  - Auto-scroll y compactación visual.
+
+- **Nueva tab "Agent Engine"** en la barra lateral del dashboard:
+  - Botón de navegación con icono Bot en la sección de navegación principal.
+  - Integrado en `getSectionInfo()` y `renderContent()` de `App.tsx`.
+
+- **Servicio Docker `agent-engine`** en `docker-compose.yml`:
+  - Puerto `3020` (configurable via `ENGINE_PORT`).
+  - Variables de entorno: BACKEND_URL, BRAIN_URL, API_KEY, DEFAULT_MODEL, WORKSPACE_DIR.
+  - Bind mount de `docker.sock` y del proyecto completo como `/workspace`.
+  - Dependencias: backend y mcp-brain.
+
+#### Modificado
+- `mcp-brain/src/server/api.ts` — agregados 4 nuevos endpoints REST para soportar agent-engine.
+- `docker-compose.yml` — agregado servicio agent-engine con integración en red mcp-network.
+- `frontend/src/App.tsx` — agregada tab "Agent Engine" con su componente y navegación.
+- `.env.example` — agregadas variables ENGINE_PORT y DEFAULT_MODEL.
+
 ### 🤖 AI Agent Wizard — Generación Inteligente de Agentes con IA (2026-05-23)
 
 #### Añadido

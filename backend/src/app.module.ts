@@ -7,42 +7,42 @@ import { MCP_TOOL_CATALOG, MCP_TOOL_NAMES, OllamaTools } from "./ollama/ollama.t
 import { SessionManager } from "./session/session.manager.js";
 
 export class AppModule {
-	public readonly ollamaService: OllamaService;
-	public readonly authService: AuthService;
-	public readonly sessionManager: SessionManager;
-	private readonly ollamaTools: OllamaTools;
+  public readonly ollamaService: OllamaService;
+  public readonly authService: AuthService;
+  public readonly sessionManager: SessionManager;
+  private readonly ollamaTools: OllamaTools;
 
-	constructor() {
-		this.authService = new AuthService();
-		this.authService.setKnownMcpTools([...MCP_TOOL_CATALOG.map((tool) => tool.name)]);
-		this.ollamaService = new OllamaService();
-		this.sessionManager = new SessionManager();
-		this.ollamaTools = new OllamaTools(this.ollamaService, this.authService);
-	}
+  constructor() {
+    this.authService = new AuthService();
+    this.authService.setKnownMcpTools([...MCP_TOOL_CATALOG.map((tool) => tool.name)]);
+    this.ollamaService = new OllamaService();
+    this.sessionManager = new SessionManager();
+    this.ollamaTools = new OllamaTools(this.ollamaService, this.authService);
+  }
 
-	async bootstrap(server: Server, io?: SocketServer) {
-		if (io) this.ollamaService.setIo(io);
+  async bootstrap(server: Server, io?: SocketServer) {
+    if (io) this.ollamaService.setIo(io);
 
-		const ollamaHandlers = this.ollamaTools.getToolHandlers();
+    const ollamaHandlers = this.ollamaTools.getToolHandlers();
 
-		server.setRequestHandler(ListToolsRequestSchema, async () => {
-			const ollamaResult = await ollamaHandlers.listToolsHandler();
-			return {
-				tools: [...(ollamaResult.tools || [])],
-			};
-		});
+    server.setRequestHandler(ListToolsRequestSchema, async () => {
+      const ollamaResult = await ollamaHandlers.listToolsHandler();
+      return {
+        tools: [...(ollamaResult.tools || [])],
+      };
+    });
 
-		server.setRequestHandler(CallToolRequestSchema, async (request) => {
-			const params = request.params as { name: string; arguments?: Record<string, unknown> };
-			const { name } = params;
+    server.setRequestHandler(CallToolRequestSchema, async (request) => {
+      const params = request.params as { name: string; arguments?: Record<string, unknown> };
+      const { name } = params;
 
-			if ((MCP_TOOL_NAMES as Set<string>).has(name)) {
-				return ollamaHandlers.callToolHandler(request);
-			}
+      if ((MCP_TOOL_NAMES as Set<string>).has(name)) {
+        return ollamaHandlers.callToolHandler(request);
+      }
 
-			throw new Error(`Tool ${name} not found`);
-		});
+      throw new Error(`Tool ${name} not found`);
+    });
 
-		console.log("AppModule bootstrapped with MCP tools (Ollama)");
-	}
+    console.log("AppModule bootstrapped with MCP tools (Ollama)");
+  }
 }

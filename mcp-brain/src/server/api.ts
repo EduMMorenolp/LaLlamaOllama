@@ -5,7 +5,7 @@ import cors from "cors";
 import express from "express";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import type { DatabaseService } from "../database/connection.js";
-import { analysis, memories, settings, templates } from "../services/index.js";
+import { analysis, memories, sessions, settings, templates } from "../services/index.js";
 import { normalizeProject } from "../services/normalizeProject.js";
 import { mergeProjects } from "../services/memories/mergeProjects.js";
 import { createMcpServer } from "./mcp.js";
@@ -319,6 +319,70 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 		try {
 			await settings.updateGlobalSetting(dbService, key, value);
 			res.json({ success: true });
+		} catch (e: unknown) {
+			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+		}
+	});
+
+		// Save memory (for agent-engine integration)
+	app.post("/api/memory", async (req, res) => {
+		const { project = "lallamaollama", type, title, content, tags, agent } = req.body;
+		if (!type || !title || !content) {
+			return res.status(400).json({ error: "type, title y content son obligatorios" });
+		}
+		try {
+			const result = await memories.saveMemory(
+				dbService,
+				normalizeProject(project),
+				type,
+				title,
+				content,
+				tags || "",
+				undefined,
+				"",
+				undefined,
+				agent || "unknown"
+			);
+			res.status(201).json(result);
+		} catch (e: unknown) {
+			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+		}
+	});
+
+	// Get recent context (for agent-engine integration)
+	app.get("/api/memory/context", async (req, res) => {
+		const project = normalizeProject((req.query.project as string) || "lallamaollama");
+		const limit = parseInt((req.query.limit as string) || "15", 10);
+		try {
+			const ctx = await memories.getContext(dbService, project, limit);
+			if (Array.isArray(ctx)) {
+				const text = ctx.map((m: Record<string, unknown>) => `[${m.type}] ${m.title}: ${String(m.content || "").substring(0, 500)}`).join("\n\n");
+				res.json({ context: text });
+			} else {
+				res.json({ context: String(ctx) });
+			}
+		} catch (e: unknown) {
+			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+		}
+	});
+
+	// Session management
+	app.post("/api/sessions", async (req, res) => {
+		const { project = "lallamaollama", name } = req.body;
+		if (!name) return res.status(400).json({ error: "name is required" });
+		try {
+			const id = await sessions.startSession(dbService, normalizeProject(project), name);
+			res.status(201).json({ id, project: normalizeProject(project), name });
+		} catch (e: unknown) {
+			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+		}
+	});
+
+	app.put("/api/sessions/:id", async (req, res) => {
+		try {
+			const success = await sessions.endSession(dbService, req.params.id, req.body.summary || "");
+			if (success) res.json({ success: true });
+			else res.status(404).json({ error: "Session not found" });
 		} catch (e: unknown) {
 			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
 		}

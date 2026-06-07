@@ -1,0 +1,59 @@
+import type TelegramBot from "node-telegram-bot-api";
+import { runAgent } from "../agent/runAgent.js";
+import { getOrCreateChannelChat } from "../db/chats.js";
+import { loadConfig } from "../config.js";
+import { logger } from "../../utils/logger.js";
+
+export async function handleCallbackQuery(
+	query: TelegramBot.CallbackQuery,
+	userIdResolver: (chatId: number, username: string) => string,
+	bot: TelegramBot
+): Promise<void> {
+	if (!query.message || !query.data) return;
+
+	const chatId = query.message.chat.id;
+	const telegramUsername = query.from?.username ?? query.from?.first_name ?? "Desconocido";
+	const callbackData = query.data;
+
+	logger.info(`👉 Telegram Callback (@${telegramUsername}): ${callbackData}`);
+
+	// Acknowledge the callback
+	await bot.answerCallbackQuery(query.id);
+
+	const effectiveUserId = userIdResolver(chatId, telegramUsername);
+	const config = loadConfig();
+
+	await bot.sendChatAction(chatId, "typing");
+
+	try {
+		const channelChat = getOrCreateChannelChat(effectiveUserId, "telegram");
+		const simulatedText = `(Botón presionado: ${callbackData})`;
+
+		const result = await runAgent({
+			chatId: channelChat.id,
+			userText: simulatedText,
+			config,
+			brain: null as never, // brain not available here, will be set via initTelegramDeps
+			onStatus: (statusText) => {
+				bot.sendMessage(chatId, `⏳ <i>${statusText}</i>`, {
+					parse_mode: "HTML",
+				}).catch(() => {});
+			},
+			onTyping: (isTyping) => {
+				if (isTyping) {
+					bot.sendChatAction(chatId, "typing").catch(() => {});
+				}
+			},
+		});
+
+		if (result.text && result.text.trim() !== "") {
+			await bot.sendMessage(chatId, result.text).catch(async () => {
+				await bot.sendMessage(chatId, result.text);
+			});
+		}
+	} catch (err: unknown) {
+		const msg = err instanceof Error ? err.message : String(err);
+		logger.error(`❌ Callback error: ${msg}`);
+		await bot.sendMessage(chatId, `❌ Error: ${msg}`);
+	}
+}
