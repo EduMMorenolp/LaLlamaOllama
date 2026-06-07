@@ -3,6 +3,10 @@
 ## [Unreleased]
 
 ### Añadido
+- **💬 Citas / Reply** — Botón "Reply" en cada burbuja, barra contextual sobre el input, `quotedMessage` en payload WS
+- **⭐ Favoritos / Saved Messages** — Botón Star toggle (relleno/outline), tracking local con Set, handlers WS save/unsave
+- **💡 Sugerencias automáticas** — Chips clicables entre tool calls y "Pensando...". Se llena input al hacer clic
+- **🕐 Historial de sesiones** — `messageCount` en ChatEntry, cada chat muestra "📝 N mensajes" en sidebar. Envío automático de `list_sessions` al identificar usuario
 - **🔍 Búsqueda dentro del chat** — Barra de búsqueda en el header que filtra mensajes en tiempo real con contador de resultados
 - **📤 Exportar conversación** — Botón de descarga que genera archivo Markdown con todo el historial del chat
 - **📦 Tool calls colapsables** — Header clickeable con badge de contador; colapsa/expande la lista de herramientas

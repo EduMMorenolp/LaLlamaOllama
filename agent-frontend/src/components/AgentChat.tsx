@@ -1,4 +1,4 @@
-﻿import { Check, ChevronDown, ChevronLeft, ChevronRight, Download, Edit3, MessageSquare, Paperclip, Pin, PinOff, Plus, Save, Search, Send, StopCircle, Terminal, Trash2, Wrench, X } from "lucide-react";
+﻿import { Check, ChevronDown, ChevronLeft, ChevronRight, Download, Edit3, MessageSquare, Paperclip, Pin, PinOff, Plus, Reply, Save, Search, Send, Star, StopCircle, Terminal, Trash2, Wrench, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -37,6 +37,8 @@ interface ChatEntry {
 	created_at: string;
 	updated_at: string;
 	lastMessage?: string;
+	messageCount?: number;
+
 }
 
 // ─── Utility: extract images from message content ──────────────────────────────────────────────────────────────────────
@@ -105,6 +107,15 @@ export const AgentChat: React.FC = () => {
 	// ─── Feature: image lightbox ──────────────────────────────────────────────────────────────────────────────────────
 	const [expandedImage, setExpandedImage] = useState<string | null>(null);
 
+	// ��� Feature: reply to messages ����������������������������������������������������������������������������������
+	const [replyTo, setReplyTo] = useState<{ index: number; content: string; role: string; timestamp: Date } | null>(null);
+
+	// ��� Feature: saved/favorited messages ��������������������������������������������������������������������������
+	const [savedMessages, setSavedMessages] = useState<Set<string>>(new Set());
+
+	// ��� Feature: auto suggestions ��������������������������������������������������������������������������������
+	const [suggestions, setSuggestions] = useState<string[]>([]);
+
 	// ─── Slash commands ──────────────────────────────────────────────────────────────────────────────────────────────
 	const COMMANDS = [
 		{ cmd: "/ayuda", desc: "Muestra esta lista de comandos", action: () => setInput("/ayuda - Muestra esta lista de comandos\n/buscar <consulta> - Busca informaci\u00f3n en internet\n/nuevaTarea - Crear una nueva tarea\n/modelo <nombre> - Cambiar el modelo activo\n/temperatura <0-2> - Ajustar la temperatura\n/chat nuevo - Crear un nuevo chat\n/tools - Listar herramientas disponibles") },
@@ -160,6 +171,7 @@ export const AgentChat: React.FC = () => {
 					const newModel = (msg.payload?.model as string) || "";
 					console.log("[Chat WS] Modelo actualizado a:", newModel);
 					setModel(newModel);
+					sendWs("list_sessions", {});
 				}
 				break;
 
@@ -261,10 +273,67 @@ export const AgentChat: React.FC = () => {
 				setIsProcessing(false);
 				break;
 			}
+
+			case "suggestions": {
+				const s = msg.payload?.suggestions as string[];
+				if (s && Array.isArray(s)) {
+					setSuggestions(s);
+				}
+				break;
+			}
+
+			case "message_saved": {
+				const savedChatId = msg.payload?.chatId as string;
+				const savedContent = msg.payload?.messageContent as string;
+				if (savedChatId && savedContent) {
+					const key = savedChatId + "|" + savedContent.substring(0, 50);
+					setSavedMessages((prev) => new Set(prev).add(key));
+				}
+				break;
+			}
+
+			case "message_unsaved": {
+				const unsavedChatId = msg.payload?.chatId as string;
+				const unsavedContent = msg.payload?.messageContent as string;
+				if (unsavedChatId && unsavedContent) {
+					const key = unsavedChatId + "|" + unsavedContent.substring(0, 50);
+					setSavedMessages((prev) => {
+						const next = new Set(prev);
+						next.delete(key);
+						return next;
+					});
+				}
+				break;
+			}
+
+			case "message_saved_status": {
+				const statusChatId = msg.payload?.chatId as string;
+				const statusContent = msg.payload?.messageContent as string;
+				const isSaved = msg.payload?.saved as boolean;
+				if (statusChatId && statusContent) {
+					const key = statusChatId + "|" + statusContent.substring(0, 50);
+					setSavedMessages((prev) => {
+						const next = new Set(prev);
+						if (isSaved) { next.add(key); } else { next.delete(key); }
+						return next;
+					});
+				}
+				break;
+			}
+
+			case "list_sessions_result":
+			case "list_sessions": {
+				const sessions = msg.payload?.sessions as Array<ChatEntry & { messageCount: number }>;
+				if (sessions) {
+					setChats(sessions);
+				}
+				break;
+			}
+
 		}
 	};
 
-	const sendMessage = useCallback((text: string) => {
+	const sendMessage = useCallback((text: string, quotedMessage?: { content: string; role: string; timestamp?: string } | null) => {
 		const chatId = currentChatId || "dashboard";
 		const promptEstimate = Math.ceil(text.length / 4);
 		setMessages((prev) => [...prev, { role: "user", content: text, timestamp: new Date(), usage: { promptTokens: promptEstimate, completionTokens: 0, totalTokens: promptEstimate } }]);
@@ -275,6 +344,9 @@ export const AgentChat: React.FC = () => {
 		setCurrentToolCalls([]);
 
 		const payload: Record<string, unknown> = { chatId, text };
+		if (quotedMessage) {
+			payload.quotedMessage = quotedMessage;
+		}
 		if (attachments.length > 0) {
 			payload.attachments = attachments;
 		}
@@ -335,8 +407,18 @@ export const AgentChat: React.FC = () => {
 			return;
 		}
 
-		sendMessage(text);
-	}, [input, isProcessing, connected, messageQueue.length, sendMessage, executeCommand]);
+		if (replyTo) {
+			sendMessage(text, {
+				content: replyTo.content,
+				role: replyTo.role,
+				timestamp: replyTo.timestamp instanceof Date ? replyTo.timestamp.toISOString() : replyTo.timestamp
+			});
+		} else {
+			sendMessage(text);
+		}
+		setReplyTo(null);
+		setSuggestions([]);
+	}, [input, isProcessing, connected, messageQueue.length, sendMessage, executeCommand, replyTo]);
 
 	const handleCancel = () => {
 		if (messageQueue.length > 0) {
@@ -748,6 +830,20 @@ export const AgentChat: React.FC = () => {
 									index={i}
 									onEdit={handleStartEdit}
 									onImageClick={setExpandedImage}
+
+									onReply={(idx, content, role, timestamp) => {
+										setReplyTo({ index: idx, content, role, timestamp });
+									}}
+									onToggleSave={(_idx, role, content, timestamp, isSaved) => {
+
+										sendWs(isSaved ? "unsave_message" : "save_message", {
+											chatId: currentChatId || "dashboard",
+											messageRole: role,
+											messageContent: content,
+											messageTimestamp: timestamp instanceof Date ? timestamp.toISOString() : timestamp
+										});
+									}}
+								isSaved={savedMessages.has((currentChatId || 'dashboard') + '|' + msg.content.substring(0, 50))}
 								/>
 							);
 						})}
@@ -807,6 +903,35 @@ export const AgentChat: React.FC = () => {
 											)}
 										</div>
 									</div>
+								))}
+							</div>
+						)}
+
+						{/* Feature: auto suggestions */}
+						{suggestions.length > 0 && (
+							<div style={{
+								display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "8px",
+							}}>
+								{suggestions.map((s, idx) => (
+									<button
+										key={idx}
+										type="button"
+										onClick={() => {
+											setInput(s);
+											setSuggestions([]);
+										}}
+										style={{
+											background: "rgba(79,140,255,0.08)",
+											border: "1px solid rgba(79,140,255,0.2)",
+											borderRadius: "16px",
+											padding: "6px 14px",
+											fontSize: "12px",
+											color: "var(--accent)",
+											cursor: "pointer",
+										}}
+									>
+										{s}
+									</button>
 								))}
 							</div>
 						)}
@@ -892,6 +1017,33 @@ export const AgentChat: React.FC = () => {
 										</button>
 									</div>
 								))}
+							</div>
+						)}
+
+						{/* Feature: reply bar */}
+						{replyTo && (
+							<div style={{
+								display: "flex", alignItems: "center", gap: "8px",
+								background: "rgba(79,140,255,0.08)",
+								border: "1px solid rgba(79,140,255,0.15)",
+								borderRadius: "8px", padding: "8px 12px", marginBottom: "8px",
+								fontSize: "11px", color: "var(--text-main)",
+							}}>
+								<Reply size={12} style={{ color: "var(--accent)", flexShrink: 0 }} />
+								<span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+									{"Respondiendo a " + (replyTo.role === "user" ? "Usuario" : "Asistente") + ": " + replyTo.content.substring(0, 60) + "..."}
+								</span>
+								<button
+									type="button"
+									onClick={() => setReplyTo(null)}
+									style={{
+										background: "none", border: "none", color: "var(--text-muted)",
+										cursor: "pointer", padding: "2px", display: "flex",
+									}}
+									title="Cancelar respuesta"
+								>
+									<X size={14} />
+								</button>
 							</div>
 						)}
 						<div style={{ display: "flex", gap: "8px", alignItems: "flex-end", position: "relative" }}>
@@ -1099,6 +1251,12 @@ export const AgentChat: React.FC = () => {
 								{chat.lastMessage}
 							</div>
 						)}
+						{chat.messageCount !== undefined && (
+							<div style={{ fontSize: "10px", color: "var(--text-dim)", marginLeft: "18px", marginTop: "2px", display: "flex", alignItems: "center", gap: "4px" }}>
+								<MessageSquare size={9} />
+								<span>{chat.messageCount} mensaje{chat.messageCount === 1 ? "" : "s"}</span>
+							</div>
+						)}
 						{isActive && (
 							<div style={{ display: "flex", gap: "2px", marginTop: "4px", marginLeft: "18px" }}>
 								<button type="button" onClick={(e) => { e.stopPropagation(); setRenamingChat(chat.id); setRenameValue(chat.title); }} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", padding: "2px 4px" }} title="Renombrar">
@@ -1126,13 +1284,18 @@ interface MessageBubbleProps {
 	index?: number;
 	onEdit?: (index: number) => void;
 	onImageClick?: (src: string) => void;
+
+	onReply?: (index: number, content: string, role: string, timestamp: Date) => void;
+	onToggleSave?: (index: number, role: string, content: string, timestamp: Date, isSaved: boolean) => void;
+	isSaved?: boolean;
 }
 
-const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index, onEdit, onImageClick }) => {
+const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index, onEdit, onImageClick, onReply, onToggleSave, isSaved }) => {
 	const isUser = message.role === "user";
 	const isSystem = message.role === "system";
 
 	const images = extractImagesFromContent(message.content);
+
 
 	if (isSystem) {
 		return <div style={{ textAlign: "center", padding: "8px 16px", fontSize: "12px", color: "var(--text-dim)" }}>{message.content}</div>;
@@ -1141,6 +1304,20 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index, onEdit, o
 	const handleClick = () => {
 		if (isUser && onEdit && index !== undefined) {
 			onEdit(index);
+		}
+	};
+
+	const handleReply = (e: React.MouseEvent) => {
+		e.stopPropagation();
+		if (onReply && index !== undefined) {
+			onReply(index, message.content, message.role, message.timestamp);
+		}
+	};
+
+	const handleToggleSave = (e: React.MouseEvent) => {
+		e.stopPropagation();
+		if (onToggleSave && index !== undefined) {
+			onToggleSave(index, message.role, message.content, message.timestamp, !!isSaved);
 		}
 	};
 
@@ -1210,12 +1387,50 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index, onEdit, o
 					</div>
 				)}
 			</div>
-			<div style={{ fontSize: "10px", color: "var(--text-dim)", marginTop: "4px", padding: "0 4px", display: "flex", gap: "8px" }}>
+			<div style={{ fontSize: "10px", color: "var(--text-dim)", marginTop: "4px", padding: "0 4px", display: "flex", gap: "8px", alignItems: "center" }}>
 				<span>{message.timestamp.toLocaleTimeString()}</span>
 				{!isUser && message.usage && (
 					<span>{message.usage.promptTokens}\u2191 / {message.usage.completionTokens}\u2193</span>
 				)}
+				<span style={{ flex: 1 }} />
+				{/* Feature: reply button */}
+				<button
+					type="button"
+					onClick={handleReply}
+					title="Responder"
+					style={{
+						background: "none", border: "none", color: "var(--text-muted)",
+						cursor: "pointer", padding: "2px", display: "flex",
+						opacity: 0.6,
+					}}
+					onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; }}
+					onMouseLeave={(e) => { e.currentTarget.style.opacity = "0.6"; }}
+				>
+					<Reply size={10} />
+				</button>
+				{/* Feature: save/favorite button */}
+				<button
+					type="button"
+					onClick={handleToggleSave}
+					title={isSaved ? "Quitar de guardados" : "Guardar mensaje"}
+					style={{
+						background: "none", border: "none",
+						color: isSaved ? "var(--warning)" : "var(--text-muted)",
+						cursor: "pointer", padding: "2px", display: "flex",
+						opacity: isSaved ? 1 : 0.6,
+					}}
+					onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; }}
+					onMouseLeave={(e) => { e.currentTarget.style.opacity = isSaved ? "1" : "0.6"; }}
+				>
+					<Star size={10} fill={isSaved ? "var(--warning)" : "none"} />
+				</button>
 			</div>
 		</div>
 	);
 };
+
+
+
+
+
+

@@ -30,6 +30,20 @@ export type WsMessageType =
 	| "model_update"
 	// Tasks
 	| "list_tasks"
+	// Favorites / Saved messages
+	| "save_message"
+	| "unsave_message"
+	| "list_saved_messages"
+	| "is_message_saved"
+	| "message_saved"
+	| "message_unsaved"
+	| "saved_messages_list"
+	| "message_saved_status"
+	// Auto suggestions
+	| "suggestions"
+	// Session history
+	| "list_sessions"
+	| "list_sessions_result"
 	// Telegram settings
 	| "telegram_update"
 	// General config

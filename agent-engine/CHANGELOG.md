@@ -3,6 +3,10 @@
 ## [Unreleased]
 
 ### Añadido
+- **💬 Reply / Quoted Messages** — Campo `quotedMessage` en `AgentOptions`. El contenido citado se inyecta como blockquote en el prompt del agente. Extraído del payload WS en `user_message`
+- **⭐ Favoritos / Saved Messages** — Nueva tabla `saved_messages` en SQLite. Archivo `savedMessages.ts` con 4 funciones DB. 4 handlers WS: `save_message`, `unsave_message`, `list_saved_messages`, `is_message_saved`
+- **💡 Auto Suggestions** — Nuevo servicio `services/agent/suggestions.ts`. Genera 2-3 preguntas de seguimiento vía LLM. Se dispara async después de `assistant_done`. Evento WS `suggestions`
+- **🕐 Session History** — Función `getChatWithStats()` en `chats.ts`. Handler WS `list_sessions` que retorna todos los chats del usuario con `messageCount`
 - **Nuevo servicio `docker-info.ts`** — Detección automática del entorno Docker (cgroup, CPUs, RAM, GPU, disco) al iniciar
 - **Nueva tabla `settings` en SQLite** — Almacenamiento key-value persistente para `docker_info` y otras configuraciones
 - **`AppConfig` ahora incluye `dockerInfo`** — Configuración del entorno disponible en todo el runtime

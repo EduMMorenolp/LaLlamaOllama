@@ -170,6 +170,14 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 			userContent += `\n\n=== ARCHIVOS ADJUNTOS ===${attachmentText.join("\n")}`;
 		}
 	}
+	// Prepend quoted message if present (reply feature)
+	if (opts.quotedMessage) {
+		const quote = opts.quotedMessage;
+		const roleLabel = quote.role === "user" ? "Usuario" : "Asistente";
+		const prefix = "> Respondiendo al siguiente mensaje de **" + roleLabel + "**:\n> " + quote.content.replace(/\n/g, "\n> ") + "\n\n---\n\n";
+		userContent = prefix + userContent;
+	}
+
 
 	session.messages.push({ role: "user", content: userContent });
 

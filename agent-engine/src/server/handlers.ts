@@ -26,6 +26,9 @@ import {
 	togglePin,
 } from "../services/db/chats.js";
 import { getMessages } from "../services/db/messages.js";
+import { saveMessageToFavorites, unsaveMessage, listSavedMessages, isMessageSaved } from "../services/db/savedMessages.js";
+import { generateSuggestions } from "../services/agent/suggestions.js";
+import { getChatWithStats } from "../services/db/chats.js";
 import { listModels, upsertModel, deleteModel, type ModelEntry } from "../services/db/models.js";
 import { listRunsByFilters } from "../services/db/runs.js";
 import { resetSession, pushSessionMessages } from "../services/agent/runAgentCore.js";
@@ -49,6 +52,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					const rawChatId = (payload?.chatId as string) || clientId;
 					const text = (payload?.text as string) || "";
 					const attachments = payload?.attachments as Array<{ name: string; type: string; data: string }> | undefined;
+					const quotedMessage = payload?.quotedMessage as { content: string; role: string; timestamp?: string } | undefined;
 					if (!text.trim()) {
 						ws.send(createMessage("error", { message: "Empty message", code: "EMPTY" }));
 						return;
@@ -68,7 +72,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 						);
 					}
 
-					this.handleUserMessage(chatId, text, clientId, attachments);
+					this.handleUserMessage(chatId, text, clientId, attachments, quotedMessage);
 					break;
 				}
 				case "cancel": {
@@ -369,6 +373,54 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					break;
 				}
 
+				// Favorites / Saved messages
+				case "save_message": {
+					const userId_sv = userMap.get(clientId) ?? clientId;
+					const chatId_sv = payload?.chatId as string;
+					const msgRole = payload?.messageRole as string;
+					const msgContent = payload?.messageContent as string;
+					const msgTimestamp = payload?.messageTimestamp as string;
+					const ok_sv = saveMessageToFavorites(userId_sv, chatId_sv, msgRole, msgContent, msgTimestamp);
+					ws.send(createMessage("message_saved", { ok: ok_sv, chatId: chatId_sv, messageContent: msgContent.substring(0, 100) }));
+					break;
+				}
+				case "unsave_message": {
+					const userId_us = userMap.get(clientId) ?? clientId;
+					const chatId_us = payload?.chatId as string;
+					const msgContent_us = payload?.messageContent as string;
+					const ok_us = unsaveMessage(userId_us, chatId_us, msgContent_us);
+					ws.send(createMessage("message_unsaved", { ok: ok_us }));
+					break;
+				}
+				case "list_saved_messages": {
+					const userId_ls = userMap.get(clientId) ?? clientId;
+					const saved = listSavedMessages(userId_ls);
+					ws.send(createMessage("saved_messages_list", { saved }));
+					break;
+				}
+				case "is_message_saved": {
+					const userId_ims = userMap.get(clientId) ?? clientId;
+					const chatId_ims = payload?.chatId as string;
+					const msgContent_ims = payload?.messageContent as string;
+					const saved_ims = isMessageSaved(userId_ims, chatId_ims, msgContent_ims);
+					ws.send(createMessage("message_saved_status", { saved: saved_ims, chatId: chatId_ims, messageContent: msgContent_ims.substring(0, 100) }));
+					break;
+				}
+
+				// Session history
+				case "list_sessions": {
+					const userId_lses = userMap.get(clientId) ?? clientId;
+					const sessions = listChats(userId_lses, undefined).map((chat) => {
+						const info = getChatWithStats(chat.id);
+						return {
+							...chat,
+							messageCount: info.messageCount,
+						};
+					});
+					ws.send(createMessage("list_sessions", { sessions }));
+					break;
+				}
+
 				default:
 					ws.send(
 						createMessage("error", {
@@ -379,7 +431,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 			}
 		},
 
-		async handleUserMessage(chatId: string, text: string, clientId: string, attachments?: Array<{ name: string; type: string; data: string }>) {
+		async handleUserMessage(chatId: string, text: string, clientId: string, attachments?: Array<{ name: string; type: string; data: string }>, quotedMessage?: { content: string; role: string; timestamp?: string }) {
 			logger.agent(`[${chatId}] Received: "${text.substring(0, 100)}..."`);
 
 			try {
@@ -389,6 +441,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					config,
 					brain,
 					attachments,
+					quotedMessage,
 					onChunk: (chunk: string) =>
 						wsServer.sendToAll("assistant_chunk", { chatId, text: chunk }),
 					onToolCall: (toolName: string, args: Record<string, unknown>) =>
@@ -404,6 +457,13 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					usage: result.usage,
 					latencyMs: result.latencyMs,
 				});
+
+				// Auto-suggestions: async, non-blocking
+				generateSuggestions(chatId, text, result.text, config, brain, (suggestions) => {
+					if (suggestions.length > 0) {
+						wsServer.sendToAll("suggestions", { chatId, suggestions });
+					}
+				}).catch(() => {});
 
 				// Send updated chat list to all clients so sidebar refreshes with lastMessage
 				const userId = userMap.get(clientId) ?? clientId;

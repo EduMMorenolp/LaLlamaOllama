@@ -171,6 +171,22 @@ export function getDb(dbPath?: string): Database.Database {
 	} catch {
 		// already exists
 	}
+	try {
+		_db.exec(`
+			CREATE TABLE IF NOT EXISTS saved_messages (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				userId TEXT NOT NULL,
+				chatId TEXT NOT NULL,
+				messageRole TEXT NOT NULL,
+				messageContent TEXT NOT NULL,
+				messageTimestamp TEXT,
+				notes TEXT DEFAULT '',
+				created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+				UNIQUE(userId, chatId, messageRole, messageContent(100))
+			);
+			CREATE INDEX IF NOT EXISTS idx_saved_messages_userId ON saved_messages(userId);
+		`);
+	} catch { /* ignore */ }
 
 	logger.info(`[DB] SQLite initialized: ${resolvedPath}`);
 	return _db;

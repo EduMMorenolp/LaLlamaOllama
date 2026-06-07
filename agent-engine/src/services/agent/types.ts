@@ -22,6 +22,10 @@ export interface AgentOptions {
 	telegramChatId?: number;
 	/** If true, skip persisting the user message to DB (already done by the channel) */
 	skipPersistUserMsg?: boolean;
+	/** Quoted/replied message context */
+	quotedMessage?: { content: string; role: string; timestamp?: string };
+	/** Callback for auto-suggestions */
+	onSuggestions?: (suggestions: string[]) => void;
 }
 
 export interface AgentResult {

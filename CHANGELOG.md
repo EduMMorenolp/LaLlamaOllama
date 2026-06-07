@@ -7,6 +7,21 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 
 ## [Unreleased]
 
+### 🚀 Fase 2: Citas/Reply, Favoritos, Sugerencias Automáticas, Historial de Sesiones (2026-06-06)
+
+#### Agent Engine
+- **💬 Citas / Reply** — Nuevo campo `quotedMessage` en `AgentOptions`. Cuando un usuario responde citando un mensaje, el contenido se inyecta como blockquote en el prompt del agente para dar contexto
+- **⭐ Favoritos** — Nueva tabla `saved_messages` en SQLite + 4 handlers WS (`save_message`, `unsave_message`, `list_saved_messages`, `is_message_saved`) con DB functions dedicadas
+- **💡 Sugerencias automáticas** — Nuevo servicio `suggestions.ts` que genera 2-3 preguntas de seguimiento vía LLM después de cada respuesta. Se envía evento WS `suggestions` con el array. No bloquea la respuesta principal
+- **🕐 Historial de sesiones** — Nueva función `getChatWithStats()` que retorna mensaje por chat. Handler WS `list_sessions` expone todos los chats del usuario con `messageCount`
+- **Nuevos tipos WS registrados** — `protocol.ts` actualizado con 10 nuevos tipos de mensaje para las 4 features
+
+#### Agent Frontend
+- **💬 Citas / Reply** — Nuevo botón "Reply" en cada mensaje (hover). Barra contextual sobre el input con texto "Respondiendo a..." y botón X. Se envía `quotedMessage` en el payload, se limpia al enviar
+- **⭐ Favoritos** — Botón Star toggle en cada mensaje (relleno amarillo si guardado, outline si no). Tracking local con Set de mensajes guardados. Handlers para `message_saved/unsaved/saved_status`
+- **💡 Sugerencias automáticas** — Chips de sugerencias entre tool calls y "Pensando...". Al hacer clic, se llena el input. Se limpian al enviar nuevo mensaje
+- **🕐 Historial de sesiones** — `messageCount` agregado a `ChatEntry`. Cada chat en el sidebar muestra "📝 N mensajes". Se envía `list_sessions` al identificar usuario
+
 ### 🚀 Fase 1: 5 Mejoras UX en Chat — Búsqueda, Exportación, Tool Calls Colapsables, Multi-modal, Edición (2026-06-06)
 
 #### Agent Frontend

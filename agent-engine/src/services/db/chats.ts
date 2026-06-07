@@ -120,3 +120,11 @@ export function touchChat(id: string): void {
 		.prepare("UPDATE chats SET updated_at = ? WHERE id = ?")
 		.run(new Date().toISOString(), id);
 }
+
+export function getChatWithStats(chatId: string): { chat: ChatEntry | null; messageCount: number } {
+	const db = getDb();
+	const chat = getChat(chatId);
+	if (!chat) return { chat: null, messageCount: 0 };
+	const row = db.prepare("SELECT COUNT(*) as count FROM messages WHERE chatId = ?").get(chatId) as { count: number } | undefined;
+	return { chat, messageCount: row?.count || 0 };
+}
