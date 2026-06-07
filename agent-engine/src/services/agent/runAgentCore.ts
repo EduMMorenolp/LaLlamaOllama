@@ -309,6 +309,19 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 
 					onToolResult?.(toolName, result);
 
+					// Index successful read_url results to Brain
+					if (toolName === "read_url" && !result.startsWith("Error")) {
+						const url = (args.url as string) || "";
+						if (url) {
+							brain.saveMemory(
+								"knowledge",
+								`URL: ${url}`,
+								result.substring(0, 5000),
+								"url,web,read_url"
+							).catch(() => {});
+						}
+					}
+
 					session.messages.push({
 						role: "tool",
 						tool_call_id: tc.id,
@@ -345,6 +358,17 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 			onTyping?.(false);
 			logger.agent(`[${chatId}] Response complete (${latency}ms)`);
 
+			// Estimate token usage if model didn't provide it (e.g. Ollama)
+			if (!totalUsage.promptTokens && !totalUsage.completionTokens) {
+				const charCount = session.messages.reduce((sum, m) => {
+					if (typeof m.content === "string") return sum + m.content.length;
+					return sum + 200;
+				}, 0);
+				totalUsage.promptTokens = Math.max(1, Math.ceil(charCount / 4));
+				totalUsage.completionTokens = Math.max(1, Math.ceil((finalContent?.length || 0) / 4));
+				totalUsage.totalTokens = totalUsage.promptTokens + totalUsage.completionTokens;
+			}
+
 			return {
 				text: finalContent,
 				model: modelConfig.model,
@@ -373,6 +397,17 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 	finalContent = finalContent || "He llegado al límite de iteraciones. Considera dividir la tarea en partes más pequeñas.";
 	session.messages.push({ role: "assistant", content: finalContent });
 	onTyping?.(false);
+
+	// Estimate token usage if model didn't provide it
+	if (!totalUsage.promptTokens && !totalUsage.completionTokens) {
+		const charCount = session.messages.reduce((sum, m) => {
+			if (typeof m.content === "string") return sum + m.content.length;
+			return sum + 200;
+		}, 0);
+		totalUsage.promptTokens = Math.max(1, Math.ceil(charCount / 4));
+		totalUsage.completionTokens = Math.max(1, Math.ceil((finalContent?.length || 0) / 4));
+		totalUsage.totalTokens = totalUsage.promptTokens + totalUsage.completionTokens;
+	}
 
 	return {
 		text: finalContent,

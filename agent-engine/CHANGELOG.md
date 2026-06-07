@@ -3,11 +3,20 @@
 ## [Unreleased]
 
 ### Añadido
+- **Nuevo servicio `docker-info.ts`** — Detección automática del entorno Docker (cgroup, CPUs, RAM, GPU, disco) al iniciar
+- **Nueva tabla `settings` en SQLite** — Almacenamiento key-value persistente para `docker_info` y otras configuraciones
+- **`AppConfig` ahora incluye `dockerInfo`** — Configuración del entorno disponible en todo el runtime
+- **`RuntimeContext` extendido** — Incluye `dockerInfo` y nueva función `getDockerInfo()`
+- **Nuevo handler WS `get_docker_info`** — Expone la info del contenedor al frontend
 - General config persistente (`__general__` expert): modelo, temperatura, límite de historial
 - Endpoints REST `/api/runs`, `/api/runs/:id`, `/api/knowledge` (CRUD)
 - Servicio `services/knowledge/index.ts` — chunking e indexación al Brain
 - WS handlers `get_general_config` / `general_config_update`
 - Campo `history_limit` en tabla `sub_agents` (migración automática)
+
+### Cambiado
+- **`buildPrompt.ts`**: instrucción explícita para usar `tool_calls` cuando el usuario pida ejecutar herramientas, en vez de describirlas en texto
+- **`get_status`**: ahora usa `gc?.model || config.defaultModel` (DB) en lugar de solo `config.defaultModel` (env var), consistente con el handler `identify`
 
 ### Cambiado
 - `buildPrompt.ts` reducido de ~60 a 4 líneas (ahorro 500-1000+ tokens/request)

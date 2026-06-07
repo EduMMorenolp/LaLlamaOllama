@@ -7,6 +7,49 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 
 ## [Unreleased]
 
+### 🚀 Fase 1: 5 Mejoras UX en Chat — Búsqueda, Exportación, Tool Calls Colapsables, Multi-modal, Edición (2026-06-06)
+
+#### Agent Frontend
+- **🔍 Búsqueda dentro del chat** — Nueva barra de búsqueda en el header del chat que filtra mensajes en tiempo real. Muestra contador de resultados y estado "Sin resultados"
+- **📤 Exportar conversación** — Botón de descarga que exporta todo el historial del chat a un archivo Markdown (`chat-{id}-{fecha}.md`) con estructura clara de roles y timestamps
+- **📦 Tool calls colapsables** — La sección de herramientas ahora es colapsable con un clic en el header. Badge con contador de herramientas. Ahorra espacio vertical cuando hay muchas tool calls
+- **🖼️ Multi-modal (imágenes inline)** — Las imágenes (Markdown, data:image, URLs con extensión de imagen) se renderizan inline con vista previa de 300px max-height. Click para ver en lightbox fullscreen
+- **✏️ Editar mensajes enviados** — Click en cualquier mensaje de usuario para editarlo. Textarea con Guardar/Cancelar. Enter guarda, Escape cancela
+- **Bugfix: switch statement** — El `case "error"` estaba fuera del switch por una llave `}` prematura en `handleWsMessage`. El manejador de errores nunca se ejecutaba. Corregido
+
+### 🚀 Mejoras en Chat: Tokens, Historial de Tools, Slash Commands (2026-06-06)
+
+#### Agent Engine
+- **Fix token counter** — Estimación de tokens cuando el modelo no los reporta (Ollama). Calcula prompt_tokens = chars/4 y completion_tokens = chars/4 en `runAgentCore.ts`
+- **Indexación automática de URLs** — Cuando `read_url` se ejecuta exitosamente, guarda automáticamente el contenido en el Brain como memoria tipo `knowledge` para búsquedas futuras
+
+#### Agent Frontend
+- **Historial persistente de herramientas** — Las tool calls ya no se borran al finalizar la respuesta. Permanecen visibles hasta el próximo mensaje del usuario
+- **"Pensando..." siempre visible** — El indicador de procesamiento ahora se muestra durante todo el tiempo que `isProcessing` sea true, independientemente de tool calls o streaming
+- **Slash commands** — Nuevo sistema de comandos tipo chat:
+  - `/ayuda` — Muestra lista de comandos disponibles
+  - `/buscar <consulta>` — Busca información en internet
+  - `/nuevaTarea` — Crea una nueva tarea
+  - `/modelo <nombre>` — Cambiar el modelo activo
+  - `/temperatura <0-2>` — Ajustar la temperatura
+  - `/chat nuevo` — Crear un nuevo chat
+  - `/tools` — Listar herramientas disponibles
+  - Navegación con flechas ↑↓ + Enter, cierre con Escape
+
+### 🚀 Agent Frontend: Cola de mensajes + Fix duplicación + System Prompt (2026-06-06)
+
+#### Agent Frontend
+- **Nueva cola de mensajes (max 3)** — Mientras el agente procesa una respuesta, los nuevos mensajes se encolan automáticamente y se envían cuando termina la actual
+- **Input siempre activo** — El textarea ya no se deshabilita durante procesamiento; el placeholder cambia contextualmente ("Escribe, se encolará...", "Cola llena (3/3)")
+- **Auto-despacho desde cola** — Cuando `isProcessing` pasa a `false`, el siguiente mensaje en cola se envía automáticamente
+- **UI de cola** — Barra visual entre mensajes e input con contador `N/3`, pills por mensaje con botón ✕ individual, y botón "Vaciar cola"
+- **Confirmación al cancelar con cola** — Modal que pregunta "Vaciar todo" vs "Solo cancelar respuesta" (conserva cola)
+- **Fix duplicación de respuestas** — `assistant_done` ahora reemplaza el último mensaje del streaming en vez de agregar uno nuevo, eliminando la duplicación que ocurría al finalizar cada respuesta
+- **Cola se vacía al cambiar de chat** — Previene mensajes huérfanos
+
+#### Agent Engine
+- **System prompt mejorado** — Ahora instruye explícitamente: *"Cuando el usuario te pida USAR, EJECUTAR o PROBAR una herramienta, debes llamarla mediante tool_calls, no describirla en texto ni mostrar JSON de ejemplo"*
+
 ### 🧠 Agent Engine: Docker Awareness + Eliminación de Jarvis (2026-06-06)
 
 #### Agent Engine
