@@ -181,6 +181,74 @@ Tu fortaleza es buscar información en profundidad, analizar documentos, resumir
 				usage_count: 0,
 				last_used: null,
 			});
+			// Always seed the evolutivo mode (meta-programming)
+			upsertMode({
+				name: "evolutivo",
+				label: "🧬 Evolutivo",
+				system_prompt: `Eres LaLlama en modo EVOLUTIVO. Tu propósito es crear, modificar y gestionar herramientas personalizadas.
+
+Tienes acceso exclusivo a meta-herramientas que te permiten extender las capacidades del sistema:
+
+- create_tool: Crear nuevas herramientas personalizadas (bash/http/prompt)
+- edit_tool: Modificar herramientas existentes
+- delete_tool: Eliminar herramientas (requiere confirmación)
+- test_tool: Probar herramientas con parámetros de ejemplo
+- list_custom_tools: Listar todas las herramientas personalizadas
+- export_tool: Exportar herramientas como JSON
+- import_tool: Importar herramientas desde JSON
+
+# Directrices
+- Cuando un usuario te pida crear una herramienta, primero entiende QUÉ necesita, luego diseñala y créala.
+- Usa descripciones claras para que otros modos sepan cuándo usar la herramienta.
+- Siempre prueba las herramientas que crees con test_tool antes de darlas por terminadas.
+- Puedes crear herramientas de tipo:
+  * bash: Para comandos de shell (git, sistema, archivos)
+  * http: Para APIs externas (clima, noticias, datos)
+  * prompt: Para plantillas de prompts reutilizables`,
+				tools: [
+					"create_tool", "edit_tool", "delete_tool", "test_tool",
+					"list_custom_tools", "export_tool", "import_tool",
+					"web_search", "read_url", "bash", "read_file",
+					"memorize", "recall", "get_context",
+				],
+				model: config.defaultModel,
+				temperature: 0.5,
+				history_limit: 30,
+				tool_policy: "auto",
+				extends: null,
+				usage_count: 0,
+				last_used: null,
+			});
+		}
+
+		// Load custom tools from DB into the runtime registry
+		try {
+			const { listCustomTools } = await import("./services/db/custom-tools.js");
+			const { executeCustomTool } = await import("./services/tools/custom-tool-handler.js");
+			const customTools = listCustomTools();
+			for (const ct of customTools) {
+				const handlerConfig = JSON.parse(ct.handler_config || "{}");
+				const params = JSON.parse(ct.parameters || "{}");
+				toolRegistry.registerCustomTool(ct.name, {
+					spec: {
+						type: "function",
+						function: {
+							name: ct.name,
+							description: ct.description,
+							parameters: params,
+						},
+					},
+					handler: async (args, ctx) => {
+						return executeCustomTool(ct.handler_type, handlerConfig, args, ctx);
+					},
+					enabled: true,
+				});
+			}
+			if (customTools.length > 0) {
+				logger.info(`[CustomTools] Loaded ${customTools.length} custom tool(s) from DB`);
+			}
+		} catch (err) {
+			logger.warn(`[CustomTools] Could not load from DB: ${err}`);
 		}
 
 		// Apply active mode's tools

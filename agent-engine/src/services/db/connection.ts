@@ -123,6 +123,17 @@ export function getDb(dbPath?: string): Database.Database {
 			last_used TEXT DEFAULT NULL,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		);
+
+		CREATE TABLE IF NOT EXISTS custom_tools (
+			name TEXT PRIMARY KEY,
+			description TEXT NOT NULL,
+			parameters TEXT NOT NULL DEFAULT '{}',
+			handler_type TEXT NOT NULL CHECK(handler_type IN ('bash', 'prompt', 'http')),
+			handler_config TEXT NOT NULL DEFAULT '{}',
+			created_by TEXT DEFAULT '',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
 	`);
 
 	// ─── Migrations ───────────────────────────────────────────────────────

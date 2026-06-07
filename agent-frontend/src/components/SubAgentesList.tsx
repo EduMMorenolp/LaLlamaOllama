@@ -1,4 +1,4 @@
-import { Plus, Save, Trash2, X } from "lucide-react";
+import { FileText, Plus, Save, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useWs } from "../contexts/WebSocketContext";
 

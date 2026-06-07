@@ -15,6 +15,12 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 - **➕ Nueva dependencia**: `cheerio` para parseo HTML en web_search
 - **🔄 Modos por defecto mejorados** — `asistente`, `desarrollador`, `investigador` ahora incluyen las nuevas tools según su perfil
 - **➕ Nueva tabla `agent_modes`** en SQLite con columna `tools` (JSON), `extends` (herencia), `tool_policy` y contador de uso
+- **🧬 Modo Evolutivo** — Nuevo modo `evolutivo` con 7 meta-herramientas para crear/modificar/eliminar tools personalizadas en tiempo real
+- **➕ Tabla `custom_tools`** en SQLite — Almacena herramientas personalizadas con tipo (bash/http/prompt), parámetros y config
+- **➕ `ToolRegistry.registerCustomTool()` / `unregisterCustomTool()`** — Registro dinámico de tools en caliente
+- **➕ `custom-tool-handler.ts`** — Dispatcher que ejecuta handlers bash (con `{{param}}`), http (requests API), prompt (plantillas)
+- **➕ 7 meta-tools** en `services/tools/evolutivo/`: `create_tool`, `edit_tool`, `delete_tool`, `test_tool`, `list_custom_tools`, `export_tool`, `import_tool`
+- **➕ Carga automática** de custom tools desde DB al iniciar y después de cada cambio
 - **➕ `services/db/modes.ts`** — CRUD completo: `listModes()`, `getMode()`, `resolveMode()` (herencia recursiva con merge de tools), `upsertMode()`, `deleteMode()`, `setActiveMode()`, `incrementModeUsage()`
 - **➕ `toolRegistry.applyModeTools(tools[])`** con `SimpleMutex` — deshabilita atómicamente todas las herramientas y luego habilita solo las del modo
 - **➕ Protocolo WS**: 5 nuevos tipos (`list_modes`, `get_active_mode`, `set_active_mode`, `mode_update`, `mode_changed`)

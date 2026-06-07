@@ -99,6 +99,44 @@ class ToolRegistry {
 	}
 
 	/**
+	 * Registra una tool custom (creada por el usuario). Si ya existe, la reemplaza.
+	 */
+	registerCustomTool(name: string, def: ToolDefinition): void {
+		const existing = this.registry.get(name);
+		if (existing) {
+			logger.tool(`Replacing existing custom tool: ${name}`);
+		}
+		this.registry.set(name, def);
+		logger.tool(`Registered custom tool: ${name} (enabled: ${def.enabled})`);
+	}
+
+	/**
+	 * Elimina una tool custom del registry.
+	 */
+	unregisterCustomTool(name: string): boolean {
+		const existed = this.registry.has(name);
+		if (existed) {
+			this.registry.delete(name);
+			logger.tool(`Unregistered custom tool: ${name}`);
+		}
+		return existed;
+	}
+
+	/**
+	 * Verifica si un nombre de tool está disponible (no existe en el registry).
+	 */
+	isToolNameAvailable(name: string): boolean {
+		return !this.registry.has(name);
+	}
+
+	/**
+	 * Retorna el número de tools registradas.
+	 */
+	getToolCount(): number {
+		return this.registry.size;
+	}
+
+	/**
 	 * Aplica las tools de un modo de forma atómica.
 	 * - Adquiere lock para evitar cambios durante ejecución concurrente.
 	 * - Deshabilita todas las tools, luego habilita solo las del modo.

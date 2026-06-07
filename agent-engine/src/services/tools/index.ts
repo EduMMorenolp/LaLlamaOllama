@@ -2,6 +2,7 @@ import type { BrainClient } from "../brain/client.js";
 import { registerBashTool } from "./bash.js";
 import { registerCalcTool } from "./calc.js";
 import { registerDelegateTool } from "./delegate.js";
+import { registerEvolutivoTools } from "./evolutivo/index.js";
 import { registerGlobTool } from "./glob-search.js";
 import { registerGrepTool } from "./grep-search.js";
 import { registerKnowledgeSearchTool } from "./knowledge-search.js";
@@ -34,6 +35,9 @@ export function registerAllTools(brain: BrainClient): void {
 	registerNotifyFrontendTool();
 	registerNotifyTelegramTool();
 	registerKnowledgeSearchTool();
+
+	// Modo Evolutivo meta-tools
+	registerEvolutivoTools();
 }
 
 export { toolRegistry } from "./registry.js";
