@@ -454,6 +454,26 @@ export const AgentChat: React.FC = () => {
 				}
 				break;
 			}
+
+            case "mode_changed": {
+                const modeLabel = (msg.payload?.label as string) || ((msg.payload?.mode as Record<string, string>)?.["name"]) || "";
+                const resetSession = msg.payload?.resetSession === true;
+                if (resetSession) {
+                    setMessages([]);
+                    setCurrentChatId(null);
+                }
+                if (modeLabel) {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            role: "system" as ChatMessage["role"],
+                            content: "?? Modo cambiado a " + modeLabel + ". " + (resetSession ? "La sesi\u00f3n se ha reiniciado." : ""),
+                            timestamp: new Date(),
+                        },
+                    ]);
+                }
+                break;
+            }
 		}
 	};
 

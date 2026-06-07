@@ -36,6 +36,15 @@ import {
 import { deleteUser, listAllUsers, type UserProfile, upsertUser } from "../services/db/users.js";
 import { getDockerInfo } from "../services/runtime.js";
 import { getBot, getTelegramConfig, initTelegramDeps, setTelegramConfig, startTelegram, stopTelegram } from "../services/telegram/bot.js";
+import {
+	deleteMode as deleteAgentMode,
+	getActiveMode,
+	getMode,
+	incrementModeUsage,
+	listModes,
+	setActiveMode,
+	upsertMode,
+} from "../services/db/modes.js";
 import { setSetting } from "../services/db/settings.js";
 import { toolRegistry } from "../services/tools/registry.js";
 import { logger } from "../utils/logger.js";
@@ -49,7 +58,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 	initTelegramDeps(config, brain, wsServer);
 
 	return {
-		handleMessage(clientId: string, ws: WebSocket, msg: unknown) {
+		async handleMessage(clientId: string, ws: WebSocket, msg: unknown) {
 			const parsed = msg as { type: string; payload?: Record<string, unknown> };
 			const { type, payload } = parsed;
 
@@ -339,6 +348,87 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					ws.send(createMessage("general_config", updated || {}));
 					// Broadcast model change to ALL connected clients (chat, config, etc.)
 					wsServer.sendToAll("status", { status: "identified", model: cfg.model as string });
+					break;
+				}
+
+				// Mode Management
+				case "list_modes": {
+					const modes = listModes();
+					const active = getActiveMode().name;
+					ws.send(createMessage("list_modes", { modes, active }));
+					break;
+				}
+				case "get_active_mode": {
+					const mode = getActiveMode();
+					ws.send(createMessage("get_active_mode", { mode }));
+					break;
+				}
+				case "set_active_mode": {
+					const name = payload?.name as string;
+					if (!name) {
+						ws.send(createMessage("error", { message: "Mode name is required" }));
+						break;
+					}
+					const mode = getMode(name);
+					if (!mode) {
+						ws.send(createMessage("error", { message: `Mode '${name}' not found` }));
+						break;
+					}
+					setActiveMode(name);
+					incrementModeUsage(name);
+
+					// Apply tool configuration for this mode
+					await toolRegistry.applyModeTools(mode.tools);
+
+					// Reset all LLM sessions to force re-init with new mode config
+					const { resetAllSessions } = await import("../services/agent/runAgentCore.js");
+					resetAllSessions();
+
+					// Broadcast mode change to ALL connected clients
+					wsServer.sendToAll("mode_changed", {
+						mode: mode.name,
+						label: mode.label,
+						system_prompt: mode.system_prompt,
+						tools: mode.tools,
+						model: mode.model,
+						temperature: mode.temperature,
+						resetSession: true,
+					});
+
+					// Also update __general__ config to keep system prompt in sync
+					upsertExpert({
+						name: "__general__",
+						model: mode.model || config.defaultModel,
+						system_prompt: mode.system_prompt,
+						tools: [],
+						experts: [],
+						temperature: mode.temperature,
+						history_limit: mode.history_limit,
+					});
+
+					logger.info(`[Modes] Active mode set to '${name}' via WS`);
+					ws.send(createMessage("set_active_mode", { success: true, mode: getActiveMode() }));
+					break;
+				}
+				case "mode_update": {
+					const action = payload?.action as string;
+					const modePayload = payload?.mode as Record<string, unknown> | undefined;
+					const deleteName = payload?.name as string | undefined;
+
+					try {
+						if (action === "upsert" && modePayload) {
+							upsertMode(modePayload as any);
+						} else if (action === "delete" && deleteName) {
+							deleteAgentMode(deleteName);
+						}
+						// Broadcast updated list to all
+						const modes = listModes();
+						const active = getActiveMode().name;
+						wsServer.sendToAll("list_modes", { modes, active });
+					} catch (err) {
+						const msg = err instanceof Error ? err.message : String(err);
+						ws.send(createMessage("error", { message: msg }));
+					}
 					break;
 				}
 

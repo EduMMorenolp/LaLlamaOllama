@@ -108,6 +108,21 @@ export function getDb(dbPath?: string): Database.Database {
 		CREATE INDEX IF NOT EXISTS idx_runs_chatId ON runs(chatId);
 		CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status);
 		CREATE INDEX IF NOT EXISTS idx_run_events_runId ON run_events(runId);
+
+		CREATE TABLE IF NOT EXISTS agent_modes (
+			name TEXT PRIMARY KEY,
+			label TEXT NOT NULL DEFAULT '',
+			system_prompt TEXT NOT NULL DEFAULT '',
+			tools TEXT NOT NULL DEFAULT '[]',
+			model TEXT DEFAULT '',
+			temperature REAL DEFAULT 0.7,
+			history_limit INTEGER DEFAULT 10,
+			tool_policy TEXT DEFAULT 'restricted',
+			extends TEXT DEFAULT NULL,
+			usage_count INTEGER DEFAULT 0,
+			last_used TEXT DEFAULT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
 	`);
 
 	// ─── Migrations ───────────────────────────────────────────────────────

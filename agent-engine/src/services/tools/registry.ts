@@ -1,10 +1,37 @@
 import { logger } from "../../utils/logger.js";
 import type { ToolContext, ToolDefinition, ToolSpec } from "./types.js";
 
+// ─── Simple Mutex ─────────────────────────────────────────────────────
+
+class SimpleMutex {
+	private _locked = false;
+	private _queue: Array<() => void> = [];
+
+	async acquire(): Promise<void> {
+		if (!this._locked) {
+			this._locked = true;
+			return;
+		}
+		return new Promise<void>((resolve) => {
+			this._queue.push(resolve);
+		});
+	}
+
+	release(): void {
+		if (this._queue.length > 0) {
+			const next = this._queue.shift()!;
+			next();
+		} else {
+			this._locked = false;
+		}
+	}
+}
+
 // ─── Registry ─────────────────────────────────────────────────────────
 
 class ToolRegistry {
 	private registry = new Map<string, ToolDefinition>();
+	private modeLock = new SimpleMutex();
 
 	register(def: ToolDefinition): void {
 		this.registry.set(def.spec.function.name, def);
@@ -22,6 +49,13 @@ class ToolRegistry {
 			spec: t.spec,
 			enabled: t.enabled,
 		}));
+	}
+
+	/**
+	 * Obtiene una tool por nombre (para validación).
+	 */
+	get(name: string): ToolDefinition | undefined {
+		return this.registry.get(name);
 	}
 
 	async execute(name: string, args: Record<string, unknown>, context: ToolContext): Promise<string> {
@@ -62,6 +96,31 @@ class ToolRegistry {
 
 	isEnabled(name: string): boolean {
 		return this.registry.get(name)?.enabled ?? false;
+	}
+
+	/**
+	 * Aplica las tools de un modo de forma atómica.
+	 * - Adquiere lock para evitar cambios durante ejecución concurrente.
+	 * - Deshabilita todas las tools, luego habilita solo las del modo.
+	 */
+	async applyModeTools(tools: string[]): Promise<void> {
+		await this.modeLock.acquire();
+		try {
+			// Deshabilitar todas
+			for (const [name] of this.registry) {
+				this.registry.get(name)!.enabled = false;
+			}
+			// Habilitar solo las del modo
+			for (const name of tools) {
+				const def = this.registry.get(name);
+				if (def) {
+					def.enabled = true;
+				}
+			}
+			logger.info(`[Tools] Mode tools applied: ${tools.length} enabled`);
+		} finally {
+			this.modeLock.release();
+		}
 	}
 }
 

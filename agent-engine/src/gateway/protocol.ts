@@ -48,6 +48,12 @@ export type WsMessageType =
 	// Telegram settings
 	| "telegram_update"
 	| "telegram_get_status"
+	// Mode management
+	| "list_modes"
+	| "get_active_mode"
+	| "set_active_mode"
+	| "mode_update"
+	| "mode_changed"
 	// General config
 	| "get_general_config"
 	| "general_config_update"

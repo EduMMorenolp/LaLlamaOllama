@@ -113,7 +113,82 @@ async function bootstrap() {
 
 
 
-	// 12. Background jobs
+	// 12. Seed default modes and apply active mode
+	try {
+		const { listModes, upsertMode, getActiveMode, setActiveMode } = await import("./services/db/modes.js");
+		const existing = listModes();
+		if (existing.length === 0) {
+			logger.info("[Modes] Seeding default modes...");
+			upsertMode({
+				name: "asistente",
+				label: "🧑 Asistente",
+				system_prompt: `Eres LaLlama, un asistente conversacional amigable y capaz.
+
+Tu objetivo es ayudar al usuario con lo que necesite: conversación casual, buscar información en internet, responder preguntas y gestionar tareas simples.
+
+# Estilo
+- Responde siempre en español, natural y conversacional.
+- Sé claro, directo y adapta tu tono al del usuario.
+- Usa markdown para mejorar legibilidad cuando sea útil.
+
+# Herramientas
+Tienes acceso a buscar en internet y usar la memoria del sistema. No puedes ejecutar comandos ni modificar archivos.`,
+				tools: ["read_url", "recall", "get_context", "memorize"],
+				model: config.defaultModel,
+				temperature: 0.7,
+				history_limit: 10,
+				tool_policy: "restricted",
+				extends: null,
+				usage_count: 0,
+				last_used: null,
+			});
+			upsertMode({
+				name: "desarrollador",
+				label: "👨‍💻 Desarrollador",
+				system_prompt: `Eres LaLlama, un asistente de desarrollo con acceso completo al sistema.
+
+Puedes leer, escribir y editar archivos, ejecutar comandos, buscar en el código fuente y delegar tareas.
+
+# Reglas
+- Analiza el contexto antes de modificar código.
+- Mantén el estilo y arquitectura existentes.
+- Prefiere cambios mínimos y consistentes.
+- No rompas el proyecto existente.`,
+				tools: ["bash", "read_file", "write_file", "edit_file", "glob", "grep", "read_url", "delegate", "memorize", "recall", "get_context"],
+				model: config.defaultModel,
+				temperature: 0.7,
+				history_limit: 20,
+				tool_policy: "auto",
+				extends: null,
+				usage_count: 0,
+				last_used: null,
+			});
+			upsertMode({
+				name: "investigador",
+				label: "🔍 Investigador",
+				system_prompt: `Eres LaLlama, un asistente especializado en investigación y análisis.
+
+Tu fortaleza es buscar información en profundidad, analizar documentos, resumir hallazgos y guardar conocimiento en la memoria del sistema.`,
+				tools: ["read_url", "recall", "memorize", "get_context"],
+				model: config.defaultModel,
+				temperature: 0.3,
+				history_limit: 15,
+				tool_policy: "auto",
+				extends: null,
+				usage_count: 0,
+				last_used: null,
+			});
+		}
+
+		// Apply active mode's tools
+		const activeMode = getActiveMode();
+		logger.info(`[Modes] Active mode: "${activeMode.name}" (${activeMode.tools.length} tools)`);
+		await toolRegistry.applyModeTools(activeMode.tools);
+	} catch (err) {
+		logger.warn(`[Modes] Could not initialize: ${err instanceof Error ? err.message : String(err)}`);
+	}
+
+	// 13. Background jobs
 	startCronJobs(brain);
 
 	// Handle shutdown

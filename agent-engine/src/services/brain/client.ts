@@ -10,7 +10,7 @@ export class BrainClient {
 	constructor(config: AppConfig, project = "lallamaollama") {
 		this.http = axios.create({
 			baseURL: config.brainUrl,
-			timeout: 10000,
+			timeout: 30000,
 			headers: { "Content-Type": "application/json" },
 		});
 		this.project = project;

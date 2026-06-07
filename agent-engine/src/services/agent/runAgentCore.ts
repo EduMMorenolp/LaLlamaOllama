@@ -67,15 +67,28 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 	let generalModel = config.defaultModel;
 	let generalTemperature = 0.7;
 	let generalHistoryLimit = 10;
+
+	// Preferir configuración del modo activo sobre __general__
 	try {
-		const g = getGeneralConfig();
-		if (g) {
-			if (g.model) generalModel = g.model;
-			if (g.temperature != null) generalTemperature = g.temperature;
-			if (g.history_limit != null) generalHistoryLimit = g.history_limit;
+		const { getActiveMode } = await import("../db/modes.js");
+		const activeMode = getActiveMode();
+		if (activeMode) {
+			if (activeMode.model) generalModel = activeMode.model;
+			if (activeMode.temperature != null) generalTemperature = activeMode.temperature;
+			if (activeMode.history_limit != null) generalHistoryLimit = activeMode.history_limit;
 		}
 	} catch {
-		// use defaults
+		// fallback a __general__
+		try {
+			const g = getGeneralConfig();
+			if (g) {
+				if (g.model) generalModel = g.model;
+				if (g.temperature != null) generalTemperature = g.temperature;
+				if (g.history_limit != null) generalHistoryLimit = g.history_limit;
+			}
+		} catch {
+			// use defaults
+		}
 	}
 
 	if (!opts.skipPersistUserMsg) {
@@ -98,11 +111,19 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 
 		let systemPrompt: string;
 		try {
-			const generalOverride = getGeneralConfig();
-			if (generalOverride?.system_prompt) {
-				systemPrompt = generalOverride.system_prompt;
+			// Prioridad: modo activo > __general__ > built-in
+			const { getActiveMode } = await import("../db/modes.js");
+			const activeMode = getActiveMode();
+			if (activeMode?.system_prompt) {
+				systemPrompt = activeMode.system_prompt;
+				logger.agent(`[${chatId}] Using system prompt from mode '${activeMode.name}'`);
 			} else {
-				systemPrompt = buildSystemPrompt(config, generalModel);
+				const generalOverride = getGeneralConfig();
+				if (generalOverride?.system_prompt) {
+					systemPrompt = generalOverride.system_prompt;
+				} else {
+					systemPrompt = buildSystemPrompt(config, generalModel);
+				}
 			}
 		} catch {
 			systemPrompt = buildSystemPrompt(config, generalModel);

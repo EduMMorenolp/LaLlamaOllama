@@ -7,6 +7,30 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 
 ## [Unreleased]
 
+### 🎭 Sistema de Modos: Personalidad, herramientas y configuración por modo (2026-06-07)
+
+#### Agent Engine
+- **➕ Nueva tabla `agent_modes`** en SQLite con columna `tools` (JSON), `extends` (herencia), `tool_policy` y contador de uso
+- **➕ `services/db/modes.ts`** — CRUD completo: `listModes()`, `getMode()`, `resolveMode()` (herencia recursiva con merge de tools), `upsertMode()`, `deleteMode()`, `setActiveMode()`, `incrementModeUsage()`
+- **➕ `toolRegistry.applyModeTools(tools[])`** con `SimpleMutex` — deshabilita atómicamente todas las herramientas y luego habilita solo las del modo
+- **➕ Protocolo WS**: 5 nuevos tipos (`list_modes`, `get_active_mode`, `set_active_mode`, `mode_update`, `mode_changed`)
+- **➕ Handler `set_active_mode`** — cambia modo, aplica tools, resetea sesiones LLM, notifica a todos los clientes vía `mode_changed`
+- **➕ Handler `mode_update`** — CRUD de modos con validación de tools vs registry y detección de ciclos en herencia
+- **🔄 `runAgentCore.ts`** — ahora usa modelo, temperatura, history_limit y system_prompt del modo activo (con fallback a `__general__`)
+- **🔄 `buildPrompt.ts` reescrito** — sistema de prompt como asistente personal "LaLlama" (no project-centric), sin referencias a slash commands ni jerga de herramientas
+- **🐛 Fix: dynamic imports → static imports** en `handlers.ts` para los módulos de modes; `handleMessage()` convertido a `async`
+- **🐛 Fix: brain timeout 10s → 30s** en `client.ts` para tolerar latencia de embedding en Ollama
+- **🐛 Fix: `allowedUsers` siempre desde DB** (no condicionado por placeholder del token)
+- **➕ Seeding automático** de 3 modos por defecto al iniciar (`asistente`, `desarrollador`, `investigador`)
+- **🗑️ Debug logs eliminados** de `bot.ts` (console.log y [TG-DEBUG])
+
+#### Agent Frontend
+- **➕ `ModosList.tsx` (NUEVO)** — Componente CRUD completo: lista, creación, edición inline y eliminación de modos con confirmación visual
+- **➕ Plantillas de modos recomendados** en `ModosList.tsx` — 4 tarjetas clickeables (Asistente General, Desarrollo, Investigación, Aprendizaje) que precargan el formulario de creación con system prompt, tools y configuración predefinida
+- **🔄 `Agentes.tsx` rediseñado** — 3 sub-tabs: "Agente Principal", "Modos", "Sub Agentes". Tarjetas de modo clickeables con glow activo. Estado de modos gestionado a nivel padre
+- **🔄 `AgentePrincipal.tsx` adaptado** — Muestra y edita configuración del modo activo (system prompt, modelo, temperatura, tools). Tool list con indicador ✅/❌. **Eliminada sección Telegram** (ya en Conexion.tsx)
+- **➕ `AgentChat.tsx`** — Nuevo handler `mode_changed` que resetea chat y muestra "🔄 Modo cambiado a 'X'" cuando cambia el modo
+
 ### 📱 Telegram: Sección UI en Conexion + Fixes backend (2026-06-07)
 
 #### Agent Engine
