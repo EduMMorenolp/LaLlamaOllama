@@ -74,24 +74,27 @@ async function bootstrap() {
 	}
 
 	// 8. Load Telegram config from DB (persists frontend settings across restarts)
-	if (!config.telegramBotToken || config.telegramBotToken === "123456:ABCDEF") {
-		try {
+	try {
+		// Token solo se carga de DB si el .env no trae uno válido
+		if (!config.telegramBotToken || config.telegramBotToken === "123456:ABCDEF") {
 			const savedToken = getSetting("telegram_bot_token");
 			if (savedToken) {
 				config.telegramBotToken = savedToken;
 				logger.info("[Telegram] Token loaded from DB (overrides .env)");
 			}
-			const savedUsers = getSetting("telegram_allowed_users");
-			if (savedUsers) {
-				try {
-					config.telegramAllowedUsers = JSON.parse(savedUsers);
-				} catch {
-					config.telegramAllowedUsers = savedUsers.split(",").filter(Boolean);
-				}
-			}
-		} catch {
-			logger.warn("[Telegram] Could not load config from DB");
 		}
+		// AllowedUsers SIEMPRE se carga de DB para persistir cambios del frontend
+		const savedUsers = getSetting("telegram_allowed_users");
+		if (savedUsers) {
+			try {
+				config.telegramAllowedUsers = JSON.parse(savedUsers);
+			} catch {
+				config.telegramAllowedUsers = savedUsers.split(",").filter(Boolean);
+			}
+			logger.info(`[Telegram] AllowedUsers loaded from DB: [${config.telegramAllowedUsers.join(", ")}]`);
+		}
+	} catch {
+		logger.warn("[Telegram] Could not load config from DB");
 	}
 
 	// 9. Start servers

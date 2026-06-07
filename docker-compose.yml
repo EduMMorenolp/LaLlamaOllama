@@ -159,6 +159,7 @@ services:
       - DEFAULT_MODEL=${DEFAULT_MODEL:-llama3.2:3b}
       - WORKSPACE_DIR=/workspace
       - DB_PATH=/data/agent-engine.db
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./:/workspace
