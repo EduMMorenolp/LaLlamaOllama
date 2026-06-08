@@ -7,6 +7,12 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-06-07
+
+### 🚀 Versión estable 1.0.0
+
+Todos los módulos del proyecto se unifican en **v1.0.0**: root, backend, agent-engine, agent-frontend y mcp-brain.
+
 ### 📋 Sistema de Tareas: Arreglado, mejorado y con tareas autoejecutables (2026-06-07)
 
 #### Agent Engine

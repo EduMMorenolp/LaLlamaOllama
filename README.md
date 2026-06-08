@@ -3,7 +3,7 @@
 > **Plataforma de orquestación inteligente para LLMs locales.**  
 > Dashboard glassmorphism + Agent Engine autónomo + Cerebro MCP con memoria persistente + Chat multi-agente.
 
-[![Version](https://img.shields.io/badge/version-0.5.0-blue?style=flat-square)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue?style=flat-square)](./CHANGELOG.md)
 [![Docker](https://img.shields.io/badge/docker-compose-2496ED?style=flat-square&logo=docker)](./docker-compose.yml)
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](./LICENSE)
 

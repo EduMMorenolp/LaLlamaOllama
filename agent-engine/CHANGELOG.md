@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-06-07
+
+### 🚀 Versión estable 1.0.0
+
+Alineación de versión con el proyecto raíz LaLlamaOllama.
+
 ### 📱 Telegram: Fixes + Persistencia en DB + Nuevo handler WS
 
 #### Corregido
