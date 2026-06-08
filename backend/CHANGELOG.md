@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-06-07
+
+### 🚀 Versión estable 1.0.0
+
+Alineación de versión con el proyecto raíz LaLlamaOllama.
+
 ### Cambiado
 - Refactor a Use Case Pattern con capas: types/, middleware/, repositories/, use-cases/, routes/
 - `main.ts` reducido de 953 → 173 líneas (-82%)

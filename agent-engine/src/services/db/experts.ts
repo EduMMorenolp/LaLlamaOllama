@@ -14,9 +14,7 @@ export interface SubAgent {
 export function getExpert(name: string): SubAgent | null {
 	if (!name) return null;
 	const db = getDb();
-	const row = db.prepare("SELECT * FROM sub_agents WHERE name = ?").get(name) as
-		| Record<string, unknown>
-		| undefined;
+	const row = db.prepare("SELECT * FROM sub_agents WHERE name = ?").get(name) as Record<string, unknown> | undefined;
 	if (!row) return null;
 
 	return {
@@ -59,9 +57,9 @@ export function upsertExpert(agent: SubAgent): void {
 
 export function listExperts(): SubAgent[] {
 	const db = getDb();
-	const rows = db
-		.prepare("SELECT * FROM sub_agents WHERE name != '__general__' ORDER BY name ASC")
-		.all() as Array<Record<string, unknown>>;
+	const rows = db.prepare("SELECT * FROM sub_agents WHERE name != '__general__' ORDER BY name ASC").all() as Array<
+		Record<string, unknown>
+	>;
 
 	return rows.map((row) => ({
 		name: row.name as string,

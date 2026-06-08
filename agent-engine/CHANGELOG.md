@@ -2,7 +2,44 @@
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-06-07
+
+### 🚀 Versión estable 1.0.0
+
+Alineación de versión con el proyecto raíz LaLlamaOllama.
+
+### 📱 Telegram: Fixes + Persistencia en DB + Nuevo handler WS
+
+#### Corregido
+- **🐛 Fix: telegram_get_status mostraba config vacía** — Usaba `config` local de `loadConfig()` (valores de env) en vez de `getTelegramConfig()` de bot.ts que lee el runtime `_config` actualizado
+- **🐛 Fix: telegram_update no persistía cambios** — Los cambios de token/usuarios por frontend se perdían al reiniciar el contenedor
+
+#### Añadido
+- **➕ `getTelegramConfig()` en bot.ts** — Expone `token`, `allowedUsers`, `running` desde el runtime config
+- **➕ Persistencia en DB** — `telegram_update` ahora guarda `telegram_bot_token` y `telegram_allowed_users` en la tabla `settings` de SQLite. Al iniciar, si no hay token en `.env`, se carga desde DB
+
+### 📱 Telegram: Fixes + Nuevo handler WS
+
+#### Corregido
+- **🐛 Fix: brain null en callbacks.ts** — `handleCallbackQuery` ahora recibe `brain: BrainClient | null`. Se agregó guard contra brain null con mensaje de error al chat. Se eliminó `null as never` en `runAgent()`
+- **🐛 Fix: telegram_update** — Ya no muta `process.env.TELEGRAM_BOT_TOKEN` directamente. Usa `setTelegramConfig()` para actualizar config en runtime
+
+#### Añadido
+- **➕ `setTelegramConfig(token, allowedUsers)`** en bot.ts — Actualiza `_config.telegramBotToken` y `_config.telegramAllowedUsers` en memoria
+- **➕ Handler WS `telegram_get_status`** — Devuelve `active`, `running`, `allowedUsers`, `tokenPreview`
+- **➕ `telegram_status`** en protocol.ts — Nuevo tipo de mensaje servidor → cliente
+- **➕ `telegram_get_status`** en protocol.ts — Nuevo tipo de mensaje cliente → servidor
+- **🔧 `telegram_update` ahora acepta `allowedUsers`** array de strings
+
+#### Cambiado
+- **🔧 `get_status`** ahora usa `getBot() !== null` en vez de `!!process.env.TELEGRAM_BOT_TOKEN` para reportar estado real del bot
+
 ### Añadido
+- **➕ Handler WS `new_task`** — Crea un run en la DB con estado "queued". Responde con `task_created`
+- **💬 Reply / Quoted Messages** — Campo `quotedMessage` en `AgentOptions`. El contenido citado se inyecta como blockquote en el prompt del agente. Extraído del payload WS en `user_message`
+- **⭐ Favoritos / Saved Messages** — Nueva tabla `saved_messages` en SQLite. Archivo `savedMessages.ts` con 4 funciones DB. 4 handlers WS: `save_message`, `unsave_message`, `list_saved_messages`, `is_message_saved`
+- **💡 Auto Suggestions** — Nuevo servicio `services/agent/suggestions.ts`. Genera 2-3 preguntas de seguimiento vía LLM. Se dispara async después de `assistant_done`. Evento WS `suggestions`
+- **🕐 Session History** — Función `getChatWithStats()` en `chats.ts`. Handler WS `list_sessions` que retorna todos los chats del usuario con `messageCount`
 - **Nuevo servicio `docker-info.ts`** — Detección automática del entorno Docker (cgroup, CPUs, RAM, GPU, disco) al iniciar
 - **Nueva tabla `settings` en SQLite** — Almacenamiento key-value persistente para `docker_info` y otras configuraciones
 - **`AppConfig` ahora incluye `dockerInfo`** — Configuración del entorno disponible en todo el runtime
@@ -15,6 +52,8 @@
 - Campo `history_limit` en tabla `sub_agents` (migración automática)
 
 ### Cambiado
+- **`buildPrompt.ts`**: sección "Uso de herramientas - CRÍTICO" con regla de oro, prohibiciones explícitas, y ejemplos concretos. Nueva sección "Sistema de Tareas y Conocimiento" con comandos Slash
+- **`read-url.ts`**: nueva función `htmlToText()` para limpiar HTML/JS. User-Agent actualizado a Chrome 125 real. Detección automática de contenido HTML
 - **`buildPrompt.ts`**: instrucción explícita para usar `tool_calls` cuando el usuario pida ejecutar herramientas, en vez de describirlas en texto
 - **`get_status`**: ahora usa `gc?.model || config.defaultModel` (DB) en lugar de solo `config.defaultModel` (env var), consistente con el handler `identify`
 

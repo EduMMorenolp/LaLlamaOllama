@@ -9,7 +9,7 @@ export function registerMemoryTools(brain: BrainClient) {
 			function: {
 				name: "memorize",
 				description:
-					"Store an important piece of information, fact, decision, or discovery in persistent memory. Use this when you learn something important about the project that should be remembered across conversations.",
+					"Guarda informaci\u00f3n importante, hechos, decisiones o descubrimientos en la memoria persistente. \u00dasala cuando aprendas algo relevante del proyecto.",
 				parameters: {
 					type: "object",
 					properties: {
@@ -23,7 +23,8 @@ export function registerMemoryTools(brain: BrainClient) {
 						},
 						type: {
 							type: "string",
-							description: "Type of memory: 'feature', 'bug-fix', 'architecture', 'decision', 'discovery', or 'note'",
+							description:
+								"Type of memory: 'feature', 'bug-fix', 'architecture', 'decision', 'discovery', or 'note'",
 							enum: ["feature", "bug-fix", "architecture", "decision", "discovery", "note"],
 						},
 						tags: {
@@ -55,7 +56,7 @@ export function registerMemoryTools(brain: BrainClient) {
 			function: {
 				name: "recall",
 				description:
-					"Search through persistent memories to find relevant information from past work. Use this when you need context about previous decisions, discoveries, or project knowledge.",
+					"Busca en la memoria persistente informaci\u00f3n relevante de trabajos anteriores. \u00datil para recuperar contexto sobre decisiones, descubrimientos o conocimiento del proyecto.",
 				parameters: {
 					type: "object",
 					properties: {
@@ -100,7 +101,7 @@ export function registerMemoryTools(brain: BrainClient) {
 			function: {
 				name: "get_context",
 				description:
-					"Retrieve the recent session context from the shared brain. Use this at the start of a new conversation to get up to speed on what has been happening.",
+					"Obtiene el contexto reciente de la sesi\u00f3n desde el brain compartido. \u00dasalo al inicio de una conversaci\u00f3n para ponerte al d\u00eda.",
 				parameters: {
 					type: "object",
 					properties: {

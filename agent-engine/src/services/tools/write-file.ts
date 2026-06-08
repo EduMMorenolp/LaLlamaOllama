@@ -10,7 +10,7 @@ export function registerWriteFileTool() {
 			function: {
 				name: "write_file",
 				description:
-					"Create a new file or overwrite an existing file with new content. Use for creating new files or replacing entire file contents. For edits, use edit_file instead.",
+					"Crea un archivo nuevo o sobrescribe uno existente con contenido nuevo. Para ediciones usa edit_file.",
 				parameters: {
 					type: "object",
 					properties: {
@@ -64,7 +64,7 @@ export function registerEditFileTool() {
 			function: {
 				name: "edit_file",
 				description:
-					"Edit a file by replacing exact string occurrences. Uses exact string replacement (not regex). Best for targeted edits to existing files.",
+					"Edita un archivo reemplazando texto exacto. Usa reemplazo de cadenas exactas (no regex). Ideal para modificaciones puntuales.",
 				parameters: {
 					type: "object",
 					properties: {

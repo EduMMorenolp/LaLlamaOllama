@@ -1,24 +1,24 @@
-import "dotenv/config";
+﻿import "dotenv/config";
 import { validateEnv } from "./env.js";
-import { loadConfig } from "./services/config.js";
-import { BrainClient } from "./services/brain/client.js";
-import { detectDockerInfo } from "./services/docker-info.js";
-import { registerAllTools } from "./services/tools/index.js";
-import { toolRegistry } from "./services/tools/registry.js";
 import { startApiServer } from "./server/api.js";
-import { WsServer } from "./server/ws.js";
 import { startCronJobs } from "./server/cron.js";
+import { WsServer } from "./server/ws.js";
+import { BrainClient } from "./services/brain/client.js";
+import { loadConfig } from "./services/config.js";
 import { getDb } from "./services/db/connection.js";
-import { setSetting } from "./services/db/settings.js";
-import { initTelegramDeps, startTelegram } from "./services/telegram/bot.js";
-import { setRuntimeContext } from "./services/runtime.js";
+import { getSetting, setSetting } from "./services/db/settings.js";
+import { detectDockerInfo } from "./services/docker-info.js";
 import { initOrchestrator } from "./services/orchestrator/index.js";
+import { setRuntimeContext } from "./services/runtime.js";
+import { initTelegramDeps, startTelegram } from "./services/telegram/bot.js";
+import { registerAllTools, setWsServer } from "./services/tools/index.js";
+import { toolRegistry } from "./services/tools/registry.js";
 import { logger } from "./utils/logger.js";
 
 async function bootstrap() {
-	logger.info("╔══════════════════════════════════════════════╗");
-	logger.info("║     Agent Engine - Autonomous Coding Agent   ║");
-	logger.info("╚══════════════════════════════════════════════╝");
+	logger.info("â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—");
+	logger.info("â•‘     Agent Engine - Autonomous Coding Agent   â•‘");
+	logger.info("â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
 
 	// 1. Validate environment
 	validateEnv();
@@ -39,9 +39,11 @@ async function bootstrap() {
 	}
 
 	// 4. Detect Docker environment
-	let dockerInfo = await detectDockerInfo(config.workspaceDir);
+	const dockerInfo = await detectDockerInfo(config.workspaceDir);
 	logger.info(`[Docker] ${dockerInfo.inDocker ? "Inside container" : "Host machine"}`);
-	logger.info(`[Docker] CPUs: ${dockerInfo.cpuCores}, RAM: ${(dockerInfo.memoryTotalBytes / 1024 / 1024 / 1024).toFixed(1)} GB${dockerInfo.gpuAvailable ? `, GPU: ${dockerInfo.gpuInfo}` : ""}`);
+	logger.info(
+		`[Docker] CPUs: ${dockerInfo.cpuCores}, RAM: ${(dockerInfo.memoryTotalBytes / 1024 / 1024 / 1024).toFixed(1)} GB${dockerInfo.gpuAvailable ? `, GPU: ${dockerInfo.gpuInfo}` : ""}`
+	);
 	// Persist Docker info to settings DB
 	try {
 		setSetting("docker_info", JSON.stringify(dockerInfo));
@@ -71,21 +73,194 @@ async function bootstrap() {
 		logger.info(`  - ${name} (${toolRegistry.isEnabled(name) ? "enabled" : "disabled"})`);
 	}
 
-	// 8. Initialize Telegram dependencies
-	initTelegramDeps(config, brain);
+	// 8. Load Telegram config from DB (persists frontend settings across restarts)
+	try {
+		// Token solo se carga de DB si el .env no trae uno vÃ¡lido
+		if (!config.telegramBotToken || config.telegramBotToken === "123456:ABCDEF") {
+			const savedToken = getSetting("telegram_bot_token");
+			if (savedToken) {
+				config.telegramBotToken = savedToken;
+				logger.info("[Telegram] Token loaded from DB (overrides .env)");
+			}
+		}
+		// AllowedUsers SIEMPRE se carga de DB para persistir cambios del frontend
+		const savedUsers = getSetting("telegram_allowed_users");
+		if (savedUsers) {
+			try {
+				config.telegramAllowedUsers = JSON.parse(savedUsers);
+			} catch {
+				config.telegramAllowedUsers = savedUsers.split(",").filter(Boolean);
+			}
+			logger.info(`[Telegram] AllowedUsers loaded from DB: [${config.telegramAllowedUsers.join(", ")}]`);
+		}
+	} catch {
+		logger.warn("[Telegram] Could not load config from DB");
+	}
 
-	// 9. Start Telegram bot if token configured
+	// 9. Start servers
+	startApiServer(config, brain);
+	const wsServer = new WsServer(config, brain);
+
+	// Set wsServer reference for tools that need it (e.g., notify_frontend)
+	setWsServer(wsServer);
+
+	// 10. Initialize Telegram dependencies
+	initTelegramDeps(config, brain, wsServer);
+
+	// 11. Start Telegram bot if token configured
 	if (config.telegramBotToken) {
 		await startTelegram();
 	} else {
 		logger.info("[Telegram] No token configured. Skipping.");
 	}
 
-	// 10. Start servers
-	startApiServer(config, brain);
-	const wsServer = new WsServer(config, brain);
 
-	// 11. Background jobs
+
+	// 12. Seed default modes and apply active mode
+	try {
+		const { listModes, upsertMode, getActiveMode, setActiveMode } = await import("./services/db/modes.js");
+		const existing = listModes();
+		if (existing.length === 0) {
+			logger.info("[Modes] Seeding default modes...");
+			upsertMode({
+				name: "asistente",
+				label: "ðŸ§‘ Asistente",
+				system_prompt: `Eres LaLlama, un asistente conversacional amigable y capaz.
+
+Tu objetivo es ayudar al usuario con lo que necesite: conversaciÃ³n casual, buscar informaciÃ³n en internet, responder preguntas y gestionar tareas simples.
+
+# Estilo
+- Responde siempre en espaÃ±ol, natural y conversacional.
+- SÃ© claro, directo y adapta tu tono al del usuario.
+- Usa markdown para mejorar legibilidad cuando sea Ãºtil.
+
+# Herramientas
+Tienes acceso a buscar en internet, consultar el clima, traducir texto, hacer cÃ¡lculos y usar la memoria del sistema.`,
+				tools: ["web_search", "read_url", "weather", "translate", "calc", "recall", "get_context", "memorize", "notify_frontend", "create_task", "cancel_task"],
+				model: config.defaultModel,
+				temperature: 0.7,
+				history_limit: 10,
+				tool_policy: "restricted",
+				extends: null,
+				usage_count: 0,
+				last_used: null,
+			});
+			upsertMode({
+				name: "desarrollador",
+				label: "ðŸ‘¨â€ðŸ’» Desarrollador",
+				system_prompt: `Eres LaLlama, un asistente de desarrollo con acceso completo al sistema.
+
+Puedes leer, escribir y editar archivos, ejecutar comandos, buscar en el cÃ³digo fuente y delegar tareas.
+
+# Reglas
+- Analiza el contexto antes de modificar cÃ³digo.
+- MantÃ©n el estilo y arquitectura existentes.
+- Prefiere cambios mÃ­nimos y consistentes.
+- No rompas el proyecto existente.`,
+				tools: ["bash", "read_file", "write_file", "edit_file", "glob", "grep", "read_url", "web_search", "calc", "delegate", "memorize", "recall", "get_context", "notify_frontend", "notify_telegram", "create_task", "cancel_task", "schedule_task"],
+				model: config.defaultModel,
+				temperature: 0.7,
+				history_limit: 20,
+				tool_policy: "auto",
+				extends: null,
+				usage_count: 0,
+				last_used: null,
+			});
+			upsertMode({
+				name: "investigador",
+				label: "ðŸ” Investigador",
+				system_prompt: `Eres LaLlama, un asistente especializado en investigaciÃ³n y anÃ¡lisis.
+
+Tu fortaleza es buscar informaciÃ³n en profundidad, analizar documentos, resumir hallazgos y guardar conocimiento en la memoria del sistema.`,
+				tools: ["web_search", "read_url", "weather", "translate", "knowledge_search", "calc", "recall", "memorize", "get_context", "notify_frontend", "create_task", "cancel_task"],
+				model: config.defaultModel,
+				temperature: 0.3,
+				history_limit: 15,
+				tool_policy: "auto",
+				extends: null,
+				usage_count: 0,
+				last_used: null,
+			});
+			// Always seed the evolutivo mode (meta-programming)
+			upsertMode({
+				name: "evolutivo",
+				label: "ðŸ§¬ Evolutivo",
+				system_prompt: `Eres LaLlama en modo EVOLUTIVO. Tu propÃ³sito es crear, modificar y gestionar herramientas personalizadas.
+
+Tienes acceso exclusivo a meta-herramientas que te permiten extender las capacidades del sistema:
+
+- create_tool: Crear nuevas herramientas personalizadas (bash/http/prompt)
+- edit_tool: Modificar herramientas existentes
+- delete_tool: Eliminar herramientas (requiere confirmaciÃ³n)
+- test_tool: Probar herramientas con parÃ¡metros de ejemplo
+- list_custom_tools: Listar todas las herramientas personalizadas
+- export_tool: Exportar herramientas como JSON
+- import_tool: Importar herramientas desde JSON
+
+# Directrices
+- Cuando un usuario te pida crear una herramienta, primero entiende QUÃ‰ necesita, luego diseÃ±ala y crÃ©ala.
+- Usa descripciones claras para que otros modos sepan cuÃ¡ndo usar la herramienta.
+- Siempre prueba las herramientas que crees con test_tool antes de darlas por terminadas.
+- Puedes crear herramientas de tipo:
+  * bash: Para comandos de shell (git, sistema, archivos)
+  * http: Para APIs externas (clima, noticias, datos)
+  * prompt: Para plantillas de prompts reutilizables`,
+				tools: [
+					"create_tool", "edit_tool", "delete_tool", "test_tool",
+					"list_custom_tools", "export_tool", "import_tool",
+					"web_search", "read_url", "bash", "read_file",
+					"memorize", "recall", "get_context",
+					"create_task", "cancel_task", "schedule_task",
+				],
+				model: config.defaultModel,
+				temperature: 0.5,
+				history_limit: 30,
+				tool_policy: "auto",
+				extends: null,
+				usage_count: 0,
+				last_used: null,
+			});
+		}
+
+		// Load custom tools from DB into the runtime registry
+		try {
+			const { listCustomTools } = await import("./services/db/custom-tools.js");
+			const { executeCustomTool } = await import("./services/tools/custom-tool-handler.js");
+			const customTools = listCustomTools();
+			for (const ct of customTools) {
+				const handlerConfig = JSON.parse(ct.handler_config || "{}");
+				const params = JSON.parse(ct.parameters || "{}");
+				toolRegistry.registerCustomTool(ct.name, {
+					spec: {
+						type: "function",
+						function: {
+							name: ct.name,
+							description: ct.description,
+							parameters: params,
+						},
+					},
+					handler: async (args, ctx) => {
+						return executeCustomTool(ct.handler_type, handlerConfig, args, ctx);
+					},
+					enabled: true,
+				});
+			}
+			if (customTools.length > 0) {
+				logger.info(`[CustomTools] Loaded ${customTools.length} custom tool(s) from DB`);
+			}
+		} catch (err) {
+			logger.warn(`[CustomTools] Could not load from DB: ${err}`);
+		}
+
+		// Apply active mode's tools
+		const activeMode = getActiveMode();
+		logger.info(`[Modes] Active mode: "${activeMode.name}" (${activeMode.tools.length} tools)`);
+		await toolRegistry.applyModeTools(activeMode.tools);
+	} catch (err) {
+		logger.warn(`[Modes] Could not initialize: ${err instanceof Error ? err.message : String(err)}`);
+	}
+
+	// 13. Background jobs
 	startCronJobs(brain);
 
 	// Handle shutdown
@@ -110,3 +285,4 @@ bootstrap().catch((err) => {
 	logger.error(`[Fatal] ${err instanceof Error ? err.message : String(err)}`);
 	process.exit(1);
 });
+

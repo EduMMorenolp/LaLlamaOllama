@@ -10,7 +10,7 @@ export function registerGrepTool() {
 			function: {
 				name: "grep",
 				description:
-					"Search file contents for a regex pattern. Returns matching file paths with line numbers and content. Supports filtering by file pattern.",
+					"Busca en el contenido de archivos usando una expresi\u00f3n regular. Devuelve rutas, n\u00fameros de l\u00ednea y contenido coincidente.",
 				parameters: {
 					type: "object",
 					properties: {
@@ -128,13 +128,38 @@ function fileMatchesExt(name: string, pattern: string): boolean {
 }
 
 const BINARY_EXTS = new Set([
-	".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg",
-	".woff", ".woff2", ".ttf", ".eot",
-	".mp3", ".mp4", ".avi", ".mov",
-	".zip", ".tar", ".gz", ".7z", ".rar",
-	".pdf", ".doc", ".docx", ".xls", ".xlsx",
-	".exe", ".dll", ".so", ".dylib",
-	".o", ".obj", ".pyc", ".class",
+	".png",
+	".jpg",
+	".jpeg",
+	".gif",
+	".ico",
+	".svg",
+	".woff",
+	".woff2",
+	".ttf",
+	".eot",
+	".mp3",
+	".mp4",
+	".avi",
+	".mov",
+	".zip",
+	".tar",
+	".gz",
+	".7z",
+	".rar",
+	".pdf",
+	".doc",
+	".docx",
+	".xls",
+	".xlsx",
+	".exe",
+	".dll",
+	".so",
+	".dylib",
+	".o",
+	".obj",
+	".pyc",
+	".class",
 ]);
 
 function isBinaryExt(name: string): boolean {

@@ -1,6 +1,6 @@
 import axios, { type AxiosInstance } from "axios";
-import type { AppConfig } from "../config.js";
 import { logger } from "../../utils/logger.js";
+import type { AppConfig } from "../config.js";
 import type { SearchResult } from "../types.js";
 
 export class BrainClient {
@@ -10,7 +10,7 @@ export class BrainClient {
 	constructor(config: AppConfig, project = "lallamaollama") {
 		this.http = axios.create({
 			baseURL: config.brainUrl,
-			timeout: 10000,
+			timeout: 30000,
 			headers: { "Content-Type": "application/json" },
 		});
 		this.project = project;

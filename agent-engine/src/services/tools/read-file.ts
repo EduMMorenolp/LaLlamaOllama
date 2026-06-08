@@ -10,7 +10,7 @@ export function registerReadFileTool() {
 			function: {
 				name: "read_file",
 				description:
-					"Read the contents of a file. Returns the file content or an error if the file does not exist.",
+					"Lee el contenido de un archivo. Devuelve el contenido o un error si el archivo no existe.",
 				parameters: {
 					type: "object",
 					properties: {

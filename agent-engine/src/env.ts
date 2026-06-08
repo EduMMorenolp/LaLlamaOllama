@@ -2,9 +2,7 @@ import "dotenv/config";
 
 export function validateEnv(): void {
 	const requiredVariables = ["API_KEY"];
-	const missing = requiredVariables.filter(
-		(key) => !process.env[key] || process.env[key]!.trim() === ""
-	);
+	const missing = requiredVariables.filter((key) => !process.env[key] || process.env[key]!.trim() === "");
 
 	if (missing.length > 0) {
 		console.error(`\n\x1b[31m❌ [FATAL] Faltan variables de entorno requeridas en Agent Engine:\x1b[0m`);

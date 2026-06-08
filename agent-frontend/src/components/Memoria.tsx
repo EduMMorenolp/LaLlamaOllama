@@ -38,45 +38,50 @@ export const Memoria: React.FC = () => {
 			});
 			const data = await res.json();
 			setStats(data);
-		} catch { /* ignore */ }
+		} catch {
+			/* ignore */
+		}
 	}, []);
 
 	useEffect(() => {
 		fetchStats();
 	}, [fetchStats]);
 
-	const handleSearch = useCallback(async (append = false) => {
-		if (!query.trim()) {
-			setResults([]);
-			return;
-		}
-		if (append) {
-			setLoadingMore(true);
-		} else {
-			setLoading(true);
-			setOffset(0);
-		}
-		try {
-			const currentOffset = append ? offset : 0;
-			const res = await fetch(
-				`${config.engineUrl}/api/memory/search?q=${encodeURIComponent(query)}&mode=${searchMode}&limit=${PAGE_SIZE}&offset=${currentOffset}`,
-				{ headers: apiHeaders }
-			);
-			const data = await res.json();
-			const newResults = data.results || [];
-			if (append) {
-				setResults((prev) => [...prev, ...newResults]);
-			} else {
-				setResults(newResults);
+	const handleSearch = useCallback(
+		async (append = false) => {
+			if (!query.trim()) {
+				setResults([]);
+				return;
 			}
-			setOffset(currentOffset + newResults.length);
-		} catch {
-			setResults([]);
-		} finally {
-			setLoading(false);
-			setLoadingMore(false);
-		}
-	}, [query, searchMode, offset]);
+			if (append) {
+				setLoadingMore(true);
+			} else {
+				setLoading(true);
+				setOffset(0);
+			}
+			try {
+				const currentOffset = append ? offset : 0;
+				const res = await fetch(
+					`${config.engineUrl}/api/memory/search?q=${encodeURIComponent(query)}&mode=${searchMode}&limit=${PAGE_SIZE}&offset=${currentOffset}`,
+					{ headers: apiHeaders }
+				);
+				const data = await res.json();
+				const newResults = data.results || [];
+				if (append) {
+					setResults((prev) => [...prev, ...newResults]);
+				} else {
+					setResults(newResults);
+				}
+				setOffset(currentOffset + newResults.length);
+			} catch {
+				setResults([]);
+			} finally {
+				setLoading(false);
+				setLoadingMore(false);
+			}
+		},
+		[query, searchMode, offset]
+	);
 
 	useEffect(() => {
 		const timer = setTimeout(() => handleSearch(false), 400);
@@ -99,27 +104,64 @@ export const Memoria: React.FC = () => {
 		<div style={{ height: "calc(100vh - 160px)", display: "flex", flexDirection: "column" }}>
 			{/* Stats */}
 			<div style={{ display: "flex", gap: "12px", marginBottom: "16px" }}>
-				<div style={{
-					padding: "12px 16px",
-					borderRadius: "8px",
-					background: "rgba(255,255,255,0.02)",
-					border: "1px solid var(--border-light)",
-				}}>
-					<div style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase" }}>Total</div>
-					<div style={{ fontSize: "24px", fontWeight: 700, color: "var(--accent)", marginTop: "4px" }}>{stats.total || 0}</div>
-				</div>
-				{stats.byType && Object.entries(stats.byType).slice(0, 4).map(([type, count]) => (
-					<div key={type} style={{
+				<div
+					style={{
 						padding: "12px 16px",
 						borderRadius: "8px",
 						background: "rgba(255,255,255,0.02)",
 						border: "1px solid var(--border-light)",
-						minWidth: "80px",
-					}}>
-						<div style={{ fontSize: "9px", fontWeight: 600, color: typeColors[type] || "var(--text-dim)", textTransform: "capitalize" }}>{type}</div>
-						<div style={{ fontSize: "18px", fontWeight: 700, color: "var(--text-main)", marginTop: "2px" }}>{count as number}</div>
+					}}
+				>
+					<div
+						style={{
+							fontSize: "10px",
+							fontWeight: 600,
+							color: "var(--text-muted)",
+							textTransform: "uppercase",
+						}}
+					>
+						Total
 					</div>
-				))}
+					<div style={{ fontSize: "24px", fontWeight: 700, color: "var(--accent)", marginTop: "4px" }}>
+						{stats.total || 0}
+					</div>
+				</div>
+				{stats.byType &&
+					Object.entries(stats.byType)
+						.slice(0, 4)
+						.map(([type, count]) => (
+							<div
+								key={type}
+								style={{
+									padding: "12px 16px",
+									borderRadius: "8px",
+									background: "rgba(255,255,255,0.02)",
+									border: "1px solid var(--border-light)",
+									minWidth: "80px",
+								}}
+							>
+								<div
+									style={{
+										fontSize: "9px",
+										fontWeight: 600,
+										color: typeColors[type] || "var(--text-dim)",
+										textTransform: "capitalize",
+									}}
+								>
+									{type}
+								</div>
+								<div
+									style={{
+										fontSize: "18px",
+										fontWeight: 700,
+										color: "var(--text-main)",
+										marginTop: "2px",
+									}}
+								>
+									{count as number}
+								</div>
+							</div>
+						))}
 			</div>
 
 			{/* Search */}
@@ -180,7 +222,14 @@ export const Memoria: React.FC = () => {
 			{/* Results */}
 			<div style={{ flex: 1, overflowY: "auto" }}>
 				{!query.trim() ? (
-					<div style={{ textAlign: "center", padding: "60px 20px", color: "var(--text-dim)", fontSize: "13px" }}>
+					<div
+						style={{
+							textAlign: "center",
+							padding: "60px 20px",
+							color: "var(--text-dim)",
+							fontSize: "13px",
+						}}
+					>
 						<Brain size={48} style={{ margin: "0 auto 16px", opacity: 0.15, display: "block" }} />
 						Busca en la memoria del agente. Usa b\u00fasqueda sem\u00e1ntica, l\u00e9xica o h\u00edbrida.
 					</div>
@@ -204,15 +253,17 @@ export const Memoria: React.FC = () => {
 								}}
 							>
 								<div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-									<span style={{
-										padding: "2px 8px",
-										borderRadius: "4px",
-										fontSize: "9px",
-										fontWeight: 700,
-										textTransform: "uppercase",
-										background: `${typeColors[mem.type] || "var(--text-muted)"}20`,
-										color: typeColors[mem.type] || "var(--text-muted)",
-									}}>
+									<span
+										style={{
+											padding: "2px 8px",
+											borderRadius: "4px",
+											fontSize: "9px",
+											fontWeight: 700,
+											textTransform: "uppercase",
+											background: `${typeColors[mem.type] || "var(--text-muted)"}20`,
+											color: typeColors[mem.type] || "var(--text-muted)",
+										}}
+									>
 										{mem.type}
 									</span>
 									<span style={{ fontSize: "10px", color: "var(--text-dim)" }}>
@@ -224,22 +275,39 @@ export const Memoria: React.FC = () => {
 										</span>
 									)}
 								</div>
-								<div style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-main)", marginBottom: "2px" }}>
+								<div
+									style={{
+										fontSize: "12px",
+										fontWeight: 600,
+										color: "var(--text-main)",
+										marginBottom: "2px",
+									}}
+								>
 									{mem.title}
 								</div>
-								<div style={{ fontSize: "11px", color: "var(--text-dim)", maxHeight: "40px", overflow: "hidden" }}>
+								<div
+									style={{
+										fontSize: "11px",
+										color: "var(--text-dim)",
+										maxHeight: "40px",
+										overflow: "hidden",
+									}}
+								>
 									{mem.content}
 								</div>
 								{mem.tags && (
 									<div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginTop: "6px" }}>
 										{mem.tags.split(",").map((tag) => (
-											<span key={tag} style={{
-												fontSize: "8px",
-												padding: "1px 5px",
-												borderRadius: "3px",
-												background: "rgba(255,255,255,0.05)",
-												color: "var(--text-muted)",
-											}}>
+											<span
+												key={tag}
+												style={{
+													fontSize: "8px",
+													padding: "1px 5px",
+													borderRadius: "3px",
+													background: "rgba(255,255,255,0.05)",
+													color: "var(--text-muted)",
+												}}
+											>
 												{tag.trim()}
 											</span>
 										))}
@@ -277,7 +345,11 @@ export const Memoria: React.FC = () => {
 			{selectedMemory && (
 				<div
 					style={{
-						position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+						position: "fixed",
+						top: 0,
+						left: 0,
+						right: 0,
+						bottom: 0,
 						background: "rgba(0,0,0,0.7)",
 						backdropFilter: "blur(4px)",
 						display: "flex",
@@ -300,46 +372,60 @@ export const Memoria: React.FC = () => {
 						}}
 						onClick={(e) => e.stopPropagation()}
 					>
-						<span style={{
-							padding: "2px 10px",
-							borderRadius: "4px",
-							fontSize: "10px",
-							fontWeight: 700,
-							textTransform: "uppercase",
-							background: `${typeColors[selectedMemory.type] || "var(--text-muted)"}20`,
-							color: typeColors[selectedMemory.type] || "var(--text-muted)",
-						}}>
+						<span
+							style={{
+								padding: "2px 10px",
+								borderRadius: "4px",
+								fontSize: "10px",
+								fontWeight: 700,
+								textTransform: "uppercase",
+								background: `${typeColors[selectedMemory.type] || "var(--text-muted)"}20`,
+								color: typeColors[selectedMemory.type] || "var(--text-muted)",
+							}}
+						>
 							{selectedMemory.type}
 						</span>
-						<h3 style={{ margin: "12px 0 8px", fontSize: "18px", fontWeight: 700, color: "var(--text-main)" }}>
+						<h3
+							style={{
+								margin: "12px 0 8px",
+								fontSize: "18px",
+								fontWeight: 700,
+								color: "var(--text-main)",
+							}}
+						>
 							{selectedMemory.title}
 						</h3>
 						<div style={{ fontSize: "11px", color: "var(--text-dim)", marginBottom: "16px" }}>
 							{selectedMemory.createdAt ? new Date(selectedMemory.createdAt).toLocaleString() : ""}
 							{selectedMemory.id && <> \u00b7 ID: {selectedMemory.id}</>}
 						</div>
-						<div style={{
-							padding: "16px",
-							background: "rgba(255,255,255,0.02)",
-							borderRadius: "8px",
-							border: "1px solid var(--border-light)",
-							fontSize: "13px",
-							color: "var(--text-main)",
-							lineHeight: 1.6,
-							whiteSpace: "pre-wrap",
-						}}>
+						<div
+							style={{
+								padding: "16px",
+								background: "rgba(255,255,255,0.02)",
+								borderRadius: "8px",
+								border: "1px solid var(--border-light)",
+								fontSize: "13px",
+								color: "var(--text-main)",
+								lineHeight: 1.6,
+								whiteSpace: "pre-wrap",
+							}}
+						>
 							{selectedMemory.content}
 						</div>
 						{selectedMemory.tags && (
 							<div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginTop: "12px" }}>
 								{selectedMemory.tags.split(",").map((tag) => (
-									<span key={tag} style={{
-										fontSize: "10px",
-										padding: "2px 8px",
-										borderRadius: "4px",
-										background: "rgba(255,255,255,0.05)",
-										color: "var(--text-muted)",
-									}}>
+									<span
+										key={tag}
+										style={{
+											fontSize: "10px",
+											padding: "2px 8px",
+											borderRadius: "4px",
+											background: "rgba(255,255,255,0.05)",
+											color: "var(--text-muted)",
+										}}
+									>
 										{tag.trim()}
 									</span>
 								))}

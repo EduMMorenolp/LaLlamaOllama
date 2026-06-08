@@ -1,13 +1,13 @@
-import OpenAI from "openai";
-import type { BrainClient } from "../brain/client.js";
-import type { ToolSpec as RegistryToolSpec } from "../tools/types.js";
-import { toolRegistry } from "../tools/registry.js";
+import type OpenAI from "openai";
 import { logger } from "../../utils/logger.js";
-import { createClient, getDefaultModelConfig } from "./createClient.js";
-import { buildSystemPrompt } from "./buildPrompt.js";
-import type { AgentOptions, AgentResult, SessionState } from "./types.js";
-import { getMessages, saveMessage } from "../db/messages.js";
+import type { BrainClient } from "../brain/client.js";
 import { getGeneralConfig } from "../db/experts.js";
+import { getMessages, saveMessage } from "../db/messages.js";
+import { toolRegistry } from "../tools/registry.js";
+import type { ToolSpec as RegistryToolSpec } from "../tools/types.js";
+import { buildSystemPrompt } from "./buildPrompt.js";
+import { createClient, getDefaultModelConfig } from "./createClient.js";
+import type { AgentOptions, AgentResult, SessionState } from "./types.js";
 
 const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
@@ -67,15 +67,28 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 	let generalModel = config.defaultModel;
 	let generalTemperature = 0.7;
 	let generalHistoryLimit = 10;
+
+	// Preferir configuración del modo activo sobre __general__
 	try {
-		const g = getGeneralConfig();
-		if (g) {
-			if (g.model) generalModel = g.model;
-			if (g.temperature != null) generalTemperature = g.temperature;
-			if (g.history_limit != null) generalHistoryLimit = g.history_limit;
+		const { getActiveMode } = await import("../db/modes.js");
+		const activeMode = getActiveMode();
+		if (activeMode) {
+			if (activeMode.model) generalModel = activeMode.model;
+			if (activeMode.temperature != null) generalTemperature = activeMode.temperature;
+			if (activeMode.history_limit != null) generalHistoryLimit = activeMode.history_limit;
 		}
 	} catch {
-		// use defaults
+		// fallback a __general__
+		try {
+			const g = getGeneralConfig();
+			if (g) {
+				if (g.model) generalModel = g.model;
+				if (g.temperature != null) generalTemperature = g.temperature;
+				if (g.history_limit != null) generalHistoryLimit = g.history_limit;
+			}
+		} catch {
+			// use defaults
+		}
 	}
 
 	if (!opts.skipPersistUserMsg) {
@@ -98,11 +111,19 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 
 		let systemPrompt: string;
 		try {
-			const generalOverride = getGeneralConfig();
-			if (generalOverride?.system_prompt) {
-				systemPrompt = generalOverride.system_prompt;
+			// Prioridad: modo activo > __general__ > built-in
+			const { getActiveMode } = await import("../db/modes.js");
+			const activeMode = getActiveMode();
+			if (activeMode?.system_prompt) {
+				systemPrompt = activeMode.system_prompt;
+				logger.agent(`[${chatId}] Using system prompt from mode '${activeMode.name}'`);
 			} else {
-				systemPrompt = buildSystemPrompt(config, generalModel);
+				const generalOverride = getGeneralConfig();
+				if (generalOverride?.system_prompt) {
+					systemPrompt = generalOverride.system_prompt;
+				} else {
+					systemPrompt = buildSystemPrompt(config, generalModel);
+				}
 			}
 		} catch {
 			systemPrompt = buildSystemPrompt(config, generalModel);
@@ -135,10 +156,10 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 				if (!opts.skipPersistUserMsg && stored.role === "user" && stored.content === userText) {
 					continue;
 				}
-			session.messages.push({
-				role: stored.role as OpenAI.Chat.Completions.ChatCompletionMessageParam["role"],
-				content: stored.content,
-			} as OpenAI.Chat.Completions.ChatCompletionMessageParam);
+				session.messages.push({
+					role: stored.role as OpenAI.Chat.Completions.ChatCompletionMessageParam["role"],
+					content: stored.content,
+				} as OpenAI.Chat.Completions.ChatCompletionMessageParam);
 			}
 		} catch {
 			// cached context is optional
@@ -169,6 +190,18 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 		if (attachmentText.length > 0) {
 			userContent += `\n\n=== ARCHIVOS ADJUNTOS ===${attachmentText.join("\n")}`;
 		}
+	}
+	// Prepend quoted message if present (reply feature)
+	if (opts.quotedMessage) {
+		const quote = opts.quotedMessage;
+		const roleLabel = quote.role === "user" ? "Usuario" : "Asistente";
+		const prefix =
+			"> Respondiendo al siguiente mensaje de **" +
+			roleLabel +
+			"**:\n> " +
+			quote.content.replace(/\n/g, "\n> ") +
+			"\n\n---\n\n";
+		userContent = prefix + userContent;
 	}
 
 	session.messages.push({ role: "user", content: userContent });
@@ -313,12 +346,9 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 					if (toolName === "read_url" && !result.startsWith("Error")) {
 						const url = (args.url as string) || "";
 						if (url) {
-							brain.saveMemory(
-								"knowledge",
-								`URL: ${url}`,
-								result.substring(0, 5000),
-								"url,web,read_url"
-							).catch(() => {});
+							brain
+								.saveMemory("knowledge", `URL: ${url}`, result.substring(0, 5000), "url,web,read_url")
+								.catch(() => {});
 						}
 					}
 
@@ -394,7 +424,8 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 	}
 
 	const latency = Date.now() - startTime;
-	finalContent = finalContent || "He llegado al límite de iteraciones. Considera dividir la tarea en partes más pequeñas.";
+	finalContent =
+		finalContent || "He llegado al límite de iteraciones. Considera dividir la tarea en partes más pequeñas.";
 	session.messages.push({ role: "assistant", content: finalContent });
 	onTyping?.(false);
 
@@ -435,16 +466,11 @@ export function resetAllSessions(): void {
 	logger.agent(`[sessions] All sessions cleared`);
 }
 
-export function pushSessionMessages(
-	chatId: string,
-	messages: Array<{ role: string; content: string }>
-): void {
+export function pushSessionMessages(chatId: string, messages: Array<{ role: string; content: string }>): void {
 	const entry = sessions.get(chatId);
 	if (!entry) return;
 	const existingContents = new Set(
-		entry.state.messages.map((m) =>
-			typeof m.content === "string" ? m.content.substring(0, 200) : ""
-		)
+		entry.state.messages.map((m) => (typeof m.content === "string" ? m.content.substring(0, 200) : ""))
 	);
 	for (const m of messages) {
 		if (m.role === "system") continue;

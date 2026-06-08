@@ -475,14 +475,34 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 	});
 
 	// --- MCP SSE Transport ---
+	// The MCP SDK Server only supports ONE transport connection at a time.
+	// When a new SSE client connects, we close the previous transport first.
 
 	const sseServer = createMcpServer(dbService, directives);
 	const sseTransports = new Map<string, SSEServerTransport>();
+	let currentSessionId: string | null = null;
 
 	app.get("/sse", async (req, res) => {
+		// Close previous SSE transport if any (graceful reconnection)
+		if (currentSessionId) {
+			const prev = sseTransports.get(currentSessionId);
+			if (prev) {
+				try { await prev.close(); } catch { /* ignore */ }
+				sseTransports.delete(currentSessionId);
+			}
+			// Also disconnect from the Server so we can reconnect
+			try { await sseServer.close(); } catch { /* not connected */ }
+		}
+
 		const transport = new SSEServerTransport("/messages", res);
 		sseTransports.set(transport.sessionId, transport);
-		res.on("close", () => sseTransports.delete(transport.sessionId));
+		currentSessionId = transport.sessionId;
+		res.on("close", () => {
+			if (currentSessionId === transport.sessionId) {
+				currentSessionId = null;
+			}
+			sseTransports.delete(transport.sessionId);
+		});
 		await sseServer.connect(transport);
 	});
 

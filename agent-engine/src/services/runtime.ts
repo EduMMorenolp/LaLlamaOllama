@@ -1,5 +1,5 @@
-import type { AppConfig } from "./config.js";
 import type { BrainClient } from "./brain/client.js";
+import type { AppConfig } from "./config.js";
 import type { DockerInfo } from "./docker-info.js";
 
 export interface RuntimeContext {

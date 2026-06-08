@@ -2,7 +2,38 @@
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-06-07
+
+### 🚀 Versión estable 1.0.0
+
+Alineación de versión con el proyecto raíz LaLlamaOllama.
+
+### 📱 Telegram: Sección UI en Conexion.tsx
+
+#### Añadido
+- **➕ Sección Telegram en Conexion.tsx** — Nueva card con:
+  - Badge de estado (Activo/Inactivo) con colores semánticos
+  - Input de token (type=password) con placeholder de ejemplo
+  - Input de usuarios permitidos separados por coma con ayuda textual
+  - Botón principal "Iniciar Bot" / "Detener Bot" según estado actual
+  - Botón "Actualizar" para aplicar cambios sin reiniciar
+  - Nota informativa con referencia al comando `/ayuda`
+- **➕ Handlers WS**: Suscripción a `telegram_status` y `status` (telegramActive)
+- **➕ Fetch automático**: Al conectar WebSocket, envía `telegram_get_status`
+- **➕ Nuevo state**: `telegramRunning`, `telegramToken`, `telegramAllowedUsers`, `telegramSaving`
+- **➕ Icono Send** importado de lucide-react para la sección
+
 ### Añadido
+- **➕ `/cambioModelo <nombre>`** — Nuevo comando para cambiar modelo activo vía `general_config_update`
+- **🎨 `/buscar` estilo Discord** — Sin consulta → input cambia a `/buscar: ` y espera texto como Discord
+- **🔧 `/tools` funcional** — Muestra lista formateada de herramientas con nombre + descripción
+- **🔧 `/nuevaTarea` funcional** — Crea tarea en DB, muestra confirmación con ID
+- **🔄 `/modelo` → `/modelos`** — Lista modelos Ollama disponibles con nombres exactos
+- **Handlers WS**: `tools_list`, `ollama_models`, `task_created` agregados
+- **💬 Citas / Reply** — Botón "Reply" en cada burbuja, barra contextual sobre el input, `quotedMessage` en payload WS
+- **⭐ Favoritos / Saved Messages** — Botón Star toggle (relleno/outline), tracking local con Set, handlers WS save/unsave
+- **💡 Sugerencias automáticas** — Chips clicables entre tool calls y "Pensando...". Se llena input al hacer clic
+- **🕐 Historial de sesiones** — `messageCount` en ChatEntry, cada chat muestra "📝 N mensajes" en sidebar. Envío automático de `list_sessions` al identificar usuario
 - **🔍 Búsqueda dentro del chat** — Barra de búsqueda en el header que filtra mensajes en tiempo real con contador de resultados
 - **📤 Exportar conversación** — Botón de descarga que genera archivo Markdown con todo el historial del chat
 - **📦 Tool calls colapsables** — Header clickeable con badge de contador; colapsa/expande la lista de herramientas
@@ -26,6 +57,7 @@
 - Configuración General persistente (modelo, temp, history_limit)
 
 ### Cambiado
+- **📊 Contador de mensajes en header** — Muestra "↓ N ↑ M" (enviados/recibidos) entre el título del chat y los botones. Solo visible cuando hay mensajes
 - **Bugfix: switch statement en handleWsMessage** — El `case "error"` estaba fuera del `switch` por una llave `}` prematura. El manejador de errores nunca se ejecutaba. Corregido eliminando la llave extra
 - **Chat siempre montado** — `<AgentChat />` usa `display:none` en vez de render condicional, preservando WS subscriptions al cambiar de tab
 - **Fix duplicación de respuestas** — `assistant_done` reemplaza el último mensaje del streaming en vez de agregar uno nuevo

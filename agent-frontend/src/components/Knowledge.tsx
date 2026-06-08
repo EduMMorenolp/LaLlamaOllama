@@ -160,7 +160,15 @@ export const Knowledge: React.FC = () => {
 					}}
 				>
 					<div style={{ marginBottom: "12px" }}>
-						<label style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>
+						<label
+							style={{
+								fontSize: "11px",
+								fontWeight: 600,
+								color: "var(--text-muted)",
+								display: "block",
+								marginBottom: "4px",
+							}}
+						>
 							Nombre del archivo
 						</label>
 						<input
@@ -172,14 +180,27 @@ export const Knowledge: React.FC = () => {
 						/>
 					</div>
 					<div style={{ marginBottom: "12px" }}>
-						<label style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>
+						<label
+							style={{
+								fontSize: "11px",
+								fontWeight: 600,
+								color: "var(--text-muted)",
+								display: "block",
+								marginBottom: "4px",
+							}}
+						>
 							Contenido
 						</label>
 						<textarea
 							value={fileContent}
 							onChange={(e) => setFileContent(e.target.value)}
 							rows={8}
-							style={{ ...inputStyle, resize: "vertical", fontFamily: "var(--font-mono)", fontSize: "12px" }}
+							style={{
+								...inputStyle,
+								resize: "vertical",
+								fontFamily: "var(--font-mono)",
+								fontSize: "12px",
+							}}
 							placeholder="Pega el contenido del archivo aqu\u00ed..."
 						/>
 					</div>
@@ -217,10 +238,16 @@ export const Knowledge: React.FC = () => {
 				<div style={{ flex: 1, overflowY: "auto", minWidth: 0 }}>
 					{loading ? (
 						<div style={{ textAlign: "center", padding: "40px", color: "var(--text-muted)" }}>
-							<Loader2 size={24} className="animate-spin" style={{ margin: "0 auto 12px", display: "block" }} />
+							<Loader2
+								size={24}
+								className="animate-spin"
+								style={{ margin: "0 auto 12px", display: "block" }}
+							/>
 						</div>
 					) : files.length === 0 ? (
-						<div style={{ textAlign: "center", padding: "40px", color: "var(--text-dim)", fontSize: "13px" }}>
+						<div
+							style={{ textAlign: "center", padding: "40px", color: "var(--text-dim)", fontSize: "13px" }}
+						>
 							<BookOpen size={32} style={{ margin: "0 auto 12px", opacity: 0.3, display: "block" }} />
 							No hay archivos de conocimiento. Sube archivos para que el agente tenga contexto.
 						</div>
@@ -241,11 +268,21 @@ export const Knowledge: React.FC = () => {
 							>
 								<FileText size={16} style={{ color: "var(--accent)", flexShrink: 0 }} />
 								<div style={{ flex: 1, minWidth: 0 }}>
-									<div style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-main)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+									<div
+										style={{
+											fontSize: "12px",
+											fontWeight: 600,
+											color: "var(--text-main)",
+											overflow: "hidden",
+											textOverflow: "ellipsis",
+											whiteSpace: "nowrap",
+										}}
+									>
 										{file.name}
 									</div>
 									<div style={{ fontSize: "10px", color: "var(--text-dim)", marginTop: "2px" }}>
-										{formatSize(file.size)} \u00b7 {file.modifiedAt ? new Date(file.modifiedAt).toLocaleDateString() : ""}
+										{formatSize(file.size)} \u00b7{" "}
+										{file.modifiedAt ? new Date(file.modifiedAt).toLocaleDateString() : ""}
 									</div>
 								</div>
 								<button
@@ -298,12 +335,21 @@ export const Knowledge: React.FC = () => {
 								outline: "none",
 							}}
 						/>
-						{searching && <Loader2 size={12} className="animate-spin" style={{ color: "var(--text-muted)" }} />}
+						{searching && (
+							<Loader2 size={12} className="animate-spin" style={{ color: "var(--text-muted)" }} />
+						)}
 					</div>
 
 					<div style={{ flex: 1, overflowY: "auto" }}>
 						{searchQuery.trim() && searchResults.length === 0 && !searching && (
-							<div style={{ textAlign: "center", padding: "24px", color: "var(--text-dim)", fontSize: "12px" }}>
+							<div
+								style={{
+									textAlign: "center",
+									padding: "24px",
+									color: "var(--text-dim)",
+									fontSize: "12px",
+								}}
+							>
 								Sin resultados. Sube archivos primero.
 							</div>
 						)}
@@ -318,10 +364,27 @@ export const Knowledge: React.FC = () => {
 									border: "1px solid var(--border-light)",
 								}}
 							>
-								<div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-main)", marginBottom: "4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+								<div
+									style={{
+										fontSize: "11px",
+										fontWeight: 600,
+										color: "var(--text-main)",
+										marginBottom: "4px",
+										overflow: "hidden",
+										textOverflow: "ellipsis",
+										whiteSpace: "nowrap",
+									}}
+								>
 									{result.title}
 								</div>
-								<div style={{ fontSize: "10px", color: "var(--text-dim)", maxHeight: "60px", overflow: "hidden" }}>
+								<div
+									style={{
+										fontSize: "10px",
+										color: "var(--text-dim)",
+										maxHeight: "60px",
+										overflow: "hidden",
+									}}
+								>
 									{result.content}
 								</div>
 								{result.similarity != null && (
@@ -338,9 +401,18 @@ export const Knowledge: React.FC = () => {
 			<ConfirmModal
 				open={!!confirmDeleteFile}
 				title="Eliminar archivo"
-				message={confirmDeleteFile ? `\u00bfEst\u00e1s seguro de eliminar "${confirmDeleteFile}" del conocimiento?` : ""}
+				message={
+					confirmDeleteFile
+						? `\u00bfEst\u00e1s seguro de eliminar "${confirmDeleteFile}" del conocimiento?`
+						: ""
+				}
 				confirmText="Eliminar"
-				onConfirm={() => { if (confirmDeleteFile) { handleDelete(confirmDeleteFile); setConfirmDeleteFile(null); } }}
+				onConfirm={() => {
+					if (confirmDeleteFile) {
+						handleDelete(confirmDeleteFile);
+						setConfirmDeleteFile(null);
+					}
+				}}
 				onCancel={() => setConfirmDeleteFile(null)}
 				danger
 			/>

@@ -13,12 +13,7 @@ export interface ChatEntry {
 	lastMessage?: string;
 }
 
-export function createChat(
-	userId: string,
-	expertName?: string | null,
-	title?: string,
-	origin = "web"
-): ChatEntry {
+export function createChat(userId: string, expertName?: string | null, title?: string, origin = "web"): ChatEntry {
 	const db = getDb();
 	const id = randomUUID();
 	const now = new Date().toISOString();
@@ -28,7 +23,16 @@ export function createChat(
 		 VALUES (?, ?, ?, ?, ?, ?, ?)`
 	).run(id, userId, title || "Nuevo chat", origin, expertName || null, now, now);
 
-	return { id, userId, title: title || "Nuevo chat", origin, expertName: expertName || null, pinned: 0, created_at: now, updated_at: now };
+	return {
+		id,
+		userId,
+		title: title || "Nuevo chat",
+		origin,
+		expertName: expertName || null,
+		pinned: 0,
+		created_at: now,
+		updated_at: now,
+	};
 }
 
 export function listChats(userId: string, expertName?: string | null): ChatEntry[] {
@@ -65,24 +69,24 @@ export function listChats(userId: string, expertName?: string | null): ChatEntry
 	return db.prepare(query).all(...params) as ChatEntry[];
 }
 
-export function listChannelChats(userId: string): ChatEntry[] {
+export function listChannelChats(_userId?: string): ChatEntry[] {
 	const db = getDb();
 	return db
 		.prepare(
 			`SELECT c.*,
 				(SELECT content FROM messages WHERE chatId = c.id ORDER BY created_at DESC LIMIT 1) as lastMessage
 			FROM chats c
-			WHERE c.userId = ? AND c.origin != 'web'
-			ORDER BY c.origin ASC`
+			WHERE c.origin != 'web'
+			ORDER BY c.updated_at DESC`
 		)
-		.all(userId) as ChatEntry[];
+		.all() as ChatEntry[];
 }
 
 export function getOrCreateChannelChat(userId: string, origin: string): ChatEntry {
 	const db = getDb();
-	const existing = db
-		.prepare("SELECT * FROM chats WHERE userId = ? AND origin = ?")
-		.get(userId, origin) as ChatEntry | undefined;
+	const existing = db.prepare("SELECT * FROM chats WHERE userId = ? AND origin = ?").get(userId, origin) as
+		| ChatEntry
+		| undefined;
 	if (existing) return existing;
 
 	const label = origin.charAt(0).toUpperCase() + origin.slice(1);
@@ -106,9 +110,7 @@ export function deleteChat(id: string): void {
 
 export function togglePin(id: string): boolean {
 	const db = getDb();
-	const chat = db.prepare("SELECT pinned FROM chats WHERE id = ?").get(id) as
-		| { pinned: number }
-		| undefined;
+	const chat = db.prepare("SELECT pinned FROM chats WHERE id = ?").get(id) as { pinned: number } | undefined;
 	if (!chat) return false;
 	const newPinned = chat.pinned ? 0 : 1;
 	db.prepare("UPDATE chats SET pinned = ? WHERE id = ?").run(newPinned, id);
@@ -116,7 +118,15 @@ export function togglePin(id: string): boolean {
 }
 
 export function touchChat(id: string): void {
-	getDb()
-		.prepare("UPDATE chats SET updated_at = ? WHERE id = ?")
-		.run(new Date().toISOString(), id);
+	getDb().prepare("UPDATE chats SET updated_at = ? WHERE id = ?").run(new Date().toISOString(), id);
+}
+
+export function getChatWithStats(chatId: string): { chat: ChatEntry | null; messageCount: number } {
+	const db = getDb();
+	const chat = getChat(chatId);
+	if (!chat) return { chat: null, messageCount: 0 };
+	const row = db.prepare("SELECT COUNT(*) as count FROM messages WHERE chatId = ?").get(chatId) as
+		| { count: number }
+		| undefined;
+	return { chat, messageCount: row?.count || 0 };
 }

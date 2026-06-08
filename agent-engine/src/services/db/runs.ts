@@ -1,4 +1,4 @@
-import { getDb } from "./connection.js";
+﻿import { getDb } from "./connection.js";
 
 export interface StoredRun {
 	id: number;
@@ -22,12 +22,7 @@ export interface RunEventRecord {
 	created_at?: string;
 }
 
-export function createRun(input: {
-	chatId: string;
-	userText: string;
-	origin?: string;
-	status?: string;
-}): number {
+export function createRun(input: { chatId: string; userText: string; origin?: string; status?: string }): number {
 	const db = getDb();
 	const result = db
 		.prepare(
@@ -102,16 +97,10 @@ export function getRun(runId: number): StoredRun | undefined {
 
 export function listRuns(limit = 20): StoredRun[] {
 	const db = getDb();
-	return db
-		.prepare("SELECT * FROM runs ORDER BY created_at DESC LIMIT ?")
-		.all(limit) as StoredRun[];
+	return db.prepare("SELECT * FROM runs ORDER BY created_at DESC LIMIT ?").all(limit) as StoredRun[];
 }
 
-export function listRunsByFilters(filters: {
-	status?: string;
-	limit?: number;
-	offset?: number;
-}): StoredRun[] {
+export function listRunsByFilters(filters: { status?: string; origin?: string; limit?: number; offset?: number }): StoredRun[] {
 	const db = getDb();
 	const conditions: string[] = [];
 	const params: Array<string | number> = [];
@@ -120,21 +109,26 @@ export function listRunsByFilters(filters: {
 		conditions.push("status = ?");
 		params.push(filters.status);
 	}
+	if (filters.origin) {
+		conditions.push("origin = ?");
+		params.push(filters.origin);
+	}
 
 	const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 	const limit = filters.limit ?? 50;
 	const offset = filters.offset ?? 0;
 
 	return db
-		.prepare(
-			`SELECT * FROM runs ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`
-		)
+		.prepare(`SELECT * FROM runs ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`)
 		.all(...params, limit, offset) as StoredRun[];
 }
 
 export function getRunEvents(runId: number): RunEventRecord[] {
 	const db = getDb();
-	return db
-		.prepare("SELECT * FROM run_events WHERE runId = ? ORDER BY id ASC")
-		.all(runId) as RunEventRecord[];
+	return db.prepare("SELECT * FROM run_events WHERE runId = ? ORDER BY id ASC").all(runId) as RunEventRecord[];
+}
+
+export function cancelRun(runId: number): void {
+	const db = getDb();
+	db.prepare("UPDATE runs SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(runId);
 }

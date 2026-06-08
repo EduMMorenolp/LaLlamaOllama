@@ -1,12 +1,12 @@
 import type TelegramBot from "node-telegram-bot-api";
+import { logger } from "../../utils/logger.js";
 import { resetSession } from "../agent/runAgent.js";
-import { listExperts, getExpert, upsertExpert, deleteExpert } from "../db/experts.js";
+import { loadConfig } from "../config.js";
 import { getOrCreateChannelChat } from "../db/chats.js";
+import { deleteExpert, getExpert, listExperts, upsertExpert } from "../db/experts.js";
 import { getMessages } from "../db/messages.js";
 import { getUser } from "../db/users.js";
 import { toolRegistry } from "../tools/registry.js";
-import { loadConfig } from "../config.js";
-import { logger } from "../../utils/logger.js";
 
 export async function handleTelegramCommand(
 	chatId: number,
@@ -62,11 +62,9 @@ export async function handleTelegramCommand(
 		case "/crear_agente": {
 			const subParts = arg.split("|");
 			if (subParts.length < 3) {
-				await bot.sendMessage(
-					chatId,
-					'❌ Formato inválido. Usá:\n`/crear_agente nombre|modelo|prompt`',
-					{ parse_mode: "Markdown" }
-				);
+				await bot.sendMessage(chatId, "❌ Formato inválido. Usá:\n`/crear_agente nombre|modelo|prompt`", {
+					parse_mode: "Markdown",
+				});
 				return;
 			}
 			const [name, model, ...promptParts] = subParts;
@@ -80,11 +78,9 @@ export async function handleTelegramCommand(
 					experts: [],
 					temperature: 0.7,
 				});
-				await bot.sendMessage(
-					chatId,
-					`✅ Agente experto "*${name.trim()}*" creado/actualizado.`,
-					{ parse_mode: "Markdown" }
-				);
+				await bot.sendMessage(chatId, `✅ Agente experto "*${name.trim()}*" creado/actualizado.`, {
+					parse_mode: "Markdown",
+				});
 			} catch (err) {
 				await bot.sendMessage(chatId, `❌ Error: ${err instanceof Error ? err.message : String(err)}`);
 			}

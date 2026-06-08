@@ -7,6 +7,137 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-06-07
+
+### 🚀 Versión estable 1.0.0
+
+Todos los módulos del proyecto se unifican en **v1.0.0**: root, backend, agent-engine, agent-frontend y mcp-brain.
+
+### 📋 Sistema de Tareas: Arreglado, mejorado y con tareas autoejecutables (2026-06-07)
+
+#### Agent Engine
+- **🐛 Fix: `new_task` ahora procesa tareas** — El handler WS crea el run y lo encola en el orquestrador (`submitAgentRun`), en vez de dejarlo en "queued" para siempre
+- **➕ Estados nuevos**: `cancelled` (tarea cancelada por usuario), `scheduled` (tarea programada para futuro)
+- **➕ `runs.ts`: `cancelRun()`** — Setea status a "cancelled"
+- **➕ `runs.ts`: filtro `origin`** en `listRunsByFilters`
+- **➕ `orchestrator/index.ts`**: `submitAgentRun` acepta `runId` opcional y retorna `runId` en el resultado
+- **➕ `scheduled-tasks.ts` (NUEVO)** — CRUD completo para tareas programadas: `listScheduledTasks()`, `getScheduledTask()`, `createScheduledTask()`, `updateScheduledTask()`, `deleteScheduledTask()`, `toggleScheduledTask()`, `getDueTasks()`
+- **➕ Tabla `scheduled_tasks`** en SQLite con columnas: name, cron_expression, task_text, mode_id, enabled, last_run_at, next_run_at
+- **➕ Protocolo WS**: 12 nuevos tipos (`new_task`, `cancel_task`, `task_created`, `task_status`, `task_completed`, `task_failed`, `task_cancelled`, `list_scheduled_tasks`, `create_scheduled_task`, `update_scheduled_task`, `delete_scheduled_task`, `toggle_scheduled_task`, `scheduled_tasks_list`)
+- **➕ Broadcast de estado de tareas** — `runQueue.ts` ahora emite `task_status` vía WS a todos los clientes cuando un run cambia a running/completed/failed
+- **➕ REST endpoints**: `GET/POST/PUT/DELETE /api/scheduled-tasks`, `POST /api/scheduled-tasks/:id/toggle`
+- **➕ 3 nuevas tools**: `create_task` (crea y ejecuta tarea), `cancel_task` (cancela tarea por ID), `schedule_task` (programa tarea recurrente con expresión cron)
+- **🔄 `cron.ts` reescrito** — Task scheduler cada 60s que evalúa `getDueTasks()` y ejecuta las que corresponden mediante `submitAgentRun()`. Mantiene cleanup de sesiones cada 30min
+- **➕ Seeds actualizados**: todos los modos por defecto incluyen `create_task` y `cancel_task`; `desarrollador` y `evolutivo` además incluyen `schedule_task`
+
+#### Agent Frontend
+- **➕ WS en tiempo real** — `Tareas.tsx` recibe eventos `task_created`, `task_status`, `task_cancelled`, `task_completed`, `task_failed` y actualiza la lista sin polling
+- **➕ Filtro `cancelled`** en el listado de tareas
+- **➕ Botón "Cancelar"** en tareas con estado `queued`/`running` → envía WS `cancel_task`
+- **➕ Botón "Nueva Tarea"** + modal con textarea → envía WS `new_task`
+- **➕ Sub-tabs "Historial" / "Programadas"** — Pestaña separada para gestionar tareas autoejecutables
+- **➕ Pestaña "Programadas"**: CRUD completo — crear/editar/eliminar tareas programadas, toggle enable/disable, ejecutar ahora
+- **➕ Indicador de origen** — Icono 🌐📱⏰🔧 según origen de la tarea (web/telegram/scheduler/tool)
+- **➕ `/nuevaTarea` mejorado** — Abre modal de creación de tarea en vez de enviar WS vacío
+- **➕ Modal "Nueva Tarea Programada"** con inputs para nombre, expresión cron, texto y modo selector
+
+### 🎭 Sistema de Modos: Personalidad, herramientas y configuración por modo (2026-06-07)
+
+#### Agent Engine
+- **➕ 7 nuevas herramientas**: `weather` (clima Open-Meteo), `web_search` (DuckDuckGo), `calc` (calculadora científica segura), `translate` (LibreTranslate, 30+ idiomas), `notify_frontend` (toast vía WS), `notify_telegram` (mensaje a chats Telegram), `knowledge_search` (búsqueda semántica RAG en MCP Brain)
+- **➕ `tool-bridge.ts`** — Puente de acceso a WsServer para tools que notifican en tiempo real
+- **➕ Nueva dependencia**: `cheerio` para parseo HTML en web_search
+- **🔄 Modos por defecto mejorados** — `asistente`, `desarrollador`, `investigador` ahora incluyen las nuevas tools según su perfil
+- **➕ Nueva tabla `agent_modes`** en SQLite con columna `tools` (JSON), `extends` (herencia), `tool_policy` y contador de uso
+- **🧬 Modo Evolutivo** — Nuevo modo `evolutivo` con 7 meta-herramientas para crear/modificar/eliminar tools personalizadas en tiempo real
+- **➕ Tabla `custom_tools`** en SQLite — Almacena herramientas personalizadas con tipo (bash/http/prompt), parámetros y config
+- **➕ `ToolRegistry.registerCustomTool()` / `unregisterCustomTool()`** — Registro dinámico de tools en caliente
+- **➕ `custom-tool-handler.ts`** — Dispatcher que ejecuta handlers bash (con `{{param}}`), http (requests API), prompt (plantillas)
+- **➕ 7 meta-tools** en `services/tools/evolutivo/`: `create_tool`, `edit_tool`, `delete_tool`, `test_tool`, `list_custom_tools`, `export_tool`, `import_tool`
+- **➕ Carga automática** de custom tools desde DB al iniciar y después de cada cambio
+- **➕ `services/db/modes.ts`** — CRUD completo: `listModes()`, `getMode()`, `resolveMode()` (herencia recursiva con merge de tools), `upsertMode()`, `deleteMode()`, `setActiveMode()`, `incrementModeUsage()`
+- **➕ `toolRegistry.applyModeTools(tools[])`** con `SimpleMutex` — deshabilita atómicamente todas las herramientas y luego habilita solo las del modo
+- **➕ Protocolo WS**: 5 nuevos tipos (`list_modes`, `get_active_mode`, `set_active_mode`, `mode_update`, `mode_changed`)
+- **➕ Handler `set_active_mode`** — cambia modo, aplica tools, resetea sesiones LLM, notifica a todos los clientes vía `mode_changed`
+- **➕ Handler `mode_update`** — CRUD de modos con validación de tools vs registry y detección de ciclos en herencia
+- **🔄 `runAgentCore.ts`** — ahora usa modelo, temperatura, history_limit y system_prompt del modo activo (con fallback a `__general__`)
+- **🔄 `buildPrompt.ts` reescrito** — sistema de prompt como asistente personal "LaLlama" (no project-centric), sin referencias a slash commands ni jerga de herramientas
+- **🐛 Fix: dynamic imports → static imports** en `handlers.ts` para los módulos de modes; `handleMessage()` convertido a `async`
+- **🐛 Fix: brain timeout 10s → 30s** en `client.ts` para tolerar latencia de embedding en Ollama
+- **🐛 Fix: `allowedUsers` siempre desde DB** (no condicionado por placeholder del token)
+- **➕ Seeding automático** de 3 modos por defecto al iniciar (`asistente`, `desarrollador`, `investigador`)
+- **🗑️ Debug logs eliminados** de `bot.ts` (console.log y [TG-DEBUG])
+
+#### Agent Frontend
+- **➕ `ModosList.tsx` (NUEVO)** — Componente CRUD completo: lista, creación, edición inline y eliminación de modos con confirmación visual
+- **➕ Plantillas de modos recomendados** en `ModosList.tsx` — 4 tarjetas clickeables (Asistente General, Desarrollo, Investigación, Aprendizaje) que precargan el formulario de creación con system prompt, tools y configuración predefinida
+- **➕ Plantillas de sub-agentes** en `SubAgentesList.tsx` — 4 tarjetas (Código, Documentación, Testing, DevOps) con system prompt, tools y temperatura predefinidos
+- **🔄 `Agentes.tsx` rediseñado** — 3 sub-tabs: "Agente Principal", "Modos", "Sub Agentes". Tarjetas de modo clickeables con glow activo. Estado de modos gestionado a nivel padre
+- **🔄 `AgentePrincipal.tsx` adaptado** — Muestra y edita configuración del modo activo (system prompt, modelo, temperatura, tools). Tool list con indicador ✅/❌. **Eliminada sección Telegram** (ya en Conexion.tsx)
+- **➕ `AgentChat.tsx`** — Nuevo handler `mode_changed` que resetea chat y muestra "🔄 Modo cambiado a 'X'" cuando cambia el modo
+
+### 📱 Telegram: Sección UI en Conexion + Fixes backend (2026-06-07)
+
+#### Agent Engine
+- **🐛 Fix: brain null en callbacks.ts** — Ahora `handleCallbackQuery` recibe `brain: BrainClient | null`, eliminando el `null as never` que rompía los inline buttons
+- **➕ `setTelegramConfig(token, allowedUsers)`** — Nueva función en bot.ts para actualizar config en runtime sin reiniciar el proceso
+- **🔧 `telegram_update` mejorado** — Ahora acepta `allowedUsers` array. Usa `setTelegramConfig()` antes de `startTelegram()`. Reporta estado real con `getBot() !== null`
+- **➕ Nuevo handler WS `telegram_get_status`** — Devuelve `active`, `running`, `allowedUsers`, `tokenPreview`
+
+#### Agent Engine
+- **🐛 Fix: telegram_get_status mostraba config vacía** — Usaba `config` local de `loadConfig()` (valores de env) en vez de `getTelegramConfig()` de bot.ts
+- **➕ Persistencia en DB** — `telegram_update` guarda token/usuarios en tabla `settings` de SQLite. Al iniciar, si no hay `.env`, carga desde DB
+- **➕ `getTelegramConfig()` en bot.ts** — Expone token, allowedUsers, running desde runtime config
+
+#### Agent Frontend
+- **➕ Sección Telegram en Conexion.tsx** — Nueva card con:
+  - Badge de estado (Activo/Inactivo) con colores verde/rojo
+  - Input de token (type=password)
+  - Input de usuarios permitidos separados por coma
+  - Botón "Iniciar Bot" / "Detener Bot" con toggle
+  - Botón "Actualizar" para aplicar cambios sin reiniciar
+  - Nota informativa con comando `/ayuda`
+- **🐛 Fix: preview del token no reemplaza input del usuario** — `telegramTokenPreview` separado de `telegramToken` para no enviar token enmascarado al backend
+- **➕ Handlers WS**: `telegram_status`, `telegram_get_status` en subscribe
+- **📡 Fetch automático**: Al conectar, pide `telegram_get_status`
+
+### 🔧 Slash Commands: Limpieza y nuevas funcionalidades (2026-06-06)
+
+#### Agent Frontend
+- **🗑️ Eliminados**: `/temperatura` (redundante), `/chat nuevo` (hay icono)
+- **🔄 `/modelo` → `/modelos`**: Ahora lista los modelos disponibles en Ollama con nombres exactos
+- **➕ `/cambioModelo <nombre>`**: Nuevo comando para cambiar el modelo activo al instante. Envía `general_config_update` y muestra confirmación
+- **🔧 `/tools` arreglado**: Ahora muestra la lista formateada de herramientas con nombre y descripción
+- **🔧 `/nuevaTarea` arreglado**: Crea una tarea (run) en la base de datos y muestra confirmación con ID
+- **🎨 `/buscar` estilo Discord**: Si escribís `/buscar` sin consulta, el input cambia a `/buscar: ` y espera el texto. Como Discord. Al apretar Enter se ejecuta la búsqueda
+- **Nuevos handlers WS**: `tools_list`, `ollama_models`, `task_created` en `handleWsMessage`
+
+#### Agent Engine
+- **➕ Handler `new_task`**: Crea un run en la DB con status "queued". Responde con `task_created`
+
+### 🔧 Hotfix: Forzar ejecución de herramientas + Mejora read_url + Contador de mensajes (2026-06-06)
+
+#### Agent Engine
+- **🔧 System prompt reforzado** — Nueva sección "Uso de herramientas - CRÍTICO" con regla de oro, prohibiciones explícitas (no describir, no preguntar, no mostrar JSON) y ejemplos concretos de cuándo ejecutar tools automáticamente
+- **🔧 Conciencia del sistema de tareas** — El agente ahora conoce los 7 comandos Slash del frontend y sabe cómo responder cuando el usuario pide "agregar una tarea"
+- **🔧 read_url mejorado** — Nueva función `htmlToText()` que limpia HTML/JS de las respuestas. Detecta contenido HTML automáticamente. User-Agent actualizado a Chrome 125 real para evitar bloqueos de buscadores
+- **📊 Contador de mensajes** — Nueva sección en el header del chat mostrando "↓ N ↑ M" (enviados/recibidos)
+
+### 🚀 Fase 2: Citas/Reply, Favoritos, Sugerencias Automáticas, Historial de Sesiones (2026-06-06)
+
+#### Agent Engine
+- **💬 Citas / Reply** — Nuevo campo `quotedMessage` en `AgentOptions`. Cuando un usuario responde citando un mensaje, el contenido se inyecta como blockquote en el prompt del agente para dar contexto
+- **⭐ Favoritos** — Nueva tabla `saved_messages` en SQLite + 4 handlers WS (`save_message`, `unsave_message`, `list_saved_messages`, `is_message_saved`) con DB functions dedicadas
+- **💡 Sugerencias automáticas** — Nuevo servicio `suggestions.ts` que genera 2-3 preguntas de seguimiento vía LLM después de cada respuesta. Se envía evento WS `suggestions` con el array. No bloquea la respuesta principal
+- **🕐 Historial de sesiones** — Nueva función `getChatWithStats()` que retorna mensaje por chat. Handler WS `list_sessions` expone todos los chats del usuario con `messageCount`
+- **Nuevos tipos WS registrados** — `protocol.ts` actualizado con 10 nuevos tipos de mensaje para las 4 features
+
+#### Agent Frontend
+- **💬 Citas / Reply** — Nuevo botón "Reply" en cada mensaje (hover). Barra contextual sobre el input con texto "Respondiendo a..." y botón X. Se envía `quotedMessage` en el payload, se limpia al enviar
+- **⭐ Favoritos** — Botón Star toggle en cada mensaje (relleno amarillo si guardado, outline si no). Tracking local con Set de mensajes guardados. Handlers para `message_saved/unsaved/saved_status`
+- **💡 Sugerencias automáticas** — Chips de sugerencias entre tool calls y "Pensando...". Al hacer clic, se llena el input. Se limpian al enviar nuevo mensaje
+- **🕐 Historial de sesiones** — `messageCount` agregado a `ChatEntry`. Cada chat en el sidebar muestra "📝 N mensajes". Se envía `list_sessions` al identificar usuario
+
 ### 🚀 Fase 1: 5 Mejoras UX en Chat — Búsqueda, Exportación, Tool Calls Colapsables, Multi-modal, Edición (2026-06-06)
 
 #### Agent Frontend

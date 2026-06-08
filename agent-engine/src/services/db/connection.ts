@@ -108,6 +108,47 @@ export function getDb(dbPath?: string): Database.Database {
 		CREATE INDEX IF NOT EXISTS idx_runs_chatId ON runs(chatId);
 		CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status);
 		CREATE INDEX IF NOT EXISTS idx_run_events_runId ON run_events(runId);
+
+		CREATE TABLE IF NOT EXISTS agent_modes (
+			name TEXT PRIMARY KEY,
+			label TEXT NOT NULL DEFAULT '',
+			system_prompt TEXT NOT NULL DEFAULT '',
+			tools TEXT NOT NULL DEFAULT '[]',
+			model TEXT DEFAULT '',
+			temperature REAL DEFAULT 0.7,
+			history_limit INTEGER DEFAULT 10,
+			tool_policy TEXT DEFAULT 'restricted',
+			extends TEXT DEFAULT NULL,
+			usage_count INTEGER DEFAULT 0,
+			last_used TEXT DEFAULT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+
+		CREATE TABLE IF NOT EXISTS custom_tools (
+			name TEXT PRIMARY KEY,
+			description TEXT NOT NULL,
+			parameters TEXT NOT NULL DEFAULT '{}',
+			handler_type TEXT NOT NULL CHECK(handler_type IN ('bash', 'prompt', 'http')),
+			handler_config TEXT NOT NULL DEFAULT '{}',
+			created_by TEXT DEFAULT '',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+
+
+		CREATE TABLE IF NOT EXISTS scheduled_tasks (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			cron_expression TEXT NOT NULL,
+			task_text TEXT NOT NULL,
+			mode_id TEXT DEFAULT NULL,
+			origin TEXT DEFAULT 'scheduler',
+			schedule_type TEXT DEFAULT 'cron',
+			enabled INTEGER DEFAULT 1,
+			last_run_at DATETIME DEFAULT NULL,
+			next_run_at DATETIME DEFAULT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+		CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_enabled ON scheduled_tasks(enabled);
 	`);
 
 	// ─── Migrations ───────────────────────────────────────────────────────
@@ -170,6 +211,24 @@ export function getDb(dbPath?: string): Database.Database {
 		_db.exec("ALTER TABLE sub_agents ADD COLUMN history_limit INTEGER DEFAULT 10");
 	} catch {
 		// already exists
+	}
+	try {
+		_db.exec(`
+			CREATE TABLE IF NOT EXISTS saved_messages (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				userId TEXT NOT NULL,
+				chatId TEXT NOT NULL,
+				messageRole TEXT NOT NULL,
+				messageContent TEXT NOT NULL,
+				messageTimestamp TEXT,
+				notes TEXT DEFAULT '',
+				created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+				UNIQUE(userId, chatId, messageRole, messageContent(100))
+			);
+			CREATE INDEX IF NOT EXISTS idx_saved_messages_userId ON saved_messages(userId);
+		`);
+	} catch {
+		/* ignore */
 	}
 
 	logger.info(`[DB] SQLite initialized: ${resolvedPath}`);

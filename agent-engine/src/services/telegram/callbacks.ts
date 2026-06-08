@@ -1,13 +1,15 @@
-import type TelegramBot from "node-telegram-bot-api";
-import { runAgent } from "../agent/runAgent.js";
-import { getOrCreateChannelChat } from "../db/chats.js";
-import { loadConfig } from "../config.js";
+﻿import type TelegramBot from "node-telegram-bot-api";
 import { logger } from "../../utils/logger.js";
+import { runAgent } from "../agent/runAgent.js";
+import { loadConfig } from "../config.js";
+import { getOrCreateChannelChat } from "../db/chats.js";
+import type { BrainClient } from "../brain/client.js";
 
 export async function handleCallbackQuery(
 	query: TelegramBot.CallbackQuery,
 	userIdResolver: (chatId: number, username: string) => string,
-	bot: TelegramBot
+	bot: TelegramBot,
+	brain: BrainClient | null
 ): Promise<void> {
 	if (!query.message || !query.data) return;
 
@@ -15,10 +17,16 @@ export async function handleCallbackQuery(
 	const telegramUsername = query.from?.username ?? query.from?.first_name ?? "Desconocido";
 	const callbackData = query.data;
 
-	logger.info(`👉 Telegram Callback (@${telegramUsername}): ${callbackData}`);
+	logger.info(`🤖 Telegram Callback (@${telegramUsername}): ${callbackData}`);
 
 	// Acknowledge the callback
 	await bot.answerCallbackQuery(query.id);
+
+	if (!brain) {
+		logger.error("Brain not available for callback query");
+		await bot.sendMessage(chatId, "❌ Error: Brain no disponible para procesar la consulta.");
+		return;
+	}
 
 	const effectiveUserId = userIdResolver(chatId, telegramUsername);
 	const config = loadConfig();
@@ -33,9 +41,9 @@ export async function handleCallbackQuery(
 			chatId: channelChat.id,
 			userText: simulatedText,
 			config,
-			brain: null as never, // brain not available here, will be set via initTelegramDeps
+			brain,
 			onStatus: (statusText) => {
-				bot.sendMessage(chatId, `⏳ <i>${statusText}</i>`, {
+				bot.sendMessage(chatId, `🧠 <i>${statusText}</i>`, {
 					parse_mode: "HTML",
 				}).catch(() => {});
 			},

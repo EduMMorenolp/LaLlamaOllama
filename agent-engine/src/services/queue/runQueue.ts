@@ -1,18 +1,18 @@
-import { Redis } from "ioredis";
 import { Queue, QueueEvents, Worker } from "bullmq";
-import type { AgentResult } from "../agent/types.js";
+import { Redis } from "ioredis";
 import { logger } from "../../utils/logger.js";
-import { getRuntimeContext, hasRuntimeContext } from "../runtime.js";
 import { runAgentCore } from "../agent/runAgentCore.js";
+import type { AgentResult } from "../agent/types.js";
 import { appendRunEvent, updateRun } from "../db/runs.js";
 import { publishRunEvent } from "../orchestrator/runEvents.js";
+import { getRuntimeContext, hasRuntimeContext } from "../runtime.js";
 
 export interface QueueAgentRunPayload {
 	runId: number;
 	chatId: string;
 	userText: string;
 	attachments?: Array<{ name: string; type: string; data: string }>;
-	origin?: "web" | "telegram";
+	origin?: string;
 	telegramChatId?: number;
 	skipPersistUserMsg?: boolean;
 }
@@ -39,9 +39,22 @@ function forwardRunEvent(
 	publishRunEvent(runId, type, payload as never);
 }
 
+async function broadcastTaskStatus(runId: number, status: string, extra: Record<string, unknown> = {}) {
+	try {
+		const { getWsServer } = await import("../tools/tool-bridge.js");
+		const wsServer = getWsServer();
+		if (wsServer) {
+			wsServer.sendToAll("task_status" as any, { runId, status, ...extra });
+		}
+	} catch {
+		// ignore - WS server may not be available
+	}
+}
+
 async function processQueuedRun(payload: QueueAgentRunPayload): Promise<AgentResult> {
 	const { config, brain } = getRuntimeContext();
 	updateRun(payload.runId, { status: "running" });
+	broadcastTaskStatus(payload.runId, "running");
 
 	const result = await runAgentCore({
 		chatId: payload.chatId,
@@ -67,6 +80,7 @@ async function processQueuedRun(payload: QueueAgentRunPayload): Promise<AgentRes
 		resultText: result.text,
 		latencyMs: result.latencyMs,
 	});
+	broadcastTaskStatus(payload.runId, "completed");
 	forwardRunEvent(payload.runId, "status", { text: "Run completado" });
 	return result;
 }
@@ -91,15 +105,15 @@ export function ensureRunQueue(): boolean {
 			},
 		});
 		runQueueEvents = new QueueEvents(queueName, { connection: redisConnection as any });
-		runWorker = new Worker(
-			queueName,
-			async (job) => processQueuedRun(job.data as QueueAgentRunPayload),
-			{ connection: redisConnection as any, concurrency: 1 }
-		);
+		runWorker = new Worker(queueName, async (job) => processQueuedRun(job.data as QueueAgentRunPayload), {
+			connection: redisConnection as any,
+			concurrency: 1,
+		});
 
 		runWorker.on("failed", (job, err) => {
 			if (job?.data && typeof job.data === "object") {
 				const payload = job.data as QueueAgentRunPayload;
+				broadcastTaskStatus(payload.runId, "failed", { error: err.message });
 				updateRun(payload.runId, { status: "failed", errorText: err.message });
 				forwardRunEvent(payload.runId, "error", { message: err.message });
 			}
@@ -111,7 +125,9 @@ export function ensureRunQueue(): boolean {
 		return true;
 	} catch (err) {
 		queueReady = false;
-		logger.warn(`[Queue] BullMQ unavailable, falling back to inline execution: ${err instanceof Error ? err.message : String(err)}`);
+		logger.warn(
+			`[Queue] BullMQ unavailable, falling back to inline execution: ${err instanceof Error ? err.message : String(err)}`
+		);
 		return false;
 	}
 }

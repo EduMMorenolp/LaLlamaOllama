@@ -8,7 +8,7 @@ export function registerDelegateTool() {
 			function: {
 				name: "delegate",
 				description:
-					"Recommend delegating a sub-task to a specialized agent. Use when a task is better handled by a domain-specific agent (backend-dev, frontend-dev, docker-ops, etc.) or requires a fresh perspective.",
+					"Recomienda delegar una sub-tarea a un agente especializado. \u00dasala cuando una tarea requiera un dominio espec\u00edfico o una perspectiva diferente.",
 				parameters: {
 					type: "object",
 					properties: {

@@ -1,6 +1,29 @@
-import axios from "axios";
+﻿import axios from "axios";
 import { toolRegistry } from "./registry.js";
 import type { ToolContext } from "./types.js";
+
+// Strip HTML tags and clean up the content for readability
+function htmlToText(html: string): string {
+	// Remove script and style tags and their content
+	let text = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "");
+	text = text.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "");
+	text = text.replace(/<svg[^>]*>[\s\S]*?<\/svg>/gi, "");
+	// Remove all HTML tags
+	text = text.replace(/<[^>]+>/g, " ");
+	// Decode common entities
+	text = text.replace(/&nbsp;/g, " ");
+	text = text.replace(/&amp;/g, "&");
+	text = text.replace(/&lt;/g, "<");
+	text = text.replace(/&gt;/g, ">");
+	text = text.replace(/&quot;/g, '"');
+	text = text.replace(/&#39;/g, "'");
+	text = text.replace(/&[a-z]+;/g, " ");
+	// Remove excessive whitespace
+	text = text.replace(/\s+/g, " ");
+	// Remove excessive newlines
+	text = text.replace(/\n\s*\n\s*\n/g, "\n\n");
+	return text.trim();
+}
 
 export function registerReadUrlTool() {
 	toolRegistry.register({
@@ -9,7 +32,7 @@ export function registerReadUrlTool() {
 			function: {
 				name: "read_url",
 				description:
-					"Fetch the content of a URL and return it as text. Useful for reading web pages, API responses, and documentation.",
+					"Obtiene el contenido de una URL y lo devuelve como texto. \u00datil para leer p\u00e1ginas web, respuestas de API y documentaci\u00f3n.",
 				parameters: {
 					type: "object",
 					properties: {
@@ -38,8 +61,10 @@ export function registerReadUrlTool() {
 				const res = await axios.get(url, {
 					timeout: 15000,
 					headers: {
-						"User-Agent": "LaLlamaOllama-Agent-Engine/1.0",
-						Accept: "text/html,text/plain,application/json,*/*",
+						"User-Agent":
+							"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+						Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+						"Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
 					},
 					responseType: "text",
 					maxRedirects: 5,
@@ -50,6 +75,22 @@ export function registerReadUrlTool() {
 					content = res.data;
 				} else {
 					content = JSON.stringify(res.data, null, 2);
+				}
+
+				// Detect if content is HTML and clean it
+				const isHtml =
+					typeof content === "string" &&
+					(content.trim().startsWith("<!") ||
+						content.trim().startsWith("<html") ||
+						content.includes("<script") ||
+						content.includes("<div"));
+				if (isHtml) {
+					content = htmlToText(content);
+					// If the cleaned text is too short, the HTML stripping might have removed everything
+					// In that case, keep the original but note it's HTML
+					if (content.length < 50) {
+						content = `[HTML content - could not parse meaningfully]\nRaw: ${res.data.substring(0, maxLength)}`;
+					}
 				}
 
 				if (content.length > maxLength) {

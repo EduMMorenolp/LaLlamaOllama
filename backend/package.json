@@ -1,6 +1,6 @@
 {
 	"name": "lallama-station-backend",
-	"version": "0.4.0",
+	"version": "1.0.0",
 	"type": "module",
 	"description": "Modular Backend Server for Ollama with API Key auth",
 	"main": "dist/main.js",
