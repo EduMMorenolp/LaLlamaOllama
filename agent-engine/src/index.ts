@@ -156,41 +156,40 @@ Tienes acceso a buscar en internet, consultar el clima, traducir texto, hacer c�
 				last_used: null,
 			});
 			upsertMode({
-				name: "desarrollador",
-				label: "👨‍💻 Desarrollador",
-				system_prompt: `Eres LaLlama, un asistente de desarrollo con acceso completo al sistema.
+				name: "coach-personal",
+				label: "🧘 Coach Personal",
+				system_prompt: `Eres LaLlama, un coach personal empático y motivador.
 
-Puedes leer, escribir y editar archivos, ejecutar comandos, buscar en el código fuente y delegar tareas.
+Tu propósito es ayudar al usuario con su bienestar, rutinas diarias,
+desarrollo personal y organización personal.
 
-# Reglas
-- Analiza el contexto antes de modificar código.
-- Mantén el estilo y arquitectura existentes.
-- Prefiere cambios mínimos y consistentes.
-- No rompas el proyecto existente.`,
+# Estilo
+- Sé cálido, alentador y positivo.
+- Ofrece sugerencias prácticas, no solo teoría.
+- Adapta tu tono a las necesidades emocionales del usuario.
+
+# Capacidades
+- Ayudas a crear y mantener rutinas saludables.
+- Registras pensamientos, reflexiones y estados de ánimo.
+- Propones ejercicios de mindfulness, productividad y bienestar.
+- Envías recordatorios y seguimientos.`,
 				tools: [
-					"bash",
-					"read_file",
-					"write_file",
-					"edit_file",
-					"glob",
-					"grep",
-					"read_url",
-					"web_search",
-					"calc",
-					"delegate",
 					"memorize",
 					"recall",
 					"get_context",
-					"notify_frontend",
-					"notify_telegram",
 					"create_task",
 					"cancel_task",
 					"schedule_task",
+					"notify_telegram",
+					"notify_frontend",
+					"web_search",
+					"weather",
+					"calc",
 				],
 				model: config.defaultModel,
 				temperature: 0.7,
 				history_limit: 20,
-				tool_policy: "auto",
+				tool_policy: "restricted",
 				extends: null,
 				usage_count: 0,
 				last_used: null,
@@ -198,15 +197,26 @@ Puedes leer, escribir y editar archivos, ejecutar comandos, buscar en el código
 			upsertMode({
 				name: "investigador",
 				label: "🔍 Investigador",
-				system_prompt: `Eres LaLlama, un asistente especializado en investigación y análisis.
+				system_prompt: `Eres LaLlama, un asistente especializado en investigación y análisis profundo.
 
-Tu fortaleza es buscar información en profundidad, analizar documentos, resumir hallazgos y guardar conocimiento en la memoria del sistema.`,
+Tu fortaleza es buscar información en profundidad —tanto en internet como
+en documentos locales—, analizar hallazgos, contrastar fuentes, resumir
+y guardar conocimiento estructurado en el sistema.
+
+# Metodología
+1. Primero busca en la base de conocimiento local (knowledge_search).
+2. Complementa con búsqueda web y lectura de URLs.
+3. Analiza documentos locales con read_file, glob y grep.
+4. Contrasta fuentes y señala discrepancias.
+5. Guarda hallazgos importantes en memoria.`,
 				tools: [
+					"knowledge_search",
 					"web_search",
 					"read_url",
-					"weather",
+					"read_file",
+					"glob",
+					"grep",
 					"translate",
-					"knowledge_search",
 					"calc",
 					"recall",
 					"memorize",
@@ -217,7 +227,7 @@ Tu fortaleza es buscar información en profundidad, analizar documentos, resumir
 				],
 				model: config.defaultModel,
 				temperature: 0.3,
-				history_limit: 15,
+				history_limit: 20,
 				tool_policy: "auto",
 				extends: null,
 				usage_count: 0,
