@@ -16,9 +16,9 @@ import { toolRegistry } from "./services/tools/registry.js";
 import { logger } from "./utils/logger.js";
 
 async function bootstrap() {
-	logger.info("â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—");
-	logger.info("â•‘     Agent Engine - Autonomous Coding Agent   â•‘");
-	logger.info("â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
+	logger.info("╔═══════════════════════════════════════════════════════════╗");
+	logger.info("║     Agent Engine - Autonomous Coding Agent   ║");
+	logger.info("╚═══════════════════════════════════════════════════════════╝");
 
 	// 1. Validate environment
 	validateEnv();
@@ -75,7 +75,7 @@ async function bootstrap() {
 
 	// 8. Load Telegram config from DB (persists frontend settings across restarts)
 	try {
-		// Token solo se carga de DB si el .env no trae uno vÃ¡lido
+		// Token solo se carga de DB si el .env no trae uno válido
 		if (!config.telegramBotToken || config.telegramBotToken === "123456:ABCDEF") {
 			const savedToken = getSetting("telegram_bot_token");
 			if (savedToken) {
@@ -124,18 +124,18 @@ async function bootstrap() {
 			logger.info("[Modes] Seeding default modes...");
 			upsertMode({
 				name: "asistente",
-				label: "ðŸ§‘ Asistente",
+				label: "🧑 Asistente",
 				system_prompt: `Eres LaLlama, un asistente conversacional amigable y capaz.
 
-Tu objetivo es ayudar al usuario con lo que necesite: conversaciÃ³n casual, buscar informaciÃ³n en internet, responder preguntas y gestionar tareas simples.
+Tu objetivo es ayudar al usuario con lo que necesite: conversación casual, buscar información en internet, responder preguntas y gestionar tareas simples.
 
 # Estilo
-- Responde siempre en espaÃ±ol, natural y conversacional.
-- SÃ© claro, directo y adapta tu tono al del usuario.
-- Usa markdown para mejorar legibilidad cuando sea Ãºtil.
+- Responde siempre en español, natural y conversacional.
+- Sé claro, directo y adapta tu tono al del usuario.
+- Usa markdown para mejorar legibilidad cuando sea útil.
 
 # Herramientas
-Tienes acceso a buscar en internet, consultar el clima, traducir texto, hacer cÃ¡lculos y usar la memoria del sistema.`,
+Tienes acceso a buscar en internet, consultar el clima, traducir texto, hacer cálculos y usar la memoria del sistema.`,
 				tools: ["web_search", "read_url", "weather", "translate", "calc", "recall", "get_context", "memorize", "notify_frontend", "create_task", "cancel_task"],
 				model: config.defaultModel,
 				temperature: 0.7,
@@ -147,15 +147,15 @@ Tienes acceso a buscar en internet, consultar el clima, traducir texto, hacer c�
 			});
 			upsertMode({
 				name: "desarrollador",
-				label: "ðŸ‘¨â€ðŸ’» Desarrollador",
+				label: "👨‍💻 Desarrollador",
 				system_prompt: `Eres LaLlama, un asistente de desarrollo con acceso completo al sistema.
 
-Puedes leer, escribir y editar archivos, ejecutar comandos, buscar en el cÃ³digo fuente y delegar tareas.
+Puedes leer, escribir y editar archivos, ejecutar comandos, buscar en el código fuente y delegar tareas.
 
 # Reglas
-- Analiza el contexto antes de modificar cÃ³digo.
-- MantÃ©n el estilo y arquitectura existentes.
-- Prefiere cambios mÃ­nimos y consistentes.
+- Analiza el contexto antes de modificar código.
+- Mantén el estilo y arquitectura existentes.
+- Prefiere cambios mínimos y consistentes.
 - No rompas el proyecto existente.`,
 				tools: ["bash", "read_file", "write_file", "edit_file", "glob", "grep", "read_url", "web_search", "calc", "delegate", "memorize", "recall", "get_context", "notify_frontend", "notify_telegram", "create_task", "cancel_task", "schedule_task"],
 				model: config.defaultModel,
@@ -168,10 +168,10 @@ Puedes leer, escribir y editar archivos, ejecutar comandos, buscar en el cÃ³di
 			});
 			upsertMode({
 				name: "investigador",
-				label: "ðŸ” Investigador",
-				system_prompt: `Eres LaLlama, un asistente especializado en investigaciÃ³n y anÃ¡lisis.
+				label: "🔍 Investigador",
+				system_prompt: `Eres LaLlama, un asistente especializado en investigación y análisis.
 
-Tu fortaleza es buscar informaciÃ³n en profundidad, analizar documentos, resumir hallazgos y guardar conocimiento en la memoria del sistema.`,
+Tu fortaleza es buscar información en profundidad, analizar documentos, resumir hallazgos y guardar conocimiento en la memoria del sistema.`,
 				tools: ["web_search", "read_url", "weather", "translate", "knowledge_search", "calc", "recall", "memorize", "get_context", "notify_frontend", "create_task", "cancel_task"],
 				model: config.defaultModel,
 				temperature: 0.3,
@@ -184,22 +184,22 @@ Tu fortaleza es buscar informaciÃ³n en profundidad, analizar documentos, resum
 			// Always seed the evolutivo mode (meta-programming)
 			upsertMode({
 				name: "evolutivo",
-				label: "ðŸ§¬ Evolutivo",
-				system_prompt: `Eres LaLlama en modo EVOLUTIVO. Tu propÃ³sito es crear, modificar y gestionar herramientas personalizadas.
+				label: "🧬 Evolutivo",
+				system_prompt: `Eres LaLlama en modo EVOLUTIVO. Tu propósito es crear, modificar y gestionar herramientas personalizadas.
 
 Tienes acceso exclusivo a meta-herramientas que te permiten extender las capacidades del sistema:
 
 - create_tool: Crear nuevas herramientas personalizadas (bash/http/prompt)
 - edit_tool: Modificar herramientas existentes
-- delete_tool: Eliminar herramientas (requiere confirmaciÃ³n)
-- test_tool: Probar herramientas con parÃ¡metros de ejemplo
+- delete_tool: Eliminar herramientas (requiere confirmación)
+- test_tool: Probar herramientas con parámetros de ejemplo
 - list_custom_tools: Listar todas las herramientas personalizadas
 - export_tool: Exportar herramientas como JSON
 - import_tool: Importar herramientas desde JSON
 
 # Directrices
-- Cuando un usuario te pida crear una herramienta, primero entiende QUÃ‰ necesita, luego diseÃ±ala y crÃ©ala.
-- Usa descripciones claras para que otros modos sepan cuÃ¡ndo usar la herramienta.
+- Cuando un usuario te pida crear una herramienta, primero entiende QUÉ necesita, luego diseña y créala.
+- Usa descripciones claras para que otros modos sepan cuándo usar la herramienta.
 - Siempre prueba las herramientas que crees con test_tool antes de darlas por terminadas.
 - Puedes crear herramientas de tipo:
   * bash: Para comandos de shell (git, sistema, archivos)

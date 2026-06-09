@@ -380,16 +380,27 @@ export const AgentChat: React.FC = () => {
 				if (tools && Array.isArray(tools)) {
 					const toolsText = tools
 						.filter((t) => t?.function?.name)
-						.map((t) => `- **${t.function.name}**: ${t.function.description || "Sin descripciï¿½n"}`)
+						.map((t) => `- **${t.function.name}**: ${t.function.description || "Sin descripción"}`)
 						.join("\n");
-					setMessages((prev) => [
-						...prev,
-						{
-							role: "system",
-							content: `**Herramientas disponibles (${tools.length}):**\n\n${toolsText}`,
-							timestamp: new Date(),
-						},
-					]);
+					setMessages((prev) => {
+						if (prev.length > 0 && prev[prev.length - 1].content.startsWith("**Herramientas disponibles")) {
+							const updated = [...prev];
+							updated[updated.length - 1] = {
+								role: "system",
+								content: `**Herramientas disponibles (${tools.length}):**\n\n${toolsText}`,
+								timestamp: new Date(),
+							};
+							return updated;
+						}
+						return [
+							...prev,
+							{
+								role: "system",
+								content: `**Herramientas disponibles (${tools.length}):**\n\n${toolsText}`,
+								timestamp: new Date(),
+							},
+						];
+					});
 				}
 				break;
 			}
@@ -397,26 +408,45 @@ export const AgentChat: React.FC = () => {
 			case "ollama_models": {
 				const models = msg.payload?.models as Array<{ name: string }>;
 				if (models && Array.isArray(models)) {
-					if (models.length === 0) {
-						setMessages((prev) => [
-							...prev,
-							{
-								role: "system",
-								content: "No se encontraron modelos en Ollama.",
-								timestamp: new Date(),
-							},
-						]);
-					} else {
+					setMessages((prev) => {
+						if (prev.length > 0 && (prev[prev.length - 1].content.startsWith("**Modelos disponibles en Ollama") || prev[prev.length - 1].content === "No se encontraron modelos en Ollama.")) {
+							const updated = [...prev];
+							if (models.length === 0) {
+								updated[updated.length - 1] = {
+									role: "system",
+									content: "No se encontraron modelos en Ollama.",
+									timestamp: new Date(),
+								};
+							} else {
+								const modelsText = models.map((m: { name: string }) => `- **${m.name}**`).join("\n");
+								updated[updated.length - 1] = {
+									role: "system",
+									content: `**Modelos disponibles en Ollama (${models.length}):**\n\n${modelsText}\n\nUsa \`/cambioModelo <nombre>\` para cambiar el modelo activo.`,
+									timestamp: new Date(),
+								};
+							}
+							return updated;
+						}
+						if (models.length === 0) {
+							return [
+								...prev,
+								{
+									role: "system",
+									content: "No se encontraron modelos en Ollama.",
+									timestamp: new Date(),
+								},
+							];
+						}
 						const modelsText = models.map((m: { name: string }) => `- **${m.name}**`).join("\n");
-						setMessages((prev) => [
+						return [
 							...prev,
 							{
 								role: "system",
 								content: `**Modelos disponibles en Ollama (${models.length}):**\n\n${modelsText}\n\nUsa \`/cambioModelo <nombre>\` para cambiar el modelo activo.`,
 								timestamp: new Date(),
 							},
-						]);
-					}
+						];
+					});
 				}
 				break;
 			}
@@ -960,7 +990,7 @@ export const AgentChat: React.FC = () => {
 							}}
 						>
 							{filteredCount > 0
-								? `ðŸ” ${filteredCount} resultado${filteredCount === 1 ? "" : "s"}`
+								? `🔍 ${filteredCount} resultado${filteredCount === 1 ? "" : "s"}`
 								: "Sin resultados"}
 						</span>
 					)}
@@ -1063,14 +1093,15 @@ export const AgentChat: React.FC = () => {
 									fontSize: "13px",
 								}}
 							>
-								Chat vacÃ­o. EnvÃ­a un mensaje para empezar.
+								Chat vacío. Envía un mensaje para empezar.
 							</div>
 						)}
 						{filteredMessageIndices.map(({ msg, i }) => {
+							const msgKey = msg.timestamp?.getTime()?.toString(36) || `msg-${i}`;
 							if (editingIndex === i) {
 								return (
 									<div
-										key={i}
+										key={msgKey}
 										style={{
 											display: "flex",
 											flexDirection: "column",
@@ -1167,7 +1198,7 @@ export const AgentChat: React.FC = () => {
 							}
 							return (
 								<MessageBubble
-									key={i}
+									key={msgKey}
 									message={msg}
 									index={i}
 									onEdit={handleStartEdit}
@@ -1221,7 +1252,7 @@ export const AgentChat: React.FC = () => {
 								{!collapsedTools &&
 									currentToolCalls.map((tc, i) => (
 										<div
-											key={i}
+											key={`tc-${tc.toolName}-${i}`}
 											style={{
 												display: "flex",
 												alignItems: "flex-start",

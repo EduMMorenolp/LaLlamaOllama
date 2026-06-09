@@ -211,10 +211,9 @@ export const Memoria: React.FC = () => {
 							cursor: "pointer",
 							fontSize: "10px",
 							fontWeight: 600,
-							textTransform: "capitalize",
 						}}
 					>
-						{mode}
+						{mode === "semantic" ? "Semántica" : mode === "lexical" ? "Léxica" : "Híbrida"}
 					</button>
 				))}
 			</div>

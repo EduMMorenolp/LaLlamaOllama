@@ -7,6 +7,23 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 
 ## [Unreleased]
 
+### 🐛 Corrección de bugs y encoding (2026-06-09)
+
+#### Agent Engine
+- **🐛 Fix: Knowledge Upload 401** — Agregado `req.path.startsWith("/knowledge/")` a las exclusiones del `authMiddleware` en `api.ts:50` para que el upload de archivos funcione sin API key
+- **🐛 Fix: Emojis corruptos en labels por defecto** — Reemplazadas secuencias UTF-8 corruptas (`ðŸ§‘` → `🧑`, `ðŸ‘¨â€ðŸ’»` → `👨‍💻`, `ðŸ”` → `🔍`, `ðŸ§¬` → `🧬`) y acentos ilegibles en todos los `system_prompt` de los modos por defecto en `index.ts`
+- **🔧 `.env.example` actualizado** — `API_KEY` por defecto cambiado a `super-secret-mcp-key` para coincidir con docker-compose
+
+#### Agent Frontend
+- **🐛 Fix: Tareas `/api/runs/undefined`** — `task_created` WS handler ahora mapea correctamente `runId` → `id`, `text` → `userText` y setea valores por defecto en `Tareas.tsx`
+- **🐛 Fix: Memoria "semanticlexicalhybrid"** — Botones de modo de búsqueda ahora muestran etiquetas legibles: "Semántica", "Léxica", "Híbrida"
+- **🐛 Fix: Chat mensajes repetidos** — Handlers `tools_list` y `ollama_models` actualizan el último mensaje system en lugar de duplicarlo; keys únicas en vez de `key={i}` para evitar duplicados de renderizado
+- **🐛 Fix: Emojis y caracteres corruptos** — Corregidos emoji `🔍` y texto "Chat vacío" en `AgentChat.tsx`
+- **🔧 `.env.example` actualizado** — `VITE_API_KEY` descomentado con valor `super-secret-mcp-key`
+
+#### Frontend
+- **🐛 Fix: Chat keys duplicadas** — Reemplazado `key={i}` por clave única basada en timestamp en `AgentChat.tsx`
+
 ## [1.0.0] - 2026-06-07
 
 ### 🚀 Versión estable 1.0.0

@@ -167,8 +167,15 @@ export const Tareas: React.FC = () => {
   useEffect(() => {
     const unsub = subscribe((msg: { type: string; payload?: Record<string, unknown> }) => {
       switch (msg.type) {
-        case "task_created": {
-          const task = msg.payload as unknown as Run;
+		case "task_created": {
+          const p = (msg.payload || {}) as Record<string, unknown>;
+          const task: Run = {
+            id: Number(p.runId),
+            chatId: (p.chatId as string) || "",
+            userText: (p.text as string) || "",
+            origin: "web",
+            status: (p.status as string) || "queued",
+          };
           setRuns((prev) => [task, ...prev]);
           showToast("Nueva tarea creada", "success");
           break;

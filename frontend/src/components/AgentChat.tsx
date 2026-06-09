@@ -468,7 +468,7 @@ export const AgentChat: React.FC = () => {
 					}}
 				>
 					{messages.map((msg, i) => (
-						<MessageBubble key={i} message={msg} />
+						<MessageBubble key={msg.timestamp?.getTime()?.toString(36) || `msg-${i}`} message={msg} />
 					))}
 
 					{currentToolCalls.length > 0 && (

@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### 🐛 Corrección de bugs y encoding
+
+#### Corregido
+- **🐛 Fix: Tareas `/api/runs/undefined`** — `task_created` WS handler ahora mapea correctamente `runId` → `id`, `text` → `userText` y setea valores por defecto
+- **🐛 Fix: Memoria "semanticlexicalhybrid"** — Botones de modo de búsqueda ahora muestran etiquetas legibles: "Semántica", "Léxica", "Híbrida"
+- **🐛 Fix: Chat mensajes repetidos** — Handlers `tools_list` y `ollama_models` actualizan el último mensaje system en lugar de duplicarlo; keys únicas en vez de `key={i}` para evitar duplicados de renderizado
+- **🐛 Fix: Emojis y caracteres corruptos** — Corregidos emoji `🔍` y texto "Chat vacío" en `AgentChat.tsx`
+
+#### Cambiado
+- **🔧 `.env.example` actualizado** — `VITE_API_KEY` descomentado con valor `super-secret-mcp-key`
+
 ## [1.0.0] — 2026-06-07
 
 ### 🚀 Versión estable 1.0.0

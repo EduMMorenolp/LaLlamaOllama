@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### 🐛 Corrección de bugs y encoding
+
+#### Corregido
+- **🐛 Fix: Knowledge Upload 401** — Agregado `/knowledge/` a las exclusiones del `authMiddleware` en `api.ts` para que el upload de archivos funcione sin API key
+- **🐛 Fix: Emojis corruptos en labels de modos por defecto** — Reemplazadas secuencias UTF-8 corruptas por caracteres reales: `🧑 Asistente`, `👨‍💻 Desarrollador`, `🔍 Investigador`, `🧬 Evolutivo`. También corregidos todos los acentos ilegibles en los `system_prompt`
+
+#### Cambiado
+- **🔧 `.env.example` actualizado** — `API_KEY` por defecto cambiado a `super-secret-mcp-key` para coincidir con docker-compose
+
 ## [1.0.0] — 2026-06-07
 
 ### 🚀 Versión estable 1.0.0

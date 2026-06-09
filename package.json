@@ -8,7 +8,6 @@
 		"test": "test"
 	},
 	"scripts": {
-		"test": "echo \"Error: no test specified\" && exit 1",
 		"lint": "biome lint .",
 		"format": "biome format .",
 		"format:check": "biome format --check .",
@@ -16,15 +15,15 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/EduMMorenolp/MPC-Ollama-Local.git"
+		"url": "git+https://github.com/EduMMorenolp/LaLlamaOllama.git"
 	},
 	"keywords": [],
 	"author": "Eduardo Moreno",
 	"license": "MIT",
 	"bugs": {
-		"url": "https://github.com/EduMMorenolp/MPC-Ollama-Local/issues"
+		"url": ""
 	},
-	"homepage": "https://github.com/EduMMorenolp/MPC-Ollama-Local#readme",
+	"homepage": "https://github.com/EduMMorenolp/LaLlamaOllama#readme",
 	"dependencies": {
 		"axios": "^1.13.5"
 	},

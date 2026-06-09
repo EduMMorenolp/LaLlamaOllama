@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### 🐛 Corrección de bugs
+
+#### Corregido
+- **🐛 Fix: Chat keys duplicadas** — Reemplazado `key={i}` por clave única basada en timestamp en `AgentChat.tsx` para evitar duplicados de renderizado
+
 ## [1.0.0] — 2026-06-07
 
 ### 🚀 Versión estable 1.0.0

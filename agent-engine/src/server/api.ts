@@ -47,7 +47,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient) {
 	app.use("/api", apiLimiter);
 
 	function authMiddleware(req: Request, res: Response, next: NextFunction) {
-		if (req.path === "/health" || req.path.startsWith("/memory/")) return next();
+		if (req.path === "/health" || req.path.startsWith("/memory/") || req.path.startsWith("/knowledge/")) return next();
 		const apiKey = req.headers["x-api-key"] as string;
 		if (!apiKey || apiKey !== config.apiKey) {
 			res.status(401).json({ error: "Unauthorized: invalid or missing API key" });
