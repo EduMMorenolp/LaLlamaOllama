@@ -24,8 +24,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { useWs } from "../contexts/WebSocketContext";
 import { useToast } from "../contexts/ToastContext";
+import { useWs } from "../contexts/WebSocketContext";
 import { ConfirmModal } from "./ConfirmModal";
 
 // Types
@@ -153,11 +153,11 @@ export const AgentChat: React.FC = () => {
 	const [showCommands, setShowCommands] = useState(false);
 	const [commandFilter, setCommandFilter] = useState("");
 	const [selectedCmdIndex, setSelectedCmdIndex] = useState(0);
-  const [showNewTaskModal, setShowNewTaskModal] = useState(false);
-  const [newTaskText, setNewTaskText] = useState("");
+	const [showNewTaskModal, setShowNewTaskModal] = useState(false);
+	const [newTaskText, setNewTaskText] = useState("");
 
 	const { connected, send: sendWs, subscribe } = useWs();
-  const { show: showToast } = useToast();
+	const { show: showToast } = useToast();
 
 	const scrollToBottom = () => {
 		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -165,7 +165,7 @@ export const AgentChat: React.FC = () => {
 
 	useEffect(() => {
 		scrollToBottom();
-	}, [messages, currentToolCalls]);
+	}, [scrollToBottom]);
 
 	// Keep messageQueueRef in sync
 	useEffect(() => {
@@ -327,7 +327,7 @@ export const AgentChat: React.FC = () => {
 				const savedChatId = msg.payload?.chatId as string;
 				const savedContent = msg.payload?.messageContent as string;
 				if (savedChatId && savedContent) {
-					const key = savedChatId + "|" + savedContent.substring(0, 50);
+					const key = `${savedChatId}|${savedContent.substring(0, 50)}`;
 					setSavedMessages((prev) => new Set(prev).add(key));
 				}
 				break;
@@ -337,7 +337,7 @@ export const AgentChat: React.FC = () => {
 				const unsavedChatId = msg.payload?.chatId as string;
 				const unsavedContent = msg.payload?.messageContent as string;
 				if (unsavedChatId && unsavedContent) {
-					const key = unsavedChatId + "|" + unsavedContent.substring(0, 50);
+					const key = `${unsavedChatId}|${unsavedContent.substring(0, 50)}`;
 					setSavedMessages((prev) => {
 						const next = new Set(prev);
 						next.delete(key);
@@ -352,7 +352,7 @@ export const AgentChat: React.FC = () => {
 				const statusContent = msg.payload?.messageContent as string;
 				const isSaved = msg.payload?.saved as boolean;
 				if (statusChatId && statusContent) {
-					const key = statusChatId + "|" + statusContent.substring(0, 50);
+					const key = `${statusChatId}|${statusContent.substring(0, 50)}`;
 					setSavedMessages((prev) => {
 						const next = new Set(prev);
 						if (isSaved) {
@@ -409,7 +409,11 @@ export const AgentChat: React.FC = () => {
 				const models = msg.payload?.models as Array<{ name: string }>;
 				if (models && Array.isArray(models)) {
 					setMessages((prev) => {
-						if (prev.length > 0 && (prev[prev.length - 1].content.startsWith("**Modelos disponibles en Ollama") || prev[prev.length - 1].content === "No se encontraron modelos en Ollama.")) {
+						if (
+							prev.length > 0 &&
+							(prev[prev.length - 1].content.startsWith("**Modelos disponibles en Ollama") ||
+								prev[prev.length - 1].content === "No se encontraron modelos en Ollama.")
+						) {
 							const updated = [...prev];
 							if (models.length === 0) {
 								updated[updated.length - 1] = {
@@ -481,33 +485,32 @@ export const AgentChat: React.FC = () => {
 				// Update sidebar lastMessage for this chat
 				if (content) {
 					setChannelChats((prev) =>
-						prev.map((c) =>
-							c.id === msgChatId ? { ...c, lastMessage: content.substring(0, 80) } : c
-							)
-					)
+						prev.map((c) => (c.id === msgChatId ? { ...c, lastMessage: content.substring(0, 80) } : c))
+					);
 				}
 				break;
 			}
 
-            case "mode_changed": {
-                const modeLabel = (msg.payload?.label as string) || ((msg.payload?.mode as Record<string, string>)?.["name"]) || "";
-                const resetSession = msg.payload?.resetSession === true;
-                if (resetSession) {
-                    setMessages([]);
-                    setCurrentChatId(null);
-                }
-                if (modeLabel) {
-                    setMessages((prev) => [
-                        ...prev,
-                        {
-                            role: "system" as ChatMessage["role"],
-                            content: "?? Modo cambiado a " + modeLabel + ". " + (resetSession ? "La sesi\u00f3n se ha reiniciado." : ""),
-                            timestamp: new Date(),
-                        },
-                    ]);
-                }
-                break;
-            }
+			case "mode_changed": {
+				const modeLabel =
+					(msg.payload?.label as string) || (msg.payload?.mode as Record<string, string>)?.name || "";
+				const resetSession = msg.payload?.resetSession === true;
+				if (resetSession) {
+					setMessages([]);
+					setCurrentChatId(null);
+				}
+				if (modeLabel) {
+					setMessages((prev) => [
+						...prev,
+						{
+							role: "system" as ChatMessage["role"],
+							content: `?? Modo cambiado a ${modeLabel}. ${resetSession ? "La sesi\u00f3n se ha reiniciado." : ""}`,
+							timestamp: new Date(),
+						},
+					]);
+				}
+				break;
+			}
 		}
 	};
 
@@ -604,7 +607,7 @@ export const AgentChat: React.FC = () => {
 			setShowCommands(false);
 			return true;
 		},
-		[sendMessage, sendWs]
+		[sendMessage, sendWs, COMMANDS.map, COMMANDS.find]
 	);
 
 	const handleSend = useCallback(() => {
@@ -868,7 +871,7 @@ export const AgentChat: React.FC = () => {
 						Model: {model}
 					</span>
 				)}
-					{(totalPromptTokens > 0 || totalCompletionTokens > 0) && (
+				{(totalPromptTokens > 0 || totalCompletionTokens > 0) && (
 					<span style={{ fontSize: "10px", color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
 						Tokens: {totalPromptTokens + totalCompletionTokens}
 					</span>
@@ -969,7 +972,6 @@ export const AgentChat: React.FC = () => {
 						value={chatSearchQuery}
 						onChange={(e) => setChatSearchQuery(e.target.value)}
 						placeholder="Buscar en mensajes..."
-						autoFocus
 						style={{
 							flex: 1,
 							background: "transparent",
@@ -1130,7 +1132,6 @@ export const AgentChat: React.FC = () => {
 														handleCancelEdit();
 													}
 												}}
-												autoFocus
 												style={{
 													width: "100%",
 													background: "rgba(255,255,255,0.1)",
@@ -1216,7 +1217,7 @@ export const AgentChat: React.FC = () => {
 										});
 									}}
 									isSaved={savedMessages.has(
-										(currentChatId || "dashboard") + "|" + msg.content.substring(0, 50)
+										`${currentChatId || "dashboard"}|${msg.content.substring(0, 50)}`
 									)}
 								/>
 							);
@@ -1913,11 +1914,22 @@ export const AgentChat: React.FC = () => {
 						}}
 						onClick={(e) => e.stopPropagation()}
 					>
-						<h3 style={{ margin: "0 0 16px", fontSize: "16px", fontWeight: 700, color: "var(--text-main)" }}>
+						<h3
+							style={{ margin: "0 0 16px", fontSize: "16px", fontWeight: 700, color: "var(--text-main)" }}
+						>
 							Nueva Tarea
 						</h3>
 						<div style={{ marginBottom: "16px" }}>
-							<label style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", display: "block", marginBottom: "4px" }}>
+							<label
+								style={{
+									fontSize: "10px",
+									fontWeight: 600,
+									color: "var(--text-muted)",
+									textTransform: "uppercase",
+									display: "block",
+									marginBottom: "4px",
+								}}
+							>
 								Descripci\u00F3n de la tarea
 							</label>
 							<textarea
@@ -1925,7 +1937,6 @@ export const AgentChat: React.FC = () => {
 								onChange={(e) => setNewTaskText(e.target.value)}
 								placeholder="Describe la tarea a ejecutar..."
 								rows={4}
-								autoFocus
 								style={{
 									width: "100%",
 									background: "rgba(255,255,255,0.03)",
@@ -2053,7 +2064,6 @@ export const AgentChat: React.FC = () => {
 								if (e.key === "Enter") handleRenameChat(chat.id);
 								if (e.key === "Escape") setRenamingChat(null);
 							}}
-							autoFocus
 							style={{
 								flex: 1,
 								background: "rgba(255,255,255,0.05)",
@@ -2421,4 +2431,3 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 		</div>
 	);
 };
-

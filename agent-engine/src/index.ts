@@ -114,8 +114,6 @@ async function bootstrap() {
 		logger.info("[Telegram] No token configured. Skipping.");
 	}
 
-
-
 	// 12. Seed default modes and apply active mode
 	try {
 		const { listModes, upsertMode, getActiveMode, setActiveMode } = await import("./services/db/modes.js");
@@ -136,7 +134,19 @@ Tu objetivo es ayudar al usuario con lo que necesite: conversación casual, busc
 
 # Herramientas
 Tienes acceso a buscar en internet, consultar el clima, traducir texto, hacer cálculos y usar la memoria del sistema.`,
-				tools: ["web_search", "read_url", "weather", "translate", "calc", "recall", "get_context", "memorize", "notify_frontend", "create_task", "cancel_task"],
+				tools: [
+					"web_search",
+					"read_url",
+					"weather",
+					"translate",
+					"calc",
+					"recall",
+					"get_context",
+					"memorize",
+					"notify_frontend",
+					"create_task",
+					"cancel_task",
+				],
 				model: config.defaultModel,
 				temperature: 0.7,
 				history_limit: 10,
@@ -157,7 +167,26 @@ Puedes leer, escribir y editar archivos, ejecutar comandos, buscar en el código
 - Mantén el estilo y arquitectura existentes.
 - Prefiere cambios mínimos y consistentes.
 - No rompas el proyecto existente.`,
-				tools: ["bash", "read_file", "write_file", "edit_file", "glob", "grep", "read_url", "web_search", "calc", "delegate", "memorize", "recall", "get_context", "notify_frontend", "notify_telegram", "create_task", "cancel_task", "schedule_task"],
+				tools: [
+					"bash",
+					"read_file",
+					"write_file",
+					"edit_file",
+					"glob",
+					"grep",
+					"read_url",
+					"web_search",
+					"calc",
+					"delegate",
+					"memorize",
+					"recall",
+					"get_context",
+					"notify_frontend",
+					"notify_telegram",
+					"create_task",
+					"cancel_task",
+					"schedule_task",
+				],
 				model: config.defaultModel,
 				temperature: 0.7,
 				history_limit: 20,
@@ -172,7 +201,20 @@ Puedes leer, escribir y editar archivos, ejecutar comandos, buscar en el código
 				system_prompt: `Eres LaLlama, un asistente especializado en investigación y análisis.
 
 Tu fortaleza es buscar información en profundidad, analizar documentos, resumir hallazgos y guardar conocimiento en la memoria del sistema.`,
-				tools: ["web_search", "read_url", "weather", "translate", "knowledge_search", "calc", "recall", "memorize", "get_context", "notify_frontend", "create_task", "cancel_task"],
+				tools: [
+					"web_search",
+					"read_url",
+					"weather",
+					"translate",
+					"knowledge_search",
+					"calc",
+					"recall",
+					"memorize",
+					"get_context",
+					"notify_frontend",
+					"create_task",
+					"cancel_task",
+				],
 				model: config.defaultModel,
 				temperature: 0.3,
 				history_limit: 15,
@@ -206,11 +248,23 @@ Tienes acceso exclusivo a meta-herramientas que te permiten extender las capacid
   * http: Para APIs externas (clima, noticias, datos)
   * prompt: Para plantillas de prompts reutilizables`,
 				tools: [
-					"create_tool", "edit_tool", "delete_tool", "test_tool",
-					"list_custom_tools", "export_tool", "import_tool",
-					"web_search", "read_url", "bash", "read_file",
-					"memorize", "recall", "get_context",
-					"create_task", "cancel_task", "schedule_task",
+					"create_tool",
+					"edit_tool",
+					"delete_tool",
+					"test_tool",
+					"list_custom_tools",
+					"export_tool",
+					"import_tool",
+					"web_search",
+					"read_url",
+					"bash",
+					"read_file",
+					"memorize",
+					"recall",
+					"get_context",
+					"create_task",
+					"cancel_task",
+					"schedule_task",
 				],
 				model: config.defaultModel,
 				temperature: 0.5,
@@ -285,4 +339,3 @@ bootstrap().catch((err) => {
 	logger.error(`[Fatal] ${err instanceof Error ? err.message : String(err)}`);
 	process.exit(1);
 });
-

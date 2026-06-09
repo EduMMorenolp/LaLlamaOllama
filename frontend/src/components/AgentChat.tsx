@@ -40,7 +40,9 @@ export const AgentChat: React.FC = () => {
 	const [input, setInput] = useState("");
 	const [isProcessing, setIsProcessing] = useState(false);
 	const [currentToolCalls, setCurrentToolCalls] = useState<ToolCallInfo[]>([]);
-	const [connectionStatus, setConnectionStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected");
+	const [connectionStatus, setConnectionStatus] = useState<"disconnected" | "connecting" | "connected">(
+		"disconnected"
+	);
 	const wsRef = useRef<WebSocket | null>(null);
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -55,7 +57,11 @@ export const AgentChat: React.FC = () => {
 	// ─── Sub-agents state ───────────────────────────────────────────
 	const [agents, setAgents] = useState<SubAgent[]>([]);
 	const [newAgent, setNewAgent] = useState<SubAgent>({
-		name: "", model: "", system_prompt: "", tools: [], temperature: 0.7,
+		name: "",
+		model: "",
+		system_prompt: "",
+		tools: [],
+		temperature: 0.7,
 	});
 	const [showAgentForm, setShowAgentForm] = useState(false);
 
@@ -65,7 +71,7 @@ export const AgentChat: React.FC = () => {
 
 	useEffect(() => {
 		scrollToBottom();
-	}, [messages, currentToolCalls]);
+	}, [scrollToBottom]);
 
 	// Connect WebSocket
 	useEffect(() => {
@@ -165,10 +171,7 @@ export const AgentChat: React.FC = () => {
 			case "tool_call": {
 				const toolName = msg.payload?.toolName as string;
 				const args = msg.payload?.args as Record<string, unknown>;
-				setCurrentToolCalls((prev) => [
-					...prev,
-					{ toolName, args, status: "pending" },
-				]);
+				setCurrentToolCalls((prev) => [...prev, { toolName, args, status: "pending" }]);
 				break;
 			}
 
@@ -187,10 +190,7 @@ export const AgentChat: React.FC = () => {
 
 			case "assistant_done": {
 				const text = msg.payload?.text as string;
-				setMessages((prev) => [
-					...prev,
-					{ role: "assistant", content: text, timestamp: new Date() },
-				]);
+				setMessages((prev) => [...prev, { role: "assistant", content: text, timestamp: new Date() }]);
 				setCurrentToolCalls([]);
 				setIsProcessing(false);
 				break;
@@ -212,10 +212,7 @@ export const AgentChat: React.FC = () => {
 		const text = input.trim();
 		if (!text || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
 
-		setMessages((prev) => [
-			...prev,
-			{ role: "user", content: text, timestamp: new Date() },
-		]);
+		setMessages((prev) => [...prev, { role: "user", content: text, timestamp: new Date() }]);
 		setInput("");
 		setIsProcessing(true);
 		setCurrentToolCalls([]);
@@ -230,9 +227,7 @@ export const AgentChat: React.FC = () => {
 
 	const handleCancel = () => {
 		if (wsRef.current?.readyState === WebSocket.OPEN) {
-			wsRef.current.send(
-				JSON.stringify({ type: "cancel", payload: { chatId: "dashboard" } })
-			);
+			wsRef.current.send(JSON.stringify({ type: "cancel", payload: { chatId: "dashboard" } }));
 		}
 		setIsProcessing(false);
 	};
@@ -426,7 +421,8 @@ export const AgentChat: React.FC = () => {
 								padding: "10px 16px",
 								background: "none",
 								border: "none",
-								borderBottom: activeTab === tab.id ? "2px solid var(--accent)" : "2px solid transparent",
+								borderBottom:
+									activeTab === tab.id ? "2px solid var(--accent)" : "2px solid transparent",
 								color: activeTab === tab.id ? "var(--accent)" : "var(--text-muted)",
 								cursor: "pointer",
 								fontSize: "12px",
@@ -480,7 +476,14 @@ export const AgentChat: React.FC = () => {
 								borderRadius: "8px",
 							}}
 						>
-							<div style={{ fontSize: "11px", fontWeight: 700, color: "var(--accent)", marginBottom: "8px" }}>
+							<div
+								style={{
+									fontSize: "11px",
+									fontWeight: 700,
+									color: "var(--accent)",
+									marginBottom: "8px",
+								}}
+							>
 								<Terminal size={12} style={{ marginRight: "6px" }} />
 								Tool Calls
 							</div>
@@ -495,22 +498,33 @@ export const AgentChat: React.FC = () => {
 										fontSize: "12px",
 									}}
 								>
-									<Wrench size={12} style={{ marginTop: "2px", color: "var(--text-muted)", flexShrink: 0 }} />
+									<Wrench
+										size={12}
+										style={{ marginTop: "2px", color: "var(--text-muted)", flexShrink: 0 }}
+									/>
 									<div style={{ flex: 1 }}>
-										<div style={{ fontWeight: 600, color: "var(--text-main)" }}>
-											{tc.toolName}
-										</div>
+										<div style={{ fontWeight: 600, color: "var(--text-main)" }}>{tc.toolName}</div>
 										<div style={{ color: "var(--text-dim)", fontSize: "11px" }}>
 											{tc.args ? JSON.stringify(tc.args).substring(0, 100) : ""}
 										</div>
 										{tc.status === "done" && (
-											<div style={{ color: "var(--success)", fontSize: "10px", marginTop: "2px" }}>✓ Completed</div>
+											<div
+												style={{ color: "var(--success)", fontSize: "10px", marginTop: "2px" }}
+											>
+												✓ Completed
+											</div>
 										)}
 										{tc.status === "error" && (
-											<div style={{ color: "var(--error)", fontSize: "10px", marginTop: "2px" }}>✗ Failed</div>
+											<div style={{ color: "var(--error)", fontSize: "10px", marginTop: "2px" }}>
+												✗ Failed
+											</div>
 										)}
 										{tc.status === "pending" && (
-											<div style={{ color: "var(--warning)", fontSize: "10px", marginTop: "2px" }}>⟳ Running...</div>
+											<div
+												style={{ color: "var(--warning)", fontSize: "10px", marginTop: "2px" }}
+											>
+												⟳ Running...
+											</div>
 										)}
 									</div>
 								</div>
@@ -530,7 +544,9 @@ export const AgentChat: React.FC = () => {
 							}}
 						>
 							<div className="typing-indicator">
-								<span /><span /><span />
+								<span />
+								<span />
+								<span />
 							</div>
 							Thinking...
 						</div>
@@ -597,8 +613,25 @@ export const AgentChat: React.FC = () => {
 				</h3>
 
 				{/* Model selector */}
-				<div className="setting-card" style={{ marginBottom: "16px", padding: "16px", borderRadius: "8px", background: "rgba(255,255,255,0.03)", border: "1px solid var(--border-light)" }}>
-					<label style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: "8px" }}>
+				<div
+					className="setting-card"
+					style={{
+						marginBottom: "16px",
+						padding: "16px",
+						borderRadius: "8px",
+						background: "rgba(255,255,255,0.03)",
+						border: "1px solid var(--border-light)",
+					}}
+				>
+					<label
+						style={{
+							fontSize: "12px",
+							fontWeight: 600,
+							color: "var(--text-muted)",
+							display: "block",
+							marginBottom: "8px",
+						}}
+					>
 						Default Model
 					</label>
 					<input
@@ -623,8 +656,25 @@ export const AgentChat: React.FC = () => {
 				</div>
 
 				{/* Telegram */}
-				<div className="setting-card" style={{ marginBottom: "16px", padding: "16px", borderRadius: "8px", background: "rgba(255,255,255,0.03)", border: "1px solid var(--border-light)" }}>
-					<label style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: "8px" }}>
+				<div
+					className="setting-card"
+					style={{
+						marginBottom: "16px",
+						padding: "16px",
+						borderRadius: "8px",
+						background: "rgba(255,255,255,0.03)",
+						border: "1px solid var(--border-light)",
+					}}
+				>
+					<label
+						style={{
+							fontSize: "12px",
+							fontWeight: 600,
+							color: "var(--text-muted)",
+							display: "block",
+							marginBottom: "8px",
+						}}
+					>
 						Telegram Bot Token
 					</label>
 					<div style={{ display: "flex", gap: "8px" }}>
@@ -679,8 +729,24 @@ export const AgentChat: React.FC = () => {
 				</div>
 
 				{/* Tool Toggles */}
-				<div className="setting-card" style={{ padding: "16px", borderRadius: "8px", background: "rgba(255,255,255,0.03)", border: "1px solid var(--border-light)" }}>
-					<label style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: "12px" }}>
+				<div
+					className="setting-card"
+					style={{
+						padding: "16px",
+						borderRadius: "8px",
+						background: "rgba(255,255,255,0.03)",
+						border: "1px solid var(--border-light)",
+					}}
+				>
+					<label
+						style={{
+							fontSize: "12px",
+							fontWeight: 600,
+							color: "var(--text-muted)",
+							display: "block",
+							marginBottom: "12px",
+						}}
+					>
 						Tools ({tools.length})
 					</label>
 					<div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
@@ -714,7 +780,14 @@ export const AgentChat: React.FC = () => {
 	function renderAgents() {
 		return (
 			<div style={{ padding: "20px", maxWidth: "600px", margin: "0 auto" }}>
-				<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+				<div
+					style={{
+						display: "flex",
+						justifyContent: "space-between",
+						alignItems: "center",
+						marginBottom: "20px",
+					}}
+				>
 					<h3 style={{ margin: "0", fontSize: "16px", fontWeight: 600, color: "var(--text-main)" }}>
 						<Users size={16} style={{ marginRight: "8px" }} />
 						Sub-Agents ({agents.length})
@@ -753,7 +826,17 @@ export const AgentChat: React.FC = () => {
 						}}
 					>
 						<div style={{ marginBottom: "12px" }}>
-							<label style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>Name</label>
+							<label
+								style={{
+									fontSize: "11px",
+									fontWeight: 600,
+									color: "var(--text-muted)",
+									display: "block",
+									marginBottom: "4px",
+								}}
+							>
+								Name
+							</label>
 							<input
 								type="text"
 								value={newAgent.name}
@@ -763,7 +846,17 @@ export const AgentChat: React.FC = () => {
 							/>
 						</div>
 						<div style={{ marginBottom: "12px" }}>
-							<label style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>Model</label>
+							<label
+								style={{
+									fontSize: "11px",
+									fontWeight: 600,
+									color: "var(--text-muted)",
+									display: "block",
+									marginBottom: "4px",
+								}}
+							>
+								Model
+							</label>
 							<input
 								type="text"
 								value={newAgent.model}
@@ -773,7 +866,17 @@ export const AgentChat: React.FC = () => {
 							/>
 						</div>
 						<div style={{ marginBottom: "12px" }}>
-							<label style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>System Prompt</label>
+							<label
+								style={{
+									fontSize: "11px",
+									fontWeight: 600,
+									color: "var(--text-muted)",
+									display: "block",
+									marginBottom: "4px",
+								}}
+							>
+								System Prompt
+							</label>
 							<textarea
 								value={newAgent.system_prompt}
 								onChange={(e) => setNewAgent({ ...newAgent, system_prompt: e.target.value })}
@@ -825,17 +928,41 @@ export const AgentChat: React.FC = () => {
 								<div style={{ fontWeight: 600, fontSize: "13px", color: "var(--text-main)" }}>
 									@{agent.name}
 								</div>
-								<div style={{ fontSize: "11px", color: "var(--accent)", fontFamily: "monospace", marginTop: "2px" }}>
+								<div
+									style={{
+										fontSize: "11px",
+										color: "var(--accent)",
+										fontFamily: "monospace",
+										marginTop: "2px",
+									}}
+								>
 									{agent.model || "(default model)"}
 								</div>
-								<div style={{ fontSize: "11px", color: "var(--text-dim)", marginTop: "6px", maxHeight: "40px", overflow: "hidden" }}>
+								<div
+									style={{
+										fontSize: "11px",
+										color: "var(--text-dim)",
+										marginTop: "6px",
+										maxHeight: "40px",
+										overflow: "hidden",
+									}}
+								>
 									{agent.system_prompt.substring(0, 150)}
 									{agent.system_prompt.length > 150 ? "..." : ""}
 								</div>
 								{agent.tools.length > 0 && (
 									<div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginTop: "6px" }}>
 										{agent.tools.map((t) => (
-											<span key={t} style={{ fontSize: "10px", padding: "2px 6px", borderRadius: "4px", background: "rgba(79,140,255,0.1)", color: "var(--accent)" }}>
+											<span
+												key={t}
+												style={{
+													fontSize: "10px",
+													padding: "2px 6px",
+													borderRadius: "4px",
+													background: "rgba(79,140,255,0.1)",
+													color: "var(--accent)",
+												}}
+											>
 												{t}
 											</span>
 										))}
@@ -914,9 +1041,7 @@ const MessageBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
 				style={{
 					padding: "10px 14px",
 					borderRadius: "12px",
-					background: isUser
-						? "linear-gradient(135deg, var(--accent), #7c3aed)"
-						: "rgba(255,255,255,0.05)",
+					background: isUser ? "linear-gradient(135deg, var(--accent), #7c3aed)" : "rgba(255,255,255,0.05)",
 					border: isUser ? "none" : "1px solid var(--border-light)",
 					color: isUser ? "white" : "var(--text-main)",
 					fontSize: "13px",

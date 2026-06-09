@@ -41,7 +41,7 @@ export const Memoria: React.FC = () => {
 		} catch {
 			/* ignore */
 		}
-	}, []);
+	}, [apiHeaders]);
 
 	useEffect(() => {
 		fetchStats();
@@ -80,13 +80,13 @@ export const Memoria: React.FC = () => {
 				setLoadingMore(false);
 			}
 		},
-		[query, searchMode, offset]
+		[query, searchMode, offset, apiHeaders]
 	);
 
 	useEffect(() => {
 		const timer = setTimeout(() => handleSearch(false), 400);
 		return () => clearTimeout(timer);
-	}, [query, searchMode]);
+	}, [handleSearch]);
 
 	const typeColors: Record<string, string> = {
 		knowledge: "var(--accent)",

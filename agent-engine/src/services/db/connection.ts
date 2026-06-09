@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from "node:fs";
+﻿import { existsSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import Database from "better-sqlite3";
 import { logger } from "../../utils/logger.js";
@@ -18,7 +18,7 @@ export function getDb(dbPath?: string): Database.Database {
 	_db = new Database(resolvedPath);
 	_db.pragma("journal_mode = WAL");
 
-	// ─── Schema ────────────────────────────────────────────────────────────
+	// ─── Schema ──────────────────────────────────────────────────────────
 	_db.exec(`
 		CREATE TABLE IF NOT EXISTS users (
 			userId TEXT PRIMARY KEY,
@@ -98,6 +98,7 @@ export function getDb(dbPath?: string): Database.Database {
 		CREATE INDEX IF NOT EXISTS idx_messages_userId ON messages(userId);
 		CREATE INDEX IF NOT EXISTS idx_messages_chatId ON messages(chatId);
 		CREATE INDEX IF NOT EXISTS idx_chats_userId ON chats(userId);
+
 		CREATE TABLE IF NOT EXISTS settings (
 			key TEXT PRIMARY KEY,
 			value TEXT NOT NULL,
@@ -133,7 +134,7 @@ export function getDb(dbPath?: string): Database.Database {
 			created_by TEXT DEFAULT '',
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-
+		);
 
 		CREATE TABLE IF NOT EXISTS scheduled_tasks (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -148,10 +149,11 @@ export function getDb(dbPath?: string): Database.Database {
 			next_run_at DATETIME DEFAULT NULL,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		);
+
 		CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_enabled ON scheduled_tasks(enabled);
 	`);
 
-	// ─── Migrations ───────────────────────────────────────────────────────
+	// ─── Migrations ──────────────────────────────────────────────────────
 	try {
 		_db.exec("ALTER TABLE sub_agents ADD COLUMN model TEXT DEFAULT ''");
 	} catch {
