@@ -2,26 +2,26 @@ version: "3.8"
 name: "lallamaollama"
 
 services:
- ollama:
-  image: ollama/ollama:latest
-  container_name: mcp-ollama-motor
-  ports:
-    - "11434:11434"
-  environment:
-    - OLLAMA_CONTEXT_LENGTH=16384
-    - OLLAMA_NUM_PARALLEL=1
-  deploy:
-    resources:
-      reservations:
-        devices:
-          - driver: nvidia
-            count: 1
-            capabilities: [gpu]
-  volumes:
-    - ollama_data:/root/.ollama
-  networks:
-    - mcp-network
-  restart: no
+  ollama:
+    image: ollama/ollama:latest
+    container_name: mcp-ollama-motor
+    ports:
+      - "11434:11434"
+    environment:
+      - OLLAMA_CONTEXT_LENGTH=16384
+      - OLLAMA_NUM_PARALLEL=1
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - mcp-network
+    restart: no
   
   backend:
     build:
