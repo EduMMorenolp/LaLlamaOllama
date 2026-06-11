@@ -170,7 +170,7 @@ export function getActiveMode(): AgentMode {
 		// Si no existe el default, devolvemos un modo genérico
 		return {
 			name: DEFAULT_MODE,
-			label: "🧑 Asistente",
+			label: "🧑 Asistente General",
 			system_prompt: "Eres un asistente conversacional amigable.",
 			tools: [],
 			model: "",

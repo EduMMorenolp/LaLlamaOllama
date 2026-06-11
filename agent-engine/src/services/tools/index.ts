@@ -9,6 +9,7 @@ import { registerKnowledgeSearchTool } from "./knowledge-search.js";
 import { registerMemoryTools } from "./memory-tools.js";
 import { registerNotifyFrontendTool } from "./notify-frontend.js";
 import { registerNotifyTelegramTool } from "./notify-telegram.js";
+import { registerTranscribeAudioTool } from "./transcribe-audio.js";
 import { registerReadFileTool } from "./read-file.js";
 import { registerReadUrlTool } from "./read-url.js";
 import { registerTranslateTool } from "./translate.js";
@@ -37,6 +38,7 @@ export function registerAllTools(brain: BrainClient): void {
 	registerTranslateTool();
 	registerNotifyFrontendTool();
 	registerNotifyTelegramTool();
+	registerTranscribeAudioTool();
 	registerKnowledgeSearchTool();
 
 	// Modo Evolutivo meta-tools

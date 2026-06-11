@@ -60,7 +60,6 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 	const startTime = Date.now();
 
 	onTyping?.(true);
-	onStatus?.("Procesando tu solicitud...");
 
 	const session = getSession(opts);
 
@@ -166,29 +165,77 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 		}
 	}
 
-	let userContent = userText;
+	// ── Build user content with attachment support ───────────────────────
+	// Supports:
+	//   - Text-only messages  → content: string
+	//   - Messages with images → content: ChatCompletionContentPart[] (multi-modal)
+	//   - Text documents       → inline text in the content parts
+	//   - Audio transcripts    → inline text
+	const hasImages = opts.attachments?.some((a) => a.type.startsWith("image/")) ?? false;
+
+	// Enviar imágenes como multi-modal siempre que el backend proxy lo soporte.
+	// El backend (puerto 3016) ahora convierte automáticamente image_url a Ollama images[].
+	// Si el modelo de Ollama no soporta visión, Ollama ignorará las imágenes silenciosamente.
+	const shouldUseMultiModal = hasImages;
+
+	let userContent: string | OpenAI.Chat.Completions.ChatCompletionContentPart[] = userText;
 
 	if (opts.attachments && opts.attachments.length > 0) {
-		const attachmentText: string[] = [];
-		for (const att of opts.attachments) {
-			if (att.type.startsWith("image/")) {
-				attachmentText.push(`[Imagen adjunta: ${att.name}]`);
-				continue;
-			}
+		const textParts: string[] = [];
+		const imageParts: OpenAI.Chat.Completions.ChatCompletionContentPartImage[] = [];
 
-			if (att.type.startsWith("text/") || att.type === "application/json") {
-				try {
-					const base64Content = att.data.split(",")[1] || "";
-					const decoded = Buffer.from(base64Content, "base64").toString("utf-8");
-					attachmentText.push(`\n\n--- Attached file: ${att.name} ---\n${decoded}\n--- End file ---`);
-				} catch {
-					attachmentText.push(`\n\n[Could not read attachment: ${att.name}]`);
+		for (const att of opts.attachments) {
+			if (att.type.startsWith("image/") && att.data) {
+				if (shouldUseMultiModal) {
+					// Modelo con visión → enviar como image_url multi-modal
+					imageParts.push({
+						type: "image_url",
+						image_url: { url: att.data, detail: "auto" },
+					});
+				} else {
+					// Modelo sin visión → solo mencionar como texto
+					textParts.push(`\n[Imagen adjunta: ${att.name}]`);
 				}
+			} else if (att.type.startsWith("text/") || att.type === "application/json") {
+				// Documento de texto → decodificar base64 a texto
+				try {
+					const base64Content = att.data.split(",")[1] || att.data || "";
+					const decoded = Buffer.from(base64Content, "base64").toString("utf-8");
+					if (decoded.trim()) {
+						textParts.push(`\n--- ${att.name} ---\n${decoded}\n---`);
+					} else {
+						textParts.push(`\n[${att.name}: archivo vacío]`);
+					}
+				} catch {
+					textParts.push(`\n[No se pudo leer: ${att.name}]`);
+				}
+			} else if (att.type.startsWith("audio/")) {
+				// Audio → metadata (la transcripción ya viene como text/plain aparte)
+				textParts.push(`\n[Mensaje de audio: ${att.name}]`);
+			} else {
+				// Otros tipos (video, binarios, etc.) → metadata
+				textParts.push(`\n[Archivo adjunto: ${att.name} (${att.type})]`);
 			}
 		}
 
-		if (attachmentText.length > 0) {
-			userContent += `\n\n=== ARCHIVOS ADJUNTOS ===${attachmentText.join("\n")}`;
+		if (shouldUseMultiModal) {
+			// ── Caso multi-modal: texto + imágenes (solo modelos con visión) ──
+			const parts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
+
+			// Texto del usuario + documentos de texto como primer content part
+			let combinedText = userText || "¿Qué hay en esta imagen?";
+			if (textParts.length > 0) {
+				combinedText += `\n\n--- Documentos adjuntos ---${textParts.join("\n")}`;
+			}
+			parts.push({ type: "text", text: combinedText });
+
+			// Agregar todas las imágenes
+			parts.push(...imageParts);
+
+			userContent = parts;
+		} else if (textParts.length > 0) {
+			// ── Solo texto (modelo sin visión o sin imágenes) ──
+			userContent = `${userText || ""}\n\n--- Archivos adjuntos ---${textParts.join("\n")}`;
 		}
 	}
 	// Prepend quoted message if present (reply feature)
@@ -201,7 +248,18 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 			"**:\n> " +
 			quote.content.replace(/\n/g, "\n> ") +
 			"\n\n---\n\n";
-		userContent = prefix + userContent;
+
+		if (typeof userContent === "string") {
+			userContent = prefix + userContent;
+		} else if (Array.isArray(userContent)) {
+			// Prepend quoted message to the first text part
+			if (userContent.length > 0 && userContent[0].type === "text") {
+				(userContent[0] as OpenAI.Chat.Completions.ChatCompletionContentPartText).text =
+					prefix + (userContent[0] as OpenAI.Chat.Completions.ChatCompletionContentPartText).text;
+			} else {
+				userContent.unshift({ type: "text", text: prefix });
+			}
+		}
 	}
 
 	session.messages.push({ role: "user", content: userContent });
@@ -222,8 +280,6 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 	let finalContent = "";
 	const totalUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 	const maxIterations = 10;
-
-	onStatus?.("Iniciando razonamiento...");
 
 	for (let iteration = 0; iteration < maxIterations; iteration++) {
 		logger.agent(`[${chatId}] LLM call #${iteration + 1} (model: ${modelConfig.model})`);

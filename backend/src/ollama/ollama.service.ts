@@ -399,9 +399,37 @@ export class OllamaService {
 				result.push(ollamaMsg as SessionMessage);
 			} else {
 				const ollamaMsg: SessionMessage = { role: msg.role, content: "" };
-				if (msg.content && typeof msg.content === "string") {
+
+				if (Array.isArray(msg.content)) {
+					// ── Multi-modal content (OpenAI format) ──
+					// Extract text parts and image_url parts
+					const textParts: string[] = [];
+					const images: string[] = [];
+
+					for (const part of msg.content) {
+						if (part.type === "text") {
+							textParts.push(part.text);
+						} else if (part.type === "image_url") {
+							// Extract base64 data from data URI
+							const url = part.image_url.url;
+							if (url.startsWith("data:")) {
+								const base64Data = url.split(",")[1] || url;
+								images.push(base64Data);
+							} else {
+								// Remote URL (rare for local models, but supported)
+								images.push(url);
+							}
+						}
+					}
+
+					ollamaMsg.content = textParts.join("\n") || "";
+					if (images.length > 0) {
+						(ollamaMsg as Record<string, unknown>).images = images;
+					}
+				} else if (msg.content && typeof msg.content === "string") {
 					ollamaMsg.content = msg.content;
 				}
+
 				result.push(ollamaMsg);
 			}
 		}

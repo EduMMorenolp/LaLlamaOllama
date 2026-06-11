@@ -81,7 +81,6 @@ async function processQueuedRun(payload: QueueAgentRunPayload): Promise<AgentRes
 		latencyMs: result.latencyMs,
 	});
 	broadcastTaskStatus(payload.runId, "completed");
-	forwardRunEvent(payload.runId, "status", { text: "Run completado" });
 	return result;
 }
 

@@ -122,7 +122,7 @@ async function bootstrap() {
 			logger.info("[Modes] Seeding default modes...");
 			upsertMode({
 				name: "asistente",
-				label: "🧑 Asistente",
+				label: "🧑 Asistente General",
 				system_prompt: `Eres LaLlama, un asistente conversacional amigable y capaz.
 
 Tu objetivo es ayudar al usuario con lo que necesite: conversación casual, buscar información en internet, responder preguntas y gestionar tareas simples.

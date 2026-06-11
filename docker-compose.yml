@@ -5,6 +5,16 @@ services:
   ollama:
     image: ollama/ollama:latest
     container_name: mcp-ollama-motor
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        ollama serve &
+        sleep 3
+        echo "=== Pulling required models ==="
+        # whisper-small necesario para transcripción de audio en Telegram y tool transcribe_audio
+        ollama pull whisper-small 2>&1
+        echo "=== Ollama ready ==="
+        wait
     ports:
       - "11434:11434"
     environment:

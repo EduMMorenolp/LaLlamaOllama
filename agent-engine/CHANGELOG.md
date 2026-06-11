@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+### 📱 Telegram: Adjuntos multi-modal, Whisper, typing persistente y reacciones
+
+#### Añadido
+- **➕ Transcripción de audio con Whisper** — Nuevo `src/services/telegram/transcriber.ts`. Al recibir un `voice` o `audio` por Telegram, se transcribe automáticamente vía Ollama (`whisper-small`). Cachea resultados en SQLite por `file_id` (`src/services/telegram/cache.ts`). Si el modelo no está descargado, hace auto-pull vía `POST /api/pull`
+- **➕ Tool pública `transcribe_audio(file_path)`** — Nueva `src/services/tools/transcribe-audio.ts`. Cualquier agente puede transcribir archivos de audio del workspace
+- **➕ Adjuntos como base64 data URI** — Todos los archivos (imágenes, documentos, audio, video) se leen del disco y se convierten a `data:...;base64,...` en vez de pasar rutas
+- **➕ Reacciones en mensajes Telegram** — 🕐 al comenzar a procesar, ✅ al responder, ❌ si hay error. Logging para diagnóstico (`[TG-Reaction]`)
+- **➕ Typing indicator persistente** — `setInterval` cada 4s mantiene el "escribiendo..." visible durante todo el procesamiento
+
+#### Cambiado
+- **🔧 Adjuntos multi-modal en backend proxy** — El esquema Zod (`chat.ts`) ahora acepta `content` como `string | ContentPart[] | null`. `convertToOllamaMessages()` extrae imágenes y las envía como `images[]` en el formato nativo de Ollama
+- **🔧 Ya no hay detección de modelo visión** — Todos los modelos reciben imágenes como `image_url`. El backend proxy convierte automáticamente al formato Ollama
+
+#### Corregido
+- **🐛 Fix: Imágenes por Telegram fallaban con 400** — El proxy backend rechazaba contenido array multi-modal. Ahora acepta `ContentPart[]` y convierte a `images[]` de Ollama
+- **🐛 Fix: Whisper model not found** — Auto-pull de `whisper-small` si no está descargado, con reintento automático
+- **🐛 Fix: Typing indicator se cortaba a los 5s** — Ahora se refresca cada 4s con `setInterval` y se detiene al terminar
+
 ### 🐛 Corrección de bugs y encoding
 
 #### Corregido

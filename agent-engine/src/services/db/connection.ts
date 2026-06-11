@@ -151,6 +151,12 @@ export function getDb(dbPath?: string): Database.Database {
 		);
 
 		CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_enabled ON scheduled_tasks(enabled);
+
+		CREATE TABLE IF NOT EXISTS telegram_transcriptions (
+			file_id TEXT PRIMARY KEY,
+			transcription TEXT NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
 	`);
 
 	// ─── Migrations ──────────────────────────────────────────────────────

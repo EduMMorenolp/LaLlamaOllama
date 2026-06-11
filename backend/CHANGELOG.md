@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### 🖼️ Soporte multi-modal en proxy /v1/chat/completions
+
+#### Añadido
+- **➕ Zod schema acepta `ContentPart[]`** — `MessageSchema.content` ahora acepta `string | ContentPart[] | null` (text + image_url)
+- **➕ Conversión a formato Ollama `images[]`** — `convertToOllamaMessages()` extrae imágenes de `image_url` parts y las envía como array `images` en el mensaje Ollama
+
+#### Cambiado
+- **🔧 `types/chat.ts`** — Nuevos schemas `ContentPartTextSchema`, `ContentPartImageSchema`, `ContentPartSchema` con `discriminatedUnion`
+- **🔧 `ollama.service.ts`** — Handler para `Array.isArray(msg.content)` que construye `text` + `images` para Ollama
+
 ## [1.0.0] — 2026-06-07
 
 ### 🚀 Versión estable 1.0.0

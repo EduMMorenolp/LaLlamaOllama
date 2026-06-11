@@ -12,6 +12,8 @@ import { saveMessage } from "../db/messages.js";
 import { listAllUsers } from "../db/users.js";
 import { handleCallbackQuery } from "./callbacks.js";
 import { handleTelegramCommand } from "./commands.js";
+import { transcribeWithWhisper } from "./transcriber.js";
+import { getCachedTranscription, saveTranscriptionCache } from "./cache.js";
 import type { WsServer } from "../../server/ws.js";
 
 let bot: TelegramBot | null = null;
@@ -200,6 +202,9 @@ export async function startTelegram(): Promise<void> {
 
 		logger.info(`💬 Telegram [@${username}]: ${text.slice(0, 60)}`);
 
+		// Show "processing" reaction
+		setTelegramReaction(chatId, msg.message_id, ["🕐"]).catch(() => {});
+
 		// Commands
 		if (text.startsWith("/")) {
 			await handleTelegramCommand(chatId, text, effectiveUserId, bot!);
@@ -207,14 +212,59 @@ export async function startTelegram(): Promise<void> {
 		}
 
 		const startTime = Date.now();
+
+		// Persistent typing indicator — Telegram expira a los ~5s, lo refrescamos cada 4s
+		const typingInterval = setInterval(() => {
+			bot!.sendChatAction(chatId, "typing").catch(() => {});
+		}, 4000);
+		const stopTyping = () => clearInterval(typingInterval);
+
 		try {
-			// ── Download attachments ─────────────────────────────────────────────
+			// ── Download & process attachments ───────────────────────────────────
 			const attachments: Array<{ name: string; type: string; data: string }> = [];
 
 			// Audio
 			if (msg.audio) {
 				const file = await downloadTelegramFile(msg.audio.file_id, "audio", "ogg");
-				if (file) attachments.push({ name: file.name, type: "audio/ogg", data: file.path });
+				if (file) {
+					// Leer archivo y convertir a base64 data URI
+					const buf = fs.readFileSync(file.path);
+					const b64 = buf.toString("base64");
+					const mime = file.name.endsWith(".mp3") ? "audio/mpeg" : "audio/ogg";
+					attachments.push({ name: file.name, type: mime, data: `data:${mime};base64,${b64}` });
+				}
+			}
+
+			// Voice message → transcribe with Whisper
+			if (msg.voice) {
+				const fileId = msg.voice.file_id;
+				const file = await downloadTelegramFile(fileId, "voice", "ogg");
+				if (file) {
+					// Check cache first
+					let transcription = getCachedTranscription(fileId);
+					if (!transcription) {
+						transcription = await transcribeWithWhisper(file.path, (status) => {
+							logger.info(`[TG-Whisper] ${status}`);
+						});
+						if (transcription) {
+							saveTranscriptionCache(fileId, transcription);
+						}
+					}
+					// Push transcription as a text attachment
+					const transcriptText = transcription || "(transcripción no disponible)";
+					const textData = Buffer.from(transcriptText, "utf-8").toString("base64");
+					attachments.push({
+						name: "transcripcion.txt",
+						type: "text/plain",
+						data: `data:text/plain;base64,${textData}`,
+					});
+					// Also push audio metadata
+					attachments.push({
+						name: file.name,
+						type: "audio/ogg",
+						data: "",
+					});
+				}
 			}
 
 			// Document (general file)
@@ -223,32 +273,48 @@ export async function startTelegram(): Promise<void> {
 				const ext = path.extname(origName).slice(1) || "bin";
 				const mime = msg.document.mime_type || "application/octet-stream";
 				const file = await downloadTelegramFile(msg.document.file_id, "documents", ext);
-				if (file) attachments.push({ name: file.name, type: mime, data: file.path });
-			}
-
-			// Voice message
-			if (msg.voice) {
-				const file = await downloadTelegramFile(msg.voice.file_id, "voice", "ogg");
-				if (file) attachments.push({ name: file.name, type: "audio/ogg", data: file.path });
+				if (file) {
+					// Leer archivo y convertir a base64 data URI
+					const buf = fs.readFileSync(file.path);
+					const b64 = buf.toString("base64");
+					attachments.push({
+						name: file.name,
+						type: mime,
+						data: `data:${mime};base64,${b64}`,
+					});
+				}
 			}
 
 			// Video
 			if (msg.video) {
 				const file = await downloadTelegramFile(msg.video.file_id, "videos", "mp4");
-				if (file) attachments.push({ name: file.name, type: "video/mp4", data: file.path });
+				if (file) {
+					const buf = fs.readFileSync(file.path);
+					const b64 = buf.toString("base64");
+					attachments.push({
+						name: file.name,
+						type: "video/mp4",
+						data: `data:video/mp4;base64,${b64}`,
+					});
+				}
 			}
 
 			// Photo (use highest resolution)
 			if (msg.photo && msg.photo.length > 0) {
 				const best = msg.photo[msg.photo.length - 1];
 				const file = await downloadTelegramFile(best.file_id, "images", "jpg");
-				if (file) attachments.push({ name: file.name, type: "image/jpeg", data: file.path });
+				if (file) {
+					const buf = fs.readFileSync(file.path);
+					const b64 = buf.toString("base64");
+					attachments.push({
+						name: file.name,
+						type: "image/jpeg",
+						data: `data:image/jpeg;base64,${b64}`,
+					});
+				}
 			}
 
 			// ── Continue processing ─────────────────────────────────────────────
-
-			// Typing indicator
-			bot!.sendChatAction(chatId, "typing").catch(() => {});
 
 			const channelChat = getOrCreateChannelChat(effectiveUserId, "telegram");
 
@@ -329,11 +395,15 @@ export async function startTelegram(): Promise<void> {
 
 			if (!result.text || result.text.trim() === "") {
 				logger.warn(`⚠️ Telegram: agent returned empty message (${elapsed}ms).`);
+				stopTyping();
 				await bot!.sendMessage(chatId, "⚠️ El asistente no generó ninguna respuesta.");
 				return;
 			}
 
 			logger.info(`[TG] Agent responded (${elapsed}ms, ${result.text.length} chars)`);
+
+			// Detener typing indicator
+			stopTyping();
 
 			// Send response con fallback de formato
 			await sendTelegramMessage(chatId, result.text);
@@ -347,9 +417,18 @@ export async function startTelegram(): Promise<void> {
 					timestamp: Date.now()
 				});
 			}
+
+			// Update reaction to show completion
+			setTelegramReaction(chatId, msg.message_id, ["✅"]);
 		} catch (err) {
 			const errMsg = err instanceof Error ? err.message : String(err);
 			logger.error(`❌ Telegram error (${Date.now() - startTime}ms): ${errMsg}`);
+
+			// Detener typing indicator
+			stopTyping();
+
+			// Show error reaction
+			setTelegramReaction(chatId, msg.message_id, ["❌"]);
 			try {
 				await bot!.sendMessage(chatId, `❌ Error: ${errMsg}`);
 			} catch {
@@ -393,6 +472,32 @@ export async function startTelegram(): Promise<void> {
 	});
 
 	logger.info("🟢 Telegram bot active");
+}
+
+/**
+ * Set a reaction emoji on a Telegram message.
+ * Uses the Bot API 7.0+ setMessageReaction method.
+ */
+async function setTelegramReaction(chatId: number, messageId: number, emojis: string[]): Promise<void> {
+	if (!bot) return;
+
+	const methodExists = typeof (bot as any).setMessageReaction === "function";
+	if (!methodExists) {
+		logger.warn(`[TG-Reaction] setMessageReaction not available on this bot instance`);
+		return;
+	}
+
+	try {
+		await (bot as any).setMessageReaction(
+			chatId,
+			messageId,
+			{ reaction: emojis.map((e: string) => ({ type: "emoji", emoji: e })) },
+		);
+		logger.info(`[TG-Reaction] Set ${emojis[0] || "?"} on message ${messageId}`);
+	} catch (err: unknown) {
+		const msg = err instanceof Error ? err.message : String(err);
+		logger.warn(`[TG-Reaction] Failed for message ${messageId}: ${msg}`);
+	}
 }
 
 /**

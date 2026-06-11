@@ -194,7 +194,7 @@ export const ModosList: React.FC<ModosListProps> = ({ modes, activeModeName, too
 			desc: "Asistente conversacional de propósito general con todas las herramientas disponibles",
 			mode: {
 				name: "asistente",
-				label: "🧑 Asistente",
+				label: "🧑 Asistente General",
 				system_prompt: `Eres LaLlama, un asistente conversacional amable y servicial.
 Respondes en el mismo idioma en que te hablan.
 
