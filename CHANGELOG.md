@@ -7,6 +7,25 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 
 ## [Unreleased]
 
+### 📱 Telegram: Adjuntos multi-modal, Whisper + auto-pull, typing persistente y reacciones (2026-06-11)
+
+#### Agent Engine
+- **➕ Transcripción de audio con Whisper** — Nuevo `transcriber.ts` y `cache.ts`. Transcribe audios vía Ollama `whisper-small` con auto-pull si no está descargado. Cachea por `file_id`
+- **➕ Tool `transcribe_audio(file_path)`** — Tool pública que cualquier agente puede invocar
+- **➕ Adjuntos como base64 data URI** — Todos los archivos se convierten a `data:...;base64,...` en vez de pasar rutas
+- **➕ Reacciones en Telegram** — 🕐 → ✅ / ❌ con logging `[TG-Reaction]`
+- **➕ Typing indicator persistente** — `setInterval` cada 4s mantiene "escribiendo..." visible
+- **🐛 Fix: Imágenes fallaban con 400** — Ahora se envían como `image_url` multi-modal a través del proxy
+- **🐛 Fix: Whisper model not found** — Auto-pull con reintento
+
+#### Backend
+- **➕ Soporte multi-modal en proxy `/v1/chat/completions`** — Zod ahora acepta `content: string | ContentPart[]`. `convertToOllamaMessages()` extrae imágenes y las envía como `images[]` en formato Ollama
+- **🔧 `types/chat.ts`** — Nuevos schemas para `text` e `image_url` parts
+- **🔧 `ollama.service.ts`** — Conversión de `image_url` array a `images[]` de Ollama
+
+#### Docker
+- **➕ Auto-pull de whisper-small** — El contenedor `ollama` ahora ejecuta `ollama pull whisper-small` al arrancar
+
 ### 🐛 Corrección de bugs y encoding (2026-06-09)
 
 #### Agent Engine
