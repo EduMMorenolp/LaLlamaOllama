@@ -7,14 +7,14 @@ import type { AppConfig } from "../services/config.js";
 import { getDb } from "../services/db/connection.js";
 import { getGeneralConfig, listExperts } from "../services/db/experts.js";
 import { listModels } from "../services/db/models.js";
-import { getRun, getRunEvents, listRunsByFilters, cancelRun } from "../services/db/runs.js";
+import { getRun, getRunEvents, listRunsByFilters } from "../services/db/runs.js";
 import {
-	listScheduledTasks,
-	getScheduledTask,
 	createScheduledTask,
-	updateScheduledTask,
 	deleteScheduledTask,
+	getScheduledTask,
+	listScheduledTasks,
 	toggleScheduledTask,
+	updateScheduledTask,
 } from "../services/db/scheduled-tasks.js";
 import { listAllUsers } from "../services/db/users.js";
 import {
@@ -47,7 +47,8 @@ export function startApiServer(config: AppConfig, brain?: BrainClient) {
 	app.use("/api", apiLimiter);
 
 	function authMiddleware(req: Request, res: Response, next: NextFunction) {
-		if (req.path === "/health" || req.path.startsWith("/memory/")) return next();
+		if (req.path === "/health" || req.path.startsWith("/memory/") || req.path.startsWith("/knowledge/"))
+			return next();
 		const apiKey = req.headers["x-api-key"] as string;
 		if (!apiKey || apiKey !== config.apiKey) {
 			res.status(401).json({ error: "Unauthorized: invalid or missing API key" });
@@ -156,7 +157,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient) {
 
 	app.get("/api/runs/:id", (req: Request, res: Response) => {
 		const id = parseInt(req.params.id, 10);
-		if (isNaN(id)) {
+		if (Number.isNaN(id)) {
 			res.status(400).json({ error: "Invalid run ID" });
 			return;
 		}
@@ -169,8 +170,6 @@ export function startApiServer(config: AppConfig, brain?: BrainClient) {
 		res.json({ run, events });
 	});
 
-
-
 	// Scheduled tasks (auto-executable)
 	app.get("/api/scheduled-tasks", (_req: Request, res: Response) => {
 		const tasks = listScheduledTasks();
@@ -179,9 +178,15 @@ export function startApiServer(config: AppConfig, brain?: BrainClient) {
 
 	app.get("/api/scheduled-tasks/:id", (req: Request, res: Response) => {
 		const id = parseInt(req.params.id, 10);
-		if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+		if (Number.isNaN(id)) {
+			res.status(400).json({ error: "Invalid id" });
+			return;
+		}
 		const task = getScheduledTask(id);
-		if (!task) { res.status(404).json({ error: "Not found" }); return; }
+		if (!task) {
+			res.status(404).json({ error: "Not found" });
+			return;
+		}
 		res.json({ task });
 	});
 
@@ -198,21 +203,30 @@ export function startApiServer(config: AppConfig, brain?: BrainClient) {
 
 	app.put("/api/scheduled-tasks/:id", (req: Request, res: Response) => {
 		const id = parseInt(req.params.id, 10);
-		if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+		if (Number.isNaN(id)) {
+			res.status(400).json({ error: "Invalid id" });
+			return;
+		}
 		updateScheduledTask(id, req.body);
 		res.json({ task: getScheduledTask(id) });
 	});
 
 	app.delete("/api/scheduled-tasks/:id", (req: Request, res: Response) => {
 		const id = parseInt(req.params.id, 10);
-		if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+		if (Number.isNaN(id)) {
+			res.status(400).json({ error: "Invalid id" });
+			return;
+		}
 		deleteScheduledTask(id);
 		res.json({ success: true });
 	});
 
 	app.post("/api/scheduled-tasks/:id/toggle", (req: Request, res: Response) => {
 		const id = parseInt(req.params.id, 10);
-		if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+		if (Number.isNaN(id)) {
+			res.status(400).json({ error: "Invalid id" });
+			return;
+		}
 		toggleScheduledTask(id);
 		res.json({ task: getScheduledTask(id) });
 	});
