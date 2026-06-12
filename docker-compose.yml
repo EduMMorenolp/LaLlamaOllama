@@ -10,9 +10,6 @@ services:
       - |
         ollama serve &
         sleep 3
-        echo "=== Pulling required models ==="
-        # whisper-small necesario para transcripción de audio en Telegram y tool transcribe_audio
-        ollama pull whisper-small 2>&1
         echo "=== Ollama ready ==="
         wait
     ports:
@@ -173,6 +170,7 @@ services:
       - DB_PATH=/data/agent-engine.db
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_ALLOWED_USERS=${TELEGRAM_ALLOWED_USERS}
+      - TRANSFORMERS_CACHE=/data/transformers
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./:/workspace

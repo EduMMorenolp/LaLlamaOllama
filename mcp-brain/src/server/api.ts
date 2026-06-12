@@ -172,6 +172,39 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 		}
 	});
 
+	app.get("/api/memory/timeline", async (req, res) => {
+		const project = normalizeProject((req.query.project as string) || "lallamaollama");
+		const type = req.query.type as string | undefined;
+		const limit = parseInt((req.query.limit as string) || "100", 10);
+		try {
+			const results = await memories.getTimeline(dbService, project, limit, type);
+			res.json(results);
+		} catch (e: unknown) {
+			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+		}
+	});
+
+	app.get("/api/memory/:id", async (req, res) => {
+		try {
+			const memory = await memories.getMemory(dbService, req.params.id);
+			if (!memory) return res.status(404).json({ error: "Memory not found" });
+			res.json(memory);
+		} catch (e: unknown) {
+			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+		}
+	});
+
+	app.put("/api/memory/:id", async (req, res) => {
+		const { title, content, tags, phase, type } = req.body;
+		try {
+			const success = await memories.updateMemory(dbService, req.params.id, title, content, tags, undefined, phase, type);
+			if (success) res.json({ message: "Memory updated" });
+			else res.status(404).json({ error: "Memory not found" });
+		} catch (e: unknown) {
+			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+		}
+	});
+
 	app.delete("/api/memory/:id", async (req, res) => {
 		try {
 			const success = await memories.deleteMemory(dbService, req.params.id);

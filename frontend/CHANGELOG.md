@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### 🧹 Consolidación UI: Eliminados AI Engine Tuner y Agent Engine
+
+#### Eliminado
+- **🗑️ `AiEngineTuner.tsx`** — Componente completo eliminado (GPU gauges, token counter, cloud savings, thermal stress, pricing config)
+- **🗑️ `AgentChat.tsx`** — Componente completo eliminado (chat, settings, sub-agents). El Agent Engine corre como servicio aparte (`agent-frontend/`)
+
+#### Cambiado
+- **🔧 `HardwareSentinel.tsx` → `GpuSentinel`** — Componente renombrado; integrado el card "GPU en Tiempo Real" con 5 gauges SVG circulares (Consumo W, Temperatura °C, Fan Speed %, GPU Util %, VRAM Uso MB), alerta térmica y warning nvidia-smi. Los datos vienen del `status` del padre
+- **🔧 `App.tsx`** — Removidas importaciones de `AgentChat` y `AiEngineTuner`; importado `GpuSentinel`; eliminados los casos `"agent"` y `"engine"` en `getSectionInfo()` y `renderContent()`; sidebar: quitados botones "Agent Engine" y "Engine Tuner"; renombrado "HW Sentinel" → "GPU Sentinel"
+
 ### 🐛 Corrección de bugs
 
 #### Corregido

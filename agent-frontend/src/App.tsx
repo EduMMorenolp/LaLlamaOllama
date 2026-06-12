@@ -21,9 +21,9 @@ const tabs: TabDef[] = [
 	{ id: "chat", label: "Chat", sub: "Asistente de Codificaci\u00f3n Aut\u00f3nomo", icon: MessageSquare },
 	{ id: "agentes", label: "Agentes", sub: "Configuraci\u00f3n del Agent Engine y Sub-Agents", icon: Settings },
 	{ id: "tareas", label: "Tareas", sub: "Historial de ejecuciones", icon: ClipboardList },
-	{ id: "knowledge", label: "Conocimiento", sub: "RAG - Base de conocimiento vectorial", icon: BookOpen },
+	{ id: "knowledge", label: "Cerebro", sub: "Memorias, timeline y archivos RAG", icon: BookOpen },
 	{ id: "conexion", label: "Conexi\u00f3n", sub: "Telegram, Modelos, Herramientas", icon: Cable },
-	{ id: "memoria", label: "Memoria", sub: "MCP Brain - B\u00fasqueda sem\u00e1ntica", icon: Bot },
+	{ id: "memoria", label: "Memoria", sub: "B\u00fasqueda avanzada en MCP Brain", icon: Bot },
 ];
 
 export default function App() {

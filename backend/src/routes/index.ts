@@ -24,11 +24,6 @@ import { GetHardwareInfoUseCase } from "../use-cases/hardware/get-hardware-info.
 import { SetAutoUnloadUseCase } from "../use-cases/hardware/set-auto-unload.js";
 import { SetNumCtxUseCase } from "../use-cases/hardware/set-num-ctx.js";
 import { createHardwareRouter } from "./hardware.routes.js";
-// Engine Stats
-import { GetEngineStatsUseCase } from "../use-cases/engine-stats/get-engine-stats.js";
-import { UpdateElectricityRateUseCase } from "../use-cases/engine-stats/update-electricity-rate.js";
-import { UpdateCloudPriceUseCase } from "../use-cases/engine-stats/update-cloud-price.js";
-import { createEngineStatsRouter } from "./engine-stats.routes.js";
 // Docker
 import { StartContainerUseCase } from "../use-cases/docker/start-container.js";
 import { StopContainerUseCase } from "../use-cases/docker/stop-container.js";
@@ -104,14 +99,6 @@ export function createAllRoutes(
   const setNumCtx = new SetNumCtxUseCase(ollamaService);
   const hardwareRouter = createHardwareRouter(getHardwareInfo, setAutoUnload, setNumCtx, config.authMiddleware);
 
-  // --- Engine Stats ---
-  const getEngineStats = new GetEngineStatsUseCase(ollamaService);
-  const updateElectricityRate = new UpdateElectricityRateUseCase(ollamaService);
-  const updateCloudPrice = new UpdateCloudPriceUseCase(ollamaService);
-  const engineStatsRouter = createEngineStatsRouter(
-    getEngineStats, updateElectricityRate, updateCloudPrice, config.authMiddleware
-  );
-
   // --- Docker ---
   const startContainer = new StartContainerUseCase(dockerRepo);
   const stopContainer = new StopContainerUseCase(dockerRepo);
@@ -161,7 +148,6 @@ export function createAllRoutes(
     authRouter,
     securityRouter,
     hardwareRouter,
-    engineStatsRouter,
     dockerRouter,
     ngrokRouter,
     modelsRouter,

@@ -47,7 +47,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient) {
 	app.use("/api", apiLimiter);
 
 	function authMiddleware(req: Request, res: Response, next: NextFunction) {
-		if (req.path === "/health" || req.path.startsWith("/memory/") || req.path.startsWith("/knowledge/"))
+		if (req.path === "/health" || req.path === "/memory" || req.path.startsWith("/memory/") || req.path.startsWith("/knowledge/"))
 			return next();
 		const apiKey = req.headers["x-api-key"] as string;
 		if (!apiKey || apiKey !== config.apiKey) {
@@ -98,6 +98,80 @@ export function startApiServer(config: AppConfig, brain?: BrainClient) {
 			res.status(502).json({ error: "Brain stats failed", detail: msg });
 		}
 	});
+	// -- Brain Proxy: Memory CRUD ------------------------------------------
+	app.post("/api/memory", async (req: Request, res: Response) => {
+		if (!brain) { res.status(503).json({ error: "Brain not available" }); return; }
+		try {
+			const axiosResp = await (await import("axios")).default.post(
+				`${config.brainUrl}/api/memory`, req.body, { timeout: 10000 }
+			);
+			res.status(201).json(axiosResp.data);
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			logger.error(`[Brain Proxy] Save memory failed: ${msg}`);
+			res.status(502).json({ error: "Brain save memory failed", detail: msg });
+		}
+	});
+
+	app.get("/api/memory/timeline", async (req: Request, res: Response) => {
+		if (!brain) { res.status(503).json({ error: "Brain not available" }); return; }
+		try {
+			const type = req.query.type as string | undefined;
+			const limit = parseInt(req.query.limit as string, 10) || 100;
+			const axiosResp = await (await import("axios")).default.get(`${config.brainUrl}/api/memory/timeline`, {
+				params: { project: "lallamaollama", limit, ...(type ? { type } : {}) },
+				timeout: 10000,
+			});
+			res.json(axiosResp.data);
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			logger.error(`[Brain Proxy] Timeline failed: ${msg}`);
+			res.status(502).json({ error: "Brain timeline failed", detail: msg });
+		}
+	});
+
+	app.get("/api/memory/:id", async (req: Request, res: Response) => {
+		if (!brain) { res.status(503).json({ error: "Brain not available" }); return; }
+		try {
+			const axiosResp = await (await import("axios")).default.get(
+				`${config.brainUrl}/api/memory/${encodeURIComponent(req.params.id)}`, { timeout: 10000 }
+			);
+			res.json(axiosResp.data);
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			logger.error(`[Brain Proxy] Get memory failed: ${msg}`);
+			res.status(502).json({ error: "Brain get memory failed", detail: msg });
+		}
+	});
+
+	app.put("/api/memory/:id", async (req: Request, res: Response) => {
+		if (!brain) { res.status(503).json({ error: "Brain not available" }); return; }
+		try {
+			const axiosResp = await (await import("axios")).default.put(
+				`${config.brainUrl}/api/memory/${encodeURIComponent(req.params.id)}`, req.body, { timeout: 10000 }
+			);
+			res.json(axiosResp.data);
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			logger.error(`[Brain Proxy] Update memory failed: ${msg}`);
+			res.status(502).json({ error: "Brain update memory failed", detail: msg });
+		}
+	});
+
+	app.delete("/api/memory/:id", async (req: Request, res: Response) => {
+		if (!brain) { res.status(503).json({ error: "Brain not available" }); return; }
+		try {
+			const axiosResp = await (await import("axios")).default.delete(
+				`${config.brainUrl}/api/memory/${encodeURIComponent(req.params.id)}`, { timeout: 10000 }
+			);
+			res.json(axiosResp.data);
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			logger.error(`[Brain Proxy] Delete memory failed: ${msg}`);
+			res.status(502).json({ error: "Brain delete memory failed", detail: msg });
+		}
+	});
+
 	// Health endpoint
 	app.get("/health", (_req: Request, res: Response) => {
 		res.json({

@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### 🧠 Cerebro: Proxy REST para CRUD de memorias y timeline
+
+#### Añadido
+- **➕ 4 nuevos métodos en `BrainClient`** — `getMemory(id)`, `updateMemory(id, data)`, `deleteMemory(id)`, `getTimeline(type?)`
+- **➕ 5 nuevos endpoints REST proxy** — `POST /api/memory` (crear), `GET /api/memory/:id` (obtener), `PUT /api/memory/:id` (actualizar), `DELETE /api/memory/:id` (eliminar), `GET /api/memory/timeline` (timeline cronológico)
+- **🔧 `authMiddleware`** — Añadido `req.path === "/memory"` a la whitelist para que POST /api/memory funcione sin API key
+
 ### 📱 Telegram: Adjuntos multi-modal, Whisper, typing persistente y reacciones
 
 #### Añadido

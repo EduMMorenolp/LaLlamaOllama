@@ -7,7 +7,45 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 
 ## [Unreleased]
 
-### 📱 Telegram: Adjuntos multi-modal, Whisper + auto-pull, typing persistente y reacciones (2026-06-11)
+### 🧠 Cerebro: Gestor visual de memorias con CRUD, timeline y consolidación (2026-06-11)
+
+#### MCP Brain
+- **➕ `GET /api/memory/:id`** — Endpoint para obtener una memoria individual por ID
+- **➕ `PUT /api/memory/:id`** — Endpoint para actualizar título, contenido, tipo y tags de una memoria existente
+- **➕ `GET /api/memory/timeline`** — Endpoint que agrupa memorias por día para vista cronológica (soporta filtro opcional `?type=`)
+- **🔧 `updateMemory.ts`** — Ahora acepta `type` como parámetro opcional para cambiar el tipo de memoria al editarla
+- **🔧 `getTimeline.ts`** — Ahora acepta `type` filter opcional para filtrar timeline por tipo
+
+#### Agent Engine
+- **➕ 4 nuevos métodos en `BrainClient`** — `getMemory(id)`, `updateMemory(id, data)`, `deleteMemory(id)`, `getTimeline(type?)`
+- **➕ 5 nuevos endpoints REST proxy** — `POST /api/memory` (crear), `GET /api/memory/:id` (obtener), `PUT /api/memory/:id` (actualizar), `DELETE /api/memory/:id` (eliminar), `GET /api/memory/timeline` (timeline)
+- **🔧 `authMiddleware`** — Añadido `req.path === "/memory"` a la whitelist para que POST /api/memory funcione sin API key
+
+#### Agent Frontend
+- **➕ `Knowledge.tsx` reescrito** — Nuevo diseño con 3 sub-tabs: `🧠 Cerebro`, `📅 Línea de Tiempo`, `📄 Archivos RAG`
+- **➕ Cerebro tab** — Browser de memorias con barra de estadísticas (total + counts por tipo), filtro por tipo, buscador textual
+- **➕ Creación de memorias** — Formulario inline con campos: título, contenido, tipo (select), tags
+- **➕ Edición y eliminación** — Modal de edición con todos los campos editables; confirmación de eliminación con opción de borrado múltiple (checkboxes + bulk delete)
+- **➕ Consolidación manual** — Botón "Consolidar" que dispara `POST /api/memory/consolidate` con feedback visual
+- **➕ Timeline view** — Vista cronológica agrupada por día con filtro por tipo
+- **➕ Quick‑memo** — Botón flotante "+" para crear memoria rápida sin cambiar de tab
+- **🔧 `App.tsx`** — Descripciones de tabs actualizadas: "Cerebro → Memorias, timeline y archivos RAG", "Memoria → Búsqueda avanzada en MCP Brain"
+
+### 🧹 Consolidación UI: Eliminados AI Engine Tuner y Agent Engine, GPU Sentinel unificado (2026-06-11)
+
+#### Frontend
+- **🗑️ Eliminado `AiEngineTuner.tsx`** — Componente completo eliminado (GPU gauges, token counter, cloud savings, thermal stress, pricing config)
+- **🗑️ Eliminado `AgentChat.tsx`** — Componente completo eliminado (el Agent Engine corre como servicio aparte)
+- **➕ `HardwareSentinel.tsx` → `GpuSentinel`** — Componente renombrado; integrado el card "GPU en Tiempo Real" con 5 gauges SVG (Consumo W, Temperatura °C, Fan Speed %, GPU Util %, VRAM Uso MB) + alerta térmica
+- **🔧 `App.tsx`** — Removidas importaciones, tabs `"agent"` y `"engine"`, sidebar entries "Agent Engine" y "Engine Tuner"; renombrado "HW Sentinel" → "GPU Sentinel"
+
+#### Backend
+- **🗑️ Eliminado módulo engine-stats** — `routes/engine-stats.routes.ts`, `types/engine-stats.ts`, 3 use-cases (`get-engine-stats`, `update-electricity-rate`, `update-cloud-price`)
+- **🔧 `routes/index.ts`** — Removidas referencias a engine-stats
+- **🔧 `types/index.ts`** — Removido `export * from "./engine-stats.js"`
+- **🔧 `auth.middleware.ts`** — Removido `"/api/engine-stats"` de la whitelist pública
+
+### 📱 Telegram: Adjuntos multi-modal, Whisper transcripción, reacciones y persistencia (2026-06-11)
 
 #### Agent Engine
 - **➕ Transcripción de audio con Whisper** — Nuevo `transcriber.ts` y `cache.ts`. Transcribe audios vía Ollama `whisper-small` con auto-pull si no está descargado. Cachea por `file_id`

@@ -76,6 +76,45 @@ export class BrainClient {
 		}
 	}
 
+	async getMemory(id: string): Promise<Record<string, unknown> | null> {
+		try {
+			const res = await this.http.get(`/api/memory/${encodeURIComponent(id)}`, { timeout: 10000 });
+			return res.data;
+		} catch {
+			return null;
+		}
+	}
+
+	async updateMemory(id: string, data: { title?: string; content?: string; tags?: string; phase?: string }): Promise<boolean> {
+		try {
+			await this.http.put(`/api/memory/${encodeURIComponent(id)}`, data, { timeout: 10000 });
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	async deleteMemory(id: string): Promise<boolean> {
+		try {
+			await this.http.delete(`/api/memory/${encodeURIComponent(id)}`, { timeout: 10000 });
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	async getTimeline(limit = 100, type?: string): Promise<Record<string, unknown>[]> {
+		try {
+			const res = await this.http.get("/api/memory/timeline", {
+				params: { project: this.project, limit, ...(type ? { type } : {}) },
+				timeout: 10000,
+			});
+			return res.data || [];
+		} catch {
+			return [];
+		}
+	}
+
 	async getStats(): Promise<Record<string, unknown>> {
 		try {
 			const res = await this.http.get("/api/memory/stats", {

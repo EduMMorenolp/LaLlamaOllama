@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### 🧹 Eliminado módulo engine-stats
+
+#### Eliminado
+- **🗑️ `routes/engine-stats.routes.ts`** — 3 endpoints `/api/engine-stats`, `/api/engine-stats/electricity-rate`, `/api/engine-stats/cloud-price`
+- **🗑️ `types/engine-stats.ts`** — Schemas `ElectricityRateSchema`, `CloudPriceSchema` y sus tipos
+- **🗑️ 3 use-cases** — `get-engine-stats.ts`, `update-electricity-rate.ts`, `update-cloud-price.ts`
+
+#### Cambiado
+- **🔧 `routes/index.ts`** — Removidas importaciones, instanciación y registro del router engine-stats
+- **🔧 `types/index.ts`** — Removido `export * from "./engine-stats.js"`
+- **🔧 `auth.middleware.ts`** — Removido `"/api/engine-stats"` de la whitelist de polling público
+
 ### 🖼️ Soporte multi-modal en proxy /v1/chat/completions
 
 #### Añadido

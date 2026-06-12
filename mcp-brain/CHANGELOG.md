@@ -4,6 +4,16 @@ Todos los cambios notables de este proyecto serán documentados en este archivo.
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/), y este proyecto se adhiere al [Versionado Semántico](https://semver.org/lang/es/).
 
+## [Unreleased]
+
+### Added
+- **🧠 CRUD REST para memorias** — Nuevos endpoints: `GET /api/memory/:id` (obtener), `PUT /api/memory/:id` (actualizar), `GET /api/memory/timeline` (timeline cronológico)
+- **➕ `POST /api/memory`** — Endpoint existente ahora accesible desde agent-engine proxy
+
+### Changed
+- **🔧 `updateMemory.ts`** — Ahora acepta `type` como parámetro opcional para cambiar el tipo de memoria al editarla
+- **🔧 `getTimeline.ts`** — Ahora acepta `type` filter opcional para filtrar timeline por tipo
+
 ## [2.0.0] - 2026-05-14
 
 ### Added
