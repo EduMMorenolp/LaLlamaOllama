@@ -599,7 +599,7 @@ export const Tareas: React.FC = () => {
 												opacity: loadingMore ? 0.6 : 1,
 											}}
 										>
-											{loadingMore ? "Cargando..." : "Cargar m\u00E1s"}
+											{loadingMore ? "Cargando..." : "Cargar más"}
 										</button>
 									</div>
 								)}
@@ -850,7 +850,7 @@ export const Tareas: React.FC = () => {
 													marginBottom: "4px",
 												}}
 											>
-												Expresi\u00F3n Cron
+												Expresión Cron
 											</label>
 											<input
 												type="text"
@@ -1392,7 +1392,7 @@ export const Tareas: React.FC = () => {
 									marginBottom: "4px",
 								}}
 							>
-								Descripci\u00F3n de la tarea
+								Descripción de la tarea
 							</label>
 							<textarea
 								value={newTaskText}

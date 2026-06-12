@@ -465,7 +465,7 @@ export const AgentePrincipal: React.FC<AgentePrincipalProps> = ({
                                             marginBottom: "2px",
                                         }}
                                     >
-                                        {isEnabled ? "\u2705 " : "  "}{toolName}
+                                        {isEnabled ? "✅ " : "  "}{toolName}
                                     </div>
                                     <div
                                         style={{

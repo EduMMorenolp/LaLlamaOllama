@@ -8,7 +8,7 @@ export function registerDelegateTool() {
 			function: {
 				name: "delegate",
 				description:
-					"Recomienda delegar una sub-tarea a un agente especializado. \u00dasala cuando una tarea requiera un dominio espec\u00edfico o una perspectiva diferente.",
+					"Recomienda delegar una sub-tarea a un agente especializado. Úsala cuando una tarea requiera un dominio específico o una perspectiva diferente.",
 				parameters: {
 					type: "object",
 					properties: {

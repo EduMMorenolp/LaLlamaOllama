@@ -230,7 +230,7 @@ export const Memoria: React.FC = () => {
 						}}
 					>
 						<Brain size={48} style={{ margin: "0 auto 16px", opacity: 0.15, display: "block" }} />
-						Busca en la memoria del agente. Usa b\u00fasqueda sem\u00e1ntica, l\u00e9xica o h\u00edbrida.
+						Busca en la memoria del agente. Usa búsqueda semántica, léxica o híbrida.
 					</div>
 				) : results.length === 0 && !loading ? (
 					<div style={{ textAlign: "center", padding: "40px", color: "var(--text-dim)", fontSize: "13px" }}>
@@ -332,7 +332,7 @@ export const Memoria: React.FC = () => {
 										opacity: loadingMore ? 0.6 : 1,
 									}}
 								>
-									{loadingMore ? "Cargando..." : "Cargar m\u00e1s"}
+									{loadingMore ? "Cargando..." : "Cargar más"}
 								</button>
 							</div>
 						)}
@@ -396,7 +396,7 @@ export const Memoria: React.FC = () => {
 						</h3>
 						<div style={{ fontSize: "11px", color: "var(--text-dim)", marginBottom: "16px" }}>
 							{selectedMemory.createdAt ? new Date(selectedMemory.createdAt).toLocaleString() : ""}
-							{selectedMemory.id && <> \u00b7 ID: {selectedMemory.id}</>}
+							{selectedMemory.id && <> · ID: {selectedMemory.id}</>}
 						</div>
 						<div
 							style={{

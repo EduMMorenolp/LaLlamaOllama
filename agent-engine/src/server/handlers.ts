@@ -109,7 +109,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					logger.agent("[" + chatId + "] Cancel requested");
 					wsServer.sendToAll("assistant_done", {
 						chatId,
-						text: "Conversaci\u00f3n cancelada.",
+						text: "Conversación cancelada.",
 						model: "system",
 						latencyMs: 0,
 					});
@@ -306,7 +306,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 									origin: m.origin,
 								})),
 								expertName: chat?.expertName || null,
-								text: storedMessages.length === 0 ? "Este chat no tiene mensajes a\u00fan." : "",
+								text: storedMessages.length === 0 ? "Este chat no tiene mensajes aún." : "",
 								model: "Sistema",
 							})
 						);

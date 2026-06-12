@@ -9,7 +9,7 @@ export function registerMemoryTools(brain: BrainClient) {
 			function: {
 				name: "memorize",
 				description:
-					"Guarda informaci\u00f3n importante, hechos, decisiones o descubrimientos en la memoria persistente. \u00dasala cuando aprendas algo relevante del proyecto.",
+					"Guarda información importante, hechos, decisiones o descubrimientos en la memoria persistente. Úsala cuando aprendas algo relevante del proyecto.",
 				parameters: {
 					type: "object",
 					properties: {
@@ -56,7 +56,7 @@ export function registerMemoryTools(brain: BrainClient) {
 			function: {
 				name: "recall",
 				description:
-					"Busca en la memoria persistente informaci\u00f3n relevante de trabajos anteriores. \u00datil para recuperar contexto sobre decisiones, descubrimientos o conocimiento del proyecto.",
+					"Busca en la memoria persistente información relevante de trabajos anteriores. Útil para recuperar contexto sobre decisiones, descubrimientos o conocimiento del proyecto.",
 				parameters: {
 					type: "object",
 					properties: {
@@ -101,7 +101,7 @@ export function registerMemoryTools(brain: BrainClient) {
 			function: {
 				name: "get_context",
 				description:
-					"Obtiene el contexto reciente de la sesi\u00f3n desde el brain compartido. \u00dasalo al inicio de una conversaci\u00f3n para ponerte al d\u00eda.",
+					"Obtiene el contexto reciente de la sesión desde el brain compartido. Úsalo al inicio de una conversación para ponerte al día.",
 				parameters: {
 					type: "object",
 					properties: {
@@ -126,12 +126,12 @@ export function registerMemoryTools(brain: BrainClient) {
 			type: "function",
 			function: {
 				name: "update_memory",
-				description: "Actualiza una memoria existente en el cerebro. Permite modificar t\u00edtulo, contenido, tipo o tags.",
+				description: "Actualiza una memoria existente en el cerebro. Permite modificar título, contenido, tipo o tags.",
 				parameters: {
 					type: "object",
 					properties: {
 						id: { type: "string", description: "ID de la memoria a actualizar" },
-						title: { type: "string", description: "Nuevo t\u00edtulo (opcional)" },
+						title: { type: "string", description: "Nuevo título (opcional)" },
 						content: { type: "string", description: "Nuevo contenido (opcional)" },
 						type: { type: "string", description: "Nuevo tipo: knowledge, feature, bug-fix, architecture, decision, discovery, note, learning, configuration, prompt (opcional)", enum: ["knowledge", "feature", "bug-fix", "architecture", "decision", "discovery", "note", "learning", "configuration", "prompt"] },
 						tags: { type: "string", description: "Nuevos tags separados por coma (opcional)" },

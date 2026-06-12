@@ -18,12 +18,12 @@ interface TabDef {
 }
 
 const tabs: TabDef[] = [
-	{ id: "chat", label: "Chat", sub: "Asistente de Codificaci\u00f3n Aut\u00f3nomo", icon: MessageSquare },
-	{ id: "agentes", label: "Agentes", sub: "Configuraci\u00f3n del Agent Engine y Sub-Agents", icon: Settings },
+	{ id: "chat", label: "Chat", sub: "Asistente de Codificación Autónomo", icon: MessageSquare },
+	{ id: "agentes", label: "Agentes", sub: "Configuración del Agent Engine y Sub-Agents", icon: Settings },
 	{ id: "tareas", label: "Tareas", sub: "Historial de ejecuciones", icon: ClipboardList },
 	{ id: "knowledge", label: "Cerebro", sub: "Memorias, timeline y archivos RAG", icon: BookOpen },
-	{ id: "conexion", label: "Conexi\u00f3n", sub: "Telegram, Modelos, Herramientas", icon: Cable },
-	{ id: "memoria", label: "Memoria", sub: "B\u00fasqueda avanzada en MCP Brain", icon: Bot },
+	{ id: "conexion", label: "Conexión", sub: "Telegram, Modelos, Herramientas", icon: Cable },
+	{ id: "memoria", label: "Memoria", sub: "Búsqueda avanzada en MCP Brain", icon: Bot },
 ];
 
 export default function App() {

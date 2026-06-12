@@ -198,14 +198,14 @@ function ArchivosRag() {
 						<label style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>Contenido</label>
 						<textarea value={fileContent} onChange={(e) => setFileContent(e.target.value)} rows={8}
 							style={{ ...inputStyle, resize: "vertical", fontFamily: "var(--font-mono)", fontSize: "12px" }}
-							placeholder="Pega el contenido del archivo aqu\u00ED..." />
+							placeholder="Pega el contenido del archivo aquí..." />
 					</div>
 					<button type="button" onClick={handleUpload} disabled={uploading || !fileName.trim() || !fileContent.trim()}
 						style={{ padding: "10px 20px", background: "linear-gradient(135deg, var(--accent), #7c3aed)", border: "none", borderRadius: "8px", color: "white", cursor: "pointer", fontSize: "12px", fontWeight: 600, opacity: uploading ? 0.6 : 1, display: "flex", alignItems: "center", gap: "6px" }}>
 						{uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
 						{uploading ? "Subiendo..." : "Subir e Indexar"}
 					</button>
-					<div style={{ fontSize: "10px", color: "var(--text-dim)", marginTop: "8px" }}>El archivo se dividir\u00E1 en chunks y se indexar\u00E1 vectorialmente en MCP Brain.</div>
+					<div style={{ fontSize: "10px", color: "var(--text-dim)", marginTop: "8px" }}>El archivo se dividirá en chunks y se indexará vectorialmente en MCP Brain.</div>
 				</div>
 			)}
 
@@ -227,8 +227,8 @@ function ArchivosRag() {
 								<div style={{ flex: 1, minWidth: 0 }}>
 									<div style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-main)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</div>
 									<div style={{ fontSize: "10px", color: "var(--text-dim)", marginTop: "2px" }}>
-										{formatSize(file.size)} \u00B7 {file.modifiedAt ? new Date(file.modifiedAt).toLocaleDateString() : ""}
-										{file.chunks > 0 && <> \u00B7 {file.chunks} chunks</>}
+										{formatSize(file.size)} · {file.modifiedAt ? new Date(file.modifiedAt).toLocaleDateString() : ""}
+										{file.chunks > 0 && <> · {file.chunks} chunks</>}
 									</div>
 								</div>
 								<button type="button" onClick={() => setConfirmDeleteFile(file.name)}
@@ -270,7 +270,7 @@ function ArchivosRag() {
 			</div>
 
 			<ConfirmModal open={!!confirmDeleteFile} title="Eliminar archivo"
-				message={confirmDeleteFile ? `\u00BFEst\u00E1s seguro de eliminar "${confirmDeleteFile}" del conocimiento?` : ""}
+				message={confirmDeleteFile ? `¿Estás seguro de eliminar "${confirmDeleteFile}" del conocimiento?` : ""}
 				confirmText="Eliminar" onConfirm={() => { if (confirmDeleteFile) { handleDelete(confirmDeleteFile); setConfirmDeleteFile(null); } }}
 				onCancel={() => setConfirmDeleteFile(null)} danger />
 		</div>
@@ -477,9 +477,9 @@ function Cerebro() {
 				body: JSON.stringify({ project: "lallamaollama" }),
 			});
 			const data = await res.json();
-			const msg = data.message || data.summary || "Consolidaci\u00F3n completada";
+			const msg = data.message || data.summary || "Consolidación completada";
 			setConsolidateResult(msg);
-			showToast(`Consolidaci\u00F3n: ${data.consolidatedGroups || 0} grupos consolidados`, "success");
+			showToast(`Consolidación: ${data.consolidatedGroups || 0} grupos consolidados`, "success");
 			fetchMemories();
 			fetchStats();
 		} catch (err) {
@@ -592,8 +592,8 @@ function Cerebro() {
 				<div style={{ padding: "16px", marginBottom: "12px", borderRadius: "8px", background: "rgba(79,140,255,0.05)", border: "1px solid rgba(79,140,255,0.15)" }}>
 					<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
 						<div>
-							<label style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>T\u00EDtulo</label>
-							<input type="text" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="T\u00EDtulo de la memoria" style={inputStyle} />
+							<label style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>Título</label>
+							<input type="text" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Título de la memoria" style={inputStyle} />
 						</div>
 						<div>
 							<label style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>Tipo</label>
@@ -634,7 +634,7 @@ function Cerebro() {
 				) : filteredMemories.length === 0 ? (
 					<div style={{ textAlign: "center", padding: "60px 20px", color: "var(--text-dim)", fontSize: "13px" }}>
 						<Brain size={48} style={{ margin: "0 auto 16px", opacity: 0.15, display: "block" }} />
-						{searchQuery || filterType || tagsFilter ? "Sin resultados para esta b\u00FAsqueda." : "No hay memorias en el Cerebro. Las memorias se crean autom\u00E1ticamente cuando el agente trabaja."}
+						{searchQuery || filterType || tagsFilter ? "Sin resultados para esta búsqueda." : "No hay memorias en el Cerebro. Las memorias se crean automáticamente cuando el agente trabaja."}
 					</div>
 				) : (
 					filteredMemories.map((mem) => (
@@ -709,8 +709,8 @@ function Cerebro() {
 						<h3 style={{ margin: "0 0 8px", fontSize: "16px", fontWeight: 700, color: "var(--text-main)" }}>{selectedMemory.title}</h3>
 						<div style={{ fontSize: "10px", color: "var(--text-dim)", marginBottom: "16px" }}>
 							{formatDate(selectedMemory.createdAt)}
-							{selectedMemory.agent && <> \u00B7 por {selectedMemory.agent}</>}
-							{selectedMemory.id && <> \u00B7 ID: {selectedMemory.id}</>}
+							{selectedMemory.agent && <> · por {selectedMemory.agent}</>}
+							{selectedMemory.id && <> · ID: {selectedMemory.id}</>}
 						</div>
 						<div style={{ padding: "16px", background: "rgba(255,255,255,0.02)", borderRadius: "8px", border: "1px solid var(--border-light)", fontSize: "13px", color: "var(--text-main)", lineHeight: 1.6, whiteSpace: "pre-wrap", maxHeight: "300px", overflow: "auto" }}>
 							{selectedMemory.content}
@@ -749,7 +749,7 @@ function Cerebro() {
 						<h3 style={{ margin: "0 0 16px", fontSize: "16px", fontWeight: 700, color: "var(--text-main)" }}>Editar Memoria</h3>
 						<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
 							<div>
-								<label style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>T\u00EDtulo</label>
+								<label style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>Título</label>
 								<input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} style={inputStyle} />
 							</div>
 							<div>
@@ -784,7 +784,7 @@ function Cerebro() {
 			)}
 
 			<ConfirmModal open={!!confirmDeleteId} title="Eliminar memoria"
-				message={"\u00BFEst\u00E1s seguro de eliminar esta memoria? No se puede deshacer."}
+				message={"¿Estás seguro de eliminar esta memoria? No se puede deshacer."}
 				confirmText="Eliminar" onConfirm={() => { if (confirmDeleteId) { handleDelete(confirmDeleteId); } }}
 				onCancel={() => setConfirmDeleteId(null)} danger />
 		</div>
@@ -849,13 +849,13 @@ function Timeline() {
 				) : Object.keys(groupedByDay).length === 0 ? (
 					<div style={{ textAlign: "center", padding: "60px 20px", color: "var(--text-dim)", fontSize: "13px" }}>
 						<Clock size={48} style={{ margin: "0 auto 16px", opacity: 0.15, display: "block" }} />
-						No hay memorias en la l\u00EDnea de tiempo.
+						No hay memorias en la línea de tiempo.
 					</div>
 				) : (
 					Object.entries(groupedByDay).reverse().map(([day, mems]) => (
 						<div key={day} style={{ marginBottom: "16px" }}>
 							<div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "8px", padding: "4px 0", borderBottom: "1px solid var(--border-light)" }}>
-								{day} \u00B7 {mems.length} memoria{mems.length !== 1 ? "s" : ""}
+								{day} · {mems.length} memoria{mems.length !== 1 ? "s" : ""}
 							</div>
 							{mems.map((mem) => (
 								<div key={mem.id} style={{ padding: "8px 12px", marginBottom: "4px", borderRadius: "6px", background: "rgba(255,255,255,0.02)", border: "1px solid var(--border-light)", display: "flex", alignItems: "center", gap: "8px" }}>

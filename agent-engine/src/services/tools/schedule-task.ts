@@ -7,7 +7,7 @@ export function registerScheduleTaskTool(): void {
 			type: "function",
 			function: {
 				name: "schedule_task",
-				description: "Programa una tarea para ejecuci\u00f3n autom\u00e1tica recurrente usando una expresi\u00f3n cron.",
+				description: "Programa una tarea para ejecución automática recurrente usando una expresión cron.",
 				parameters: {
 					type: "object",
 					properties: {
@@ -17,7 +17,7 @@ export function registerScheduleTaskTool(): void {
 						},
 						cron_expression: {
 							type: "string",
-							description: "Expresi\u00f3n cron (ej: '0 9 * * 1' para cada lunes a las 9am, '*/5 * * * *' para cada 5 minutos)",
+							description: "Expresión cron (ej: '0 9 * * 1' para cada lunes a las 9am, '*/5 * * * *' para cada 5 minutos)",
 						},
 						task_text: {
 							type: "string",
