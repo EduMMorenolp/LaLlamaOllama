@@ -22,21 +22,25 @@ permission:
 
 | Agente | Especialidad |
 |--------|-------------|
-| `backend-dev` | Backend (Express) + Agent Engine (Express, Redis, BullMQ) |
-| `frontend-dev` | Dashboard (React) + Agent Frontend (React, nginx) |
+| `backend-dev` | Backend (Express) + API principal |
+| `frontend-dev` | Dashboard (React, glassmorphism) |
 | `docker-ops` | Infraestructura Docker (7 servicios + redis) |
 | `documentation` | CHANGELOG, README, Postman |
 | `mcp-brain` | Memoria compartida SQLite FTS5 |
+| `agent-engine` | Agente autónomo (Express, Redis BullMQ, SQLite, WS, 30+ tools, Telegram) |
+| `agent-frontend` | Frontend del agente autónomo (React, WS a engine, nginx) |
 
 ## REGLAS DE RUTEO
 
 | Requerimiento | Agente |
 |---|---|---|
-| Rutas Express, auth, MCP Tools, Dockerode, SQLite, **agent-engine** | `backend-dev` |
-| Componentes React, glassmorphism, Socket.IO, **agent-frontend** | `frontend-dev` |
+| Rutas Express, auth, MCP Tools, Dockerode, SQLite | `backend-dev` |
+| Componentes React, glassmorphism, Socket.IO | `frontend-dev` |
 | Docker Compose, Dockerfiles, GPU, ngrok, redis | `docker-ops` |
 | CHANGELOG, README, Postman | `documentation` |
 | Memoria compartida, sesiones, auditoría | `mcp-brain` |
+| Agent loop, tools, Telegram bot, tareas, WS handlers | `agent-engine` |
+| Componentes React del agent-frontend, tabs, WS connection | `agent-frontend` |
 
 ## FLUJO DE TRABAJO
 

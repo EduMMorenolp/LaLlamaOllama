@@ -29,6 +29,12 @@
     },
     "mcp-brain": {
       "mode": "subagent"
+    },
+    "agent-engine": {
+      "mode": "subagent"
+    },
+    "agent-frontend": {
+      "mode": "subagent"
     }
   },
   "mcp": {
