@@ -18,7 +18,8 @@
 - **➕ Toast feedback** — `useToast()` en crear, editar, eliminar, bulk delete y consolidar
 - **➕ WS sync** — Suscripción a `memory_changed` vía `useWs()`; refresca lista y stats
 - **➕ Notification toast** — Suscripción al evento WS `"notification"` en `AgentChat.tsx`
-- **🔧 `App.tsx`** — Descripciones de tabs actualizadas
+- **🔧 `App.tsx`** — Descripciones de tabs actualizadas; removido tab "Memoria", import y render condicional
+- **🗑️ `Memoria.tsx` eliminado** — Redundante con el nuevo Cerebro tab en Knowledge.tsx
 
 ### 🐛 Corrección de bugs y encoding
 

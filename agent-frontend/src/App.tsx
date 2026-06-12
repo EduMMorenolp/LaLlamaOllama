@@ -1,20 +1,19 @@
-﻿import { BookOpen, Bot, Cable, ClipboardList, Menu, MessageSquare, Settings, X } from "lucide-react";
+﻿import { BookOpen, Cable, ClipboardList, Menu, MessageSquare, Settings, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { AgentChat } from "./components/AgentChat";
 import { Agentes } from "./components/Agentes";
 import { Conexion } from "./components/Conexion";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Knowledge } from "./components/Knowledge";
-import { Memoria } from "./components/Memoria";
 import { Tareas } from "./components/Tareas";
 
-type Tab = "chat" | "agentes" | "tareas" | "knowledge" | "conexion" | "memoria";
+type Tab = "chat" | "agentes" | "tareas" | "knowledge" | "conexion";
 
 interface TabDef {
 	id: Tab;
 	label: string;
 	sub: string;
-	icon: typeof Bot;
+	icon: typeof MessageSquare;
 }
 
 const tabs: TabDef[] = [
@@ -23,7 +22,6 @@ const tabs: TabDef[] = [
 	{ id: "tareas", label: "Tareas", sub: "Historial de ejecuciones", icon: ClipboardList },
 	{ id: "knowledge", label: "Cerebro", sub: "Memorias, timeline y archivos RAG", icon: BookOpen },
 	{ id: "conexion", label: "Conexión", sub: "Telegram, Modelos, Herramientas", icon: Cable },
-	{ id: "memoria", label: "Memoria", sub: "Búsqueda avanzada en MCP Brain", icon: Bot },
 ];
 
 export default function App() {
@@ -140,7 +138,6 @@ export default function App() {
 					<ErrorBoundary name="Tareas">{activeTab === "tareas" && <Tareas />}</ErrorBoundary>
 					<ErrorBoundary name="Knowledge">{activeTab === "knowledge" && <Knowledge />}</ErrorBoundary>
 					<ErrorBoundary name="Conexion">{activeTab === "conexion" && <Conexion />}</ErrorBoundary>
-					<ErrorBoundary name="Memoria">{activeTab === "memoria" && <Memoria />}</ErrorBoundary>
 				</div>
 			</div>
 		</div>
