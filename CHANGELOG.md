@@ -29,6 +29,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 - **➕ WS sync** — Suscripción a `memory_changed` vía `useWs()`; refresca automáticamente la lista y stats
 - **➕ Notification toast** — Suscripción al evento WS `"notification"` en `AgentChat.tsx`; muestra el mensaje via toast según nivel (error/success/info)
 - **🗑️ Eliminada sección "Memoria"** — `Memoria.tsx` eliminado (redundante con Cerebro); actualizado `App.tsx` (import, type, tab, render, icon import)
+- **🗑️ Eliminados Scaffold + Explorador de Memorias** — `BrainScaffold.tsx`, `MemoryExplorer.tsx` y `AIAgentWizard.tsx` eliminados del frontend clásico; actualizado `BrainConsole.tsx` (imports, type union, tab buttons y renders condicionales)
 - **➕ `GET /api/memory/:id`** — Endpoint para obtener una memoria individual por ID
 - **➕ `PUT /api/memory/:id`** — Endpoint para actualizar título, contenido, tipo y tags de una memoria existente
 - **➕ `GET /api/memory/timeline`** — Endpoint que agrupa memorias por día para vista cronológica (soporta filtro opcional `?type=`)

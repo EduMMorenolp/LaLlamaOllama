@@ -931,8 +931,14 @@ const App: React.FC = () => {
 							<div
 						className="status-badge"
 						style={{ marginTop: "8px", padding: "0 4px", display: "flex", alignItems: "center" }}
-					>
-						<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+					>	
+					</div>
+						</div>
+						<div style={{ fontSize: "10px", color: "var(--text-muted)" }}>
+							{models?.length || 0} Modelos Disponibles
+						</div>
+					</div>
+					<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
 							<div className={`status-led ${status?.ollamaRunning ? "online" : "offline"}`} />
 							<span
 								style={{
@@ -943,13 +949,6 @@ const App: React.FC = () => {
 								{status?.ollamaRunning ? "Conectado" : "Sin conexión"}
 							</span>
 						</div>
-					</div>
-						</div>
-						<div style={{ fontSize: "10px", color: "var(--text-muted)" }}>
-							{models?.length || 0} Modelos Disponibles
-						</div>
-					</div>
-					
 				</div>
 			</aside>
 
