@@ -115,6 +115,7 @@ El agent-engine NO expone tools MCP. Se conecta al MCP Brain vía REST (BrainCli
 
 ```
 cd agent-engine && npm run build    → tsc (compila a dist/)
+cd agent-engine && npm run lint     → tsc --noEmit (verifica tipos)
 cd agent-engine && npm run dev      → tsc && node dist/index.js
 cd agent-engine && npm start        → node dist/index.js
 ```
@@ -123,6 +124,7 @@ cd agent-engine && npm start        → node dist/index.js
 
 Al terminar los cambios, ejecuta antes de responder:
 - `cd agent-engine && npm run build` → código 0 = OK
+- `cd agent-engine && npm run lint` → código 0 = OK
 Si algo falla, corrige y repite hasta que pase.
 
 ## FLUJO DE TRABAJO

@@ -7,7 +7,7 @@ description: Workflow para actualizar la Postman Collection del proyecto. Ejecut
 ## ARCHIVO
 
 ```
-postman-collection/LaLlamaOllama-Postman-Collection.json
+docs/postman-collection/LaLlamaOllama-Postman-Collection.json
 ```
 
 ## CUÁNDO EJECUTAR
@@ -107,7 +107,7 @@ mem_save(
     content: """
         **What**: Agregado endpoint <METHOD> /api/<ruta> a la collection
         **Why**: <razón>
-        **Where**: postman-collection/LaLlamaOllama-Postman-Collection.json
+        **Where**: docs/postman-collection/LaLlamaOllama-Postman-Collection.json
     """
 )
 ```

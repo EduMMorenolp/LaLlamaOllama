@@ -66,7 +66,7 @@ Ver `PASO COMÚN — Verificar TypeScript` en `_steps-common.md`.
 
 ## PASO 6 — Postman Collection
 
-Abrir `postman-collection/LaLlamaOllama-Postman-Collection.json` y agregar request en la carpeta correcta con headers y body example. Ver `postman.md`.
+Abrir `docs/postman-collection/LaLlamaOllama-Postman-Collection.json` y agregar request en la carpeta correcta con headers y body example. Ver `postman.md`.
 
 ---
 

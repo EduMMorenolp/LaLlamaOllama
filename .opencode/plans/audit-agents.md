@@ -1,6 +1,6 @@
 # Auditoría de Agentes OpenCode — LaLlamaOllama
 
-**Fecha:** 2026-06-04
+**Fecha:** 2026-06-04 (actualizado: 2026-06-12)
 **Alcance:** 1 agente primario + 5 subagentes + configuración global
 **Versión del proyecto:** 0.4.0
 
@@ -160,7 +160,7 @@ Usuario → orchestrator
 **Hallazgos:**
 - ⚠️ **Sin AUTO-VERIFICACIÓN**: documentation.md no tiene sección de auto-verificación. Podría verificar que los archivos existen y tienen formato válido.
 - ⚠️ **README secciones**: no se menciona `agent-engine` ni `agent-frontend` como servicios en la arquitectura.
-- ℹ️ La Postman Collection existe en `postman-collection/LaLlamaOllama-Postman-Collection.json`.
+- ℹ️ La Postman Collection existe en `docs/postman-collection/LaLlamaOllama-Postman-Collection.json`.
 
 ---
 
@@ -273,31 +273,32 @@ backend-dev, frontend-dev, mcp-brain y docker-ops usan el modelo por defecto (ll
 
 ## 6. CONCLUSIONES
 
-**Puntaje global del sistema de agentes: 78/100**
+**Puntaje global del sistema de agentes: 95/100**
 
 | Dominio | Puntaje | Estado |
 |---------|:-------:|--------|
-| Arquitectura general | 85 | ✅ Sólida |
+| Arquitectura general | 95 | ✅ Sólida con ruteo completo |
 | backend-dev | 92 | ✅ Excelente |
 | frontend-dev | 90 | ✅ Muy bueno |
 | mcp-brain | 93 | ✅ Excelente |
-| docker-ops | 55 | ❌ Requiere corrección |
-| documentation | 80 | ✅ Bueno (falta auto-verificación) |
-| Configuración (opencode.json) | 90 | ✅ Limpia |
-| Cobertura de servicios reales | 60 | ❌ Faltan 2 agentes |
+| docker-ops | 90 | ✅ Corregido (7 servicios, estructura completa) |
+| documentation | 95 | ✅ Ampliado (triggers, estructura completa, auto-verificación) |
+| agent-engine | 90 | ✅ Nuevo (estructura, patrones, auto-verificación) |
+| agent-frontend | 90 | ✅ Nuevo (estructura, patrones, auto-verificación) |
+| Configuración (opencode.json) | 95 | ✅ Completa (7 agentes, 1 primary + 6 sub) |
+| Cobertura de servicios reales | 100 | ✅ Todos los servicios con agente propio |
 
 **Fortalezas:**
+- 7 agentes cubriendo todos los servicios del proyecto
 - Patrón de diseño consistente entre todos los agentes
-- Secciones ESTructura + PATRONES + REGLAS + SCRIPTS + AUTO-VERIFICACIÓN están bien logradas
 - Permisos correctamente scopedos
-- Flujo de auto-verificación incorporado en 4/5 subagentes
-- MCP brain bien integrado como fuente de contexto
+- Flujo de delegación completo: código → infra → documentación
+- MCP brain integrado como fuente de contexto
+- Todos los subagentes con AUTO-VERIFICACIÓN
+- Triggers de documentación por tipo de cambio
 
 **Debilidades:**
-- 2 servicios productivos sin representación como agentes (agent-engine, agent-frontend)
-- docker-ops desactualizado contra la realidad del compose
-- documentation sin auto-verificación
-- 1 referencia huérfana en orquestador
+- agent-engine no tiene script `lint` en package.json (solo build)
 
 ---
 

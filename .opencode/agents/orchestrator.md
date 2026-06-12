@@ -36,8 +36,8 @@ permission:
 |---|---|---|
 | Rutas Express, auth, MCP Tools, Dockerode, SQLite | `backend-dev` |
 | Componentes React, glassmorphism, Socket.IO | `frontend-dev` |
-| Docker Compose, Dockerfiles, GPU, ngrok, redis | `docker-ops` |
-| CHANGELOG, README, Postman | `documentation` |
+| Docker Compose, Dockerfiles, GPU, ngrok | `docker-ops` |
+| CHANGELOGs, READMEs, ARQUITECTURE, INSTALL, Postman, agent definitions | `documentation` |
 | Memoria compartida, sesiones, auditoría | `mcp-brain` |
 | Agent loop, tools, Telegram bot, tareas, WS handlers | `agent-engine` |
 | Componentes React del agent-frontend, tabs, WS connection | `agent-frontend` |
