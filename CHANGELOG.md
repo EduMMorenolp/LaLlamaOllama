@@ -7,6 +7,25 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 
 ## [Unreleased]
 
+### 🤖 Sistema de Agentes: Cobertura completa con 7 agentes (2026-06-12)
+
+#### OpenCode Agents
+- **➕ `agent-engine.md`** — Nuevo subagente para el agente autónomo (Express, BullMQ, SQLite, WS, 31 tools, Telegram)
+- **➕ `agent-frontend.md`** — Nuevo subagente para el frontend del agente (React 19, WS puro, 5 tabs, nginx)
+- **➕ Registro en `opencode.json`** — `agent-engine` y `agent-frontend` añadidos como subagentes (7 agentes total)
+- **🔧 `orchestrator.md`** — Flujo de trabajo corregido: ahora delega a `docker-ops` (paso 9) y `documentation` (paso 10) en vez de hacerlo directamente; PROPÓSITO actualizado; routing table sincronizada
+- **🔧 `documentation.md`** — Reescribito completo: estructura con ~25 archivos, 8 triggers por tipo de cambio, auto-verificación, flujo guiado por contexto
+- **🔧 `docker-ops.md`** — Stack corregido de 4 a 7 servicios + redis; estructura con Dockerfiles faltantes; reglas nuevas para redis, agent-engine y agent-frontend
+- **➕ Script `lint`** — `tsc --noEmit` añadido a `agent-engine/package.json`; auto-verificación del agente actualizada
+
+#### Antigravity Rules & Workflows
+- **🔧 `.agents/rules/lallamaollama.md`** — Tabla de servicios ampliada (8 contenedores); estructura del proyecto con agent-engine, agent-frontend y docs/
+- **🔧 `postman.md` y `backend-feature.md`** — Ruta de Postman Collection corregida: `postman-collection/` → `docs/postman-collection/`
+
+#### Documentación General
+- **🔧 `docs/ARQUITECTURE.md`** — Tool Registry corregido (8 → 31 tools); redis añadido a tabla de servicios
+- **🔧 `audit-agents.md`** — Score actualizado 78 → 95/100; tabla con 7 agentes; debilidades corregidas
+
 ### 🧠 MCP Brain: Logging completo estilo agent-engine (2026-06-12)
 
 #### MCP Brain

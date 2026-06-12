@@ -801,7 +801,7 @@ function Timeline() {
 	const fetchTimeline = useCallback(async () => {
 		setLoading(true);
 		try {
-			const params = new URLSearchParams({ limit: "500" });
+			const params = new URLSearchParams({ limit: "100" });
 			if (filterType) params.set("type", filterType);
 			const res = await fetch(`${engine}/api/memory/timeline?${params}`, { headers: apiHeaders });
 			const data = await res.json();

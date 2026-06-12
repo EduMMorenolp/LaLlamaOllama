@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import axios from "axios";
 import cors from "cors";
 import express, { type NextFunction, type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
@@ -48,7 +49,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient, wsServer?
 	app.use("/api", apiLimiter);
 
 	function authMiddleware(req: Request, res: Response, next: NextFunction) {
-		if (req.path === "/health" || req.path === "/memory" || req.path.startsWith("/memory/") || req.path.startsWith("/knowledge/"))
+		if (req.path === "/health" || req.path === "/memory" || req.path.startsWith("/memory/") || req.path === "/knowledge" || req.path.startsWith("/knowledge/"))
 			return next();
 		const apiKey = req.headers["x-api-key"] as string;
 		if (!apiKey || apiKey !== config.apiKey) {
@@ -71,7 +72,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient, wsServer?
 			const limit = parseInt(req.query.limit as string, 10) || 10;
 			const offset = parseInt(req.query.offset as string, 10) || 0;
 			const project = (req.query.project as string) || "lallamaollama";
-			const axiosResp = await (await import("axios")).default.get(`${config.brainUrl}/api/memory/search`, {
+			const axiosResp = await axios.get(`${config.brainUrl}/api/memory/search`, {
 				params: { q, project, mode, limit, offset },
 				timeout: 10000,
 			});
@@ -89,7 +90,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient, wsServer?
 			return;
 		}
 		try {
-			const axiosResp = await (await import("axios")).default.get(`${config.brainUrl}/api/memory/stats`, {
+			const axiosResp = await axios.get(`${config.brainUrl}/api/memory/stats`, {
 				params: { project: "lallamaollama" },
 				timeout: 10000,
 			});
@@ -104,7 +105,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient, wsServer?
 	app.post("/api/memory", async (req: Request, res: Response) => {
 		if (!brain) { res.status(503).json({ error: "Brain not available" }); return; }
 		try {
-			const axiosResp = await (await import("axios")).default.post(
+			const axiosResp = await axios.post(
 				`${config.brainUrl}/api/memory`, req.body, { timeout: 10000 }
 			);
 			wsServer?.sendToAll("memory_changed", { action: "created" });
@@ -122,7 +123,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient, wsServer?
 			const type = req.query.type as string | undefined;
 			const limit = parseInt(req.query.limit as string, 10) || 100;
 			const offset = parseInt(req.query.offset as string, 10) || 0;
-			const axiosResp = await (await import("axios")).default.get(`${config.brainUrl}/api/memory/timeline`, {
+			const axiosResp = await axios.get(`${config.brainUrl}/api/memory/timeline`, {
 				params: { project: "lallamaollama", limit, offset, ...(type ? { type } : {}) },
 				timeout: 10000,
 			});
@@ -137,7 +138,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient, wsServer?
 	app.get("/api/memory/:id", async (req: Request, res: Response) => {
 		if (!brain) { res.status(503).json({ error: "Brain not available" }); return; }
 		try {
-			const axiosResp = await (await import("axios")).default.get(
+			const axiosResp = await axios.get(
 				`${config.brainUrl}/api/memory/${encodeURIComponent(req.params.id)}`, { timeout: 10000 }
 			);
 			res.json(axiosResp.data);
@@ -151,7 +152,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient, wsServer?
 	app.put("/api/memory/:id", async (req: Request, res: Response) => {
 		if (!brain) { res.status(503).json({ error: "Brain not available" }); return; }
 		try {
-			const axiosResp = await (await import("axios")).default.put(
+			const axiosResp = await axios.put(
 				`${config.brainUrl}/api/memory/${encodeURIComponent(req.params.id)}`, req.body, { timeout: 10000 }
 			);
 			wsServer?.sendToAll("memory_changed", { action: "updated", id: req.params.id });
@@ -166,7 +167,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient, wsServer?
 	app.delete("/api/memory/:id", async (req: Request, res: Response) => {
 		if (!brain) { res.status(503).json({ error: "Brain not available" }); return; }
 		try {
-			const axiosResp = await (await import("axios")).default.delete(
+			const axiosResp = await axios.delete(
 				`${config.brainUrl}/api/memory/${encodeURIComponent(req.params.id)}`, { timeout: 10000 }
 			);
 			wsServer?.sendToAll("memory_changed", { action: "deleted", id: req.params.id });
@@ -181,7 +182,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient, wsServer?
 	app.post("/api/memory/consolidate", async (req: Request, res: Response) => {
 		if (!brain) { res.status(503).json({ error: "Brain not available" }); return; }
 		try {
-			const axiosResp = await (await import("axios")).default.post(
+			const axiosResp = await axios.post(
 				`${config.brainUrl}/api/memory/consolidate`, req.body, { timeout: 60000 }
 			);
 			wsServer?.sendToAll("memory_changed", { action: "consolidated" });
