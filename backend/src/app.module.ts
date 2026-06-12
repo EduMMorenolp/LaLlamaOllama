@@ -5,6 +5,7 @@ import { AuthService } from "./auth/auth.service.js";
 import { OllamaService } from "./ollama/ollama.service.js";
 import { MCP_TOOL_CATALOG, MCP_TOOL_NAMES, OllamaTools } from "./ollama/ollama.tools.js";
 import { SessionManager } from "./session/session.manager.js";
+import logger from "./utils/logger.js";
 
 export class AppModule {
   public readonly ollamaService: OllamaService;
@@ -43,6 +44,6 @@ export class AppModule {
       throw new Error(`Tool ${name} not found`);
     });
 
-    console.log("AppModule bootstrapped with MCP tools (Ollama)");
+		logger.child({ component: "app-module" }).info("AppModule bootstrapped with MCP tools (Ollama)");
   }
 }

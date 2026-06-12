@@ -25,6 +25,7 @@ export function createNgrokRouter(
       res.json(status);
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e);
+      log.warn({ message }, "Ngrok status check failed");
       res.json({ running: false, url: null, error: message });
     }
   });

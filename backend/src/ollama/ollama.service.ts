@@ -500,6 +500,7 @@ const summary = `[Historial: ${cached.length - 5} mensajes anteriores resumidos.
 			const finalMessages = this.buildSessionMessages(messages, sessionId);
 			this.lastChatTime = Date.now();
 			const startMs = Date.now();
+			log.agent({ model, msgCount: messages.length, sessionId }, "LLM call");
 
 			const response = await this.axiosClient.post(
 				`${this.baseUrl}/api/chat`,
@@ -532,6 +533,7 @@ const summary = `[Historial: ${cached.length - 5} mensajes anteriores resumidos.
 		return this.enqueueRequest(async () => {
 			const finalMessages = this.buildSessionMessages(messages, sessionId);
 			this.lastChatTime = Date.now();
+			log.agent({ model, msgCount: messages.length, sessionId }, "LLM stream call");
 
 			return this.axiosClient.post(
 				`${this.baseUrl}/api/chat`,

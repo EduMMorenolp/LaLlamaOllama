@@ -77,6 +77,14 @@ const io = new SocketServer(httpServer, {
   cors: { origin: "*" },
 });
 
+io.on("connection", (socket) => {
+  const ip = socket.handshake.address || "unknown";
+  log.info({ id: socket.id, ip }, "WS Client connected");
+  socket.on("disconnect", (reason) => {
+    log.info({ id: socket.id, ip, reason }, "WS Client disconnected");
+  });
+});
+
 const server = new Server(
   {
     name: "lallama-station-mcp",
@@ -132,6 +140,20 @@ const securityMiddleware = createSecurityMiddleware(appModule.ollamaService);
 const mcpAuthMiddleware = createMcpAuthMiddleware(appModule.authService);
 
 app.use(securityMiddleware);
+
+// --- Request Logging Middleware ---
+app.use((req, res, next) => {
+  const ip = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "unknown";
+  const isPolling =
+    req.method === "GET" && ["/api/status", "/api/status/fast", "/api/hardware"].includes(req.path);
+  if (!isPolling) {
+    const start = Date.now();
+    res.on("finish", () => {
+      log.info({ method: req.method, path: req.path, status: res.statusCode, durationMs: Date.now() - start, ip }, "HTTP request");
+    });
+  }
+  next();
+});
 
 // --- Rutas (Use Case Architecture) ---
 const NGROK_CONTAINER = process.env.NGROK_CONTAINER_NAME || "mcp-ngrok-tunnel";
