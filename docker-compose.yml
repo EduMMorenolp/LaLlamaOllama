@@ -104,11 +104,13 @@ services:
       dockerfile: Dockerfile
       args:
         - VITE_ENGINE_URL=http://localhost:${ENGINE_PORT:-3020}
+        - VITE_API_KEY=${API_KEY:-super-secret-mcp-key}
     container_name: agent-frontend
     ports:
       - "8081:80"
     environment:
       - VITE_ENGINE_URL=http://agent-engine:${ENGINE_PORT:-3020}
+      - VITE_API_KEY=${API_KEY:-super-secret-mcp-key}
     networks:
       - mcp-network
     depends_on:

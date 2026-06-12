@@ -68,6 +68,12 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 	initTelegramDeps(config, brain, wsServer);
 
 	return {
+		onDisconnect(clientId: string) {
+			const userId = userMap.get(clientId);
+			if (userId) {
+				userMap.delete(clientId);
+			}
+		},
 		async handleMessage(clientId: string, ws: WebSocket, msg: unknown) {
 			const parsed = msg as { type: string; payload?: Record<string, unknown> };
 			const { type, payload } = parsed;
@@ -532,7 +538,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					const taskText = (payload?.text as string) || "Nueva tarea";
 					const chatId = (payload?.chatId as string) || userId;
 					const runId = createRun({ chatId, userText: taskText, origin: "web", status: "queued" });
-					ws.send(createMessage("task_created", { runId, chatId, text: taskText, status: "queued" }));
+					ws.send(createMessage("task_created", { runId, chatId, text: taskText, status: "queued", origin: "web" }));
 					// Enqueue the task for processing in the background
 					submitAgentRun({ chatId, userText: taskText, origin: "web", runId }).catch((err: unknown) => {
 						logger.error("[Tasks] new_task failed: " + (err instanceof Error ? err.message : String(err)));
@@ -559,7 +565,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 						break;
 					}
 					cancelRun(runId);
-					wsServer.sendToAll("task_cancelled" as any, { runId, chatId: run.chatId, text: run.userText });
+					wsServer.sendToAll("task_cancelled", { runId, chatId: run.chatId, text: run.userText });
 					ws.send(createMessage("task_cancelled", { runId, status: "cancelled" }));
 					break;
 				}

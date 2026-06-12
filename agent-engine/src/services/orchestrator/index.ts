@@ -12,6 +12,7 @@ function serializeOptions(opts: Omit<AgentOptions, "config" | "brain">) {
 		origin: opts.origin,
 		telegramChatId: opts.telegramChatId,
 		skipPersistUserMsg: opts.skipPersistUserMsg,
+		modeId: opts.modeId,
 	};
 }
 
@@ -40,18 +41,22 @@ export async function submitAgentRun(opts: Omit<AgentOptions, "config" | "brain"
 			runId,
 			...serializeOptions(opts),
 		});
-
-		updateRun(runId, {
-			status: "completed",
-			model: result.model,
-			resultText: result.text,
-			latencyMs: result.latencyMs,
-		});
+		// NOTA: updateRun ya lo hace processQueuedRun (status=running, completed)
+		// No duplicamos la escritura aquí.
 		return { ...result, runId };
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		logger.error(`[Orchestrator] Run ${runId} failed: ${message}`);
-		updateRun(runId, { status: "failed", errorText: message });
+		// processQueuedRun también maneja el caso failed, pero si falla antes
+		// de llegar a processQueuedRun (ej: error de queue), actualizamos aquí.
+		try {
+			const run = await import("../db/runs.js").then(m => m.getRun(runId));
+			if (run && (run.status === "queued" || run.status === "running")) {
+				updateRun(runId, { status: "failed", errorText: message });
+			}
+		} catch {
+			updateRun(runId, { status: "failed", errorText: message });
+		}
 		throw err;
 	} finally {
 		unsubscribe();

@@ -3,7 +3,7 @@ import { config } from "../config";
 
 interface WsContextValue {
 	connected: boolean;
-	send: (type: string, payload?: Record<string, unknown>) => void;
+	send: (type: string, payload?: Record<string, unknown>) => boolean;
 	subscribe: (handler: (msg: { type: string; payload?: Record<string, unknown> }) => void) => () => void;
 	userId: string;
 }
@@ -19,10 +19,12 @@ export function WsProvider({ children }: { children: ReactNode }) {
 	const intentionalRef = useRef(false);
 	const userId = "web-user";
 
-	const send = useCallback((type: string, payload?: Record<string, unknown>) => {
+	const send = useCallback((type: string, payload?: Record<string, unknown>): boolean => {
 		if (wsRef.current?.readyState === WebSocket.OPEN) {
 			wsRef.current.send(JSON.stringify({ type, payload: payload || {} }));
+			return true;
 		}
+		return false;
 	}, []);
 
 	const subscribe = useCallback((handler: (msg: any) => void) => {

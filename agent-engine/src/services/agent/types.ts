@@ -26,6 +26,8 @@ export interface AgentOptions {
 	quotedMessage?: { content: string; role: string; timestamp?: string };
 	/** Callback for auto-suggestions */
 	onSuggestions?: (suggestions: string[]) => void;
+	/** Specific mode ID to use (overrides active mode) */
+	modeId?: string;
 }
 
 export interface AgentResult {

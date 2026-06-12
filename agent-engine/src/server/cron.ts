@@ -72,6 +72,7 @@ export function startCronJobs(brain: BrainClient) {
 							chatId: "scheduler",
 							userText: task.task_text,
 							origin: "scheduler",
+							modeId: task.mode_id || undefined,
 						});
 						updateScheduledTask(task.id, {
 							last_run_at: new Date().toISOString(),

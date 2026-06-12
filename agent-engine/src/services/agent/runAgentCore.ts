@@ -67,14 +67,20 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 	let generalTemperature = 0.7;
 	let generalHistoryLimit = 10;
 
-	// Preferir configuración del modo activo sobre __general__
+	// Preferir modo específico (modeId) > modo activo > __general__ > defaults
 	try {
-		const { getActiveMode } = await import("../db/modes.js");
-		const activeMode = getActiveMode();
-		if (activeMode) {
-			if (activeMode.model) generalModel = activeMode.model;
-			if (activeMode.temperature != null) generalTemperature = activeMode.temperature;
-			if (activeMode.history_limit != null) generalHistoryLimit = activeMode.history_limit;
+		const { getActiveMode, getMode } = await import("../db/modes.js");
+		let mode = null;
+		if (opts.modeId) {
+			mode = getMode(opts.modeId);
+		}
+		if (!mode) {
+			mode = getActiveMode();
+		}
+		if (mode) {
+			if (mode.model) generalModel = mode.model;
+			if (mode.temperature != null) generalTemperature = mode.temperature;
+			if (mode.history_limit != null) generalHistoryLimit = mode.history_limit;
 		}
 	} catch {
 		// fallback a __general__
@@ -110,12 +116,18 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 
 		let systemPrompt: string;
 		try {
-			// Prioridad: modo activo > __general__ > built-in
-			const { getActiveMode } = await import("../db/modes.js");
-			const activeMode = getActiveMode();
-			if (activeMode?.system_prompt) {
-				systemPrompt = activeMode.system_prompt;
-				logger.agent(`[${chatId}] Using system prompt from mode '${activeMode.name}'`);
+			// Prioridad: modeId específico > modo activo > __general__ > built-in
+			const { getActiveMode, getMode } = await import("../db/modes.js");
+			let mode = null;
+			if (opts.modeId) {
+				mode = getMode(opts.modeId);
+			}
+			if (!mode) {
+				mode = getActiveMode();
+			}
+			if (mode?.system_prompt) {
+				systemPrompt = mode.system_prompt;
+				logger.agent(`[${chatId}] Using system prompt from mode '${mode.name}'`);
 			} else {
 				const generalOverride = getGeneralConfig();
 				if (generalOverride?.system_prompt) {
@@ -148,6 +160,14 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 				content: `## Herramientas disponibles\nPuedes usar estas herramientas cuando el usuario lo solicite:\n${toolNames.map((n: string) => `- ${n}`).join("\n")}\n\nResponde siempre en español.`,
 			});
 		}
+
+		if (opts.origin === "scheduler") {
+			session.messages.push({
+				role: "system",
+				content: "## Contexto\nEsta consulta proviene de una tarea programada automáticamente. No esperes respuesta del usuario; completa la tarea y reporta los resultados sin solicitar confirmación.",
+			});
+		}
+
 		try {
 			const recentMessages = getMessages(chatId, generalHistoryLimit);
 			for (const stored of recentMessages) {

@@ -73,6 +73,7 @@ export type WsMessageType =
 	| "assistant_done"
 	| "tool_call"
 	| "tool_result"
+	| "notification"
 	| "status"
 	| "telegram_status"
 	| "error"

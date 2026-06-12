@@ -52,6 +52,8 @@ interface ScheduledTask {
 
 type StatusFilter = "all" | "queued" | "running" | "completed" | "failed" | "cancelled" | "scheduled";
 
+const apiHeaders = { "X-API-Key": config.apiKey };
+
 const FILTER_LABELS: Record<StatusFilter, string> = {
 	all: "Todas",
 	queued: "En cola",
@@ -74,7 +76,7 @@ const HISTORY_FILTERS: StatusFilter[] = ["all", "queued", "running", "completed"
 type TabMode = "history" | "scheduled";
 
 export const Tareas: React.FC = () => {
-	const { send: sendWs, subscribe } = useWs();
+	const { send: sendWs, subscribe, connected } = useWs();
 	const { show: showToast } = useToast();
 
 	const [runs, setRuns] = useState<Run[]>([]);
@@ -101,8 +103,6 @@ export const Tareas: React.FC = () => {
 	const [schedTaskText, setSchedTaskText] = useState("");
 	const [schedModeId, setSchedModeId] = useState("");
 
-	const apiHeaders = { "X-API-Key": config.apiKey };
-
 	// Fetch runs (history)
 	const fetchRuns = useCallback(
 		async (append = false) => {
@@ -115,6 +115,9 @@ export const Tareas: React.FC = () => {
 				params.set("limit", "50");
 				params.set("offset", String(currentOffset));
 				const res = await fetch(`${config.engineUrl}/api/runs?${params}`, { headers: apiHeaders });
+				if (!res.ok) {
+					throw new Error(`Error HTTP ${res.status}: ${res.statusText}`);
+				}
 				const data = await res.json();
 				const newRuns = data.runs || [];
 				if (append) {
@@ -131,7 +134,7 @@ export const Tareas: React.FC = () => {
 				setLoadingMore(false);
 			}
 		},
-		[statusFilter, apiHeaders]
+		[statusFilter]
 	);
 
 	useEffect(() => {
@@ -148,14 +151,19 @@ export const Tareas: React.FC = () => {
 		setScheduledLoading(true);
 		try {
 			const res = await fetch(`${config.engineUrl}/api/scheduled-tasks`, { headers: apiHeaders });
+			if (!res.ok) {
+				throw new Error(`Error HTTP ${res.status}: ${res.statusText}`);
+			}
 			const data = await res.json();
 			setScheduledTasks(data.scheduledTasks || data.tasks || []);
 		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
 			console.error("Failed to fetch scheduled tasks", err);
+			showToast("Error al cargar tareas programadas: " + msg, "error");
 		} finally {
 			setScheduledLoading(false);
 		}
-	}, [apiHeaders]);
+	}, [showToast]);
 
 	useEffect(() => {
 		if (tabMode === "scheduled") {
@@ -166,55 +174,81 @@ export const Tareas: React.FC = () => {
 	// WS subscriptions
 	useEffect(() => {
 		const unsub = subscribe((msg: { type: string; payload?: Record<string, unknown> }) => {
+			const p = (msg.payload || {}) as Record<string, unknown>;
+			const runId = p.runId != null ? Number(p.runId) : undefined;
+
 			switch (msg.type) {
 				case "task_created": {
-					const p = (msg.payload || {}) as Record<string, unknown>;
 					const task: Run = {
 						id: Number(p.runId),
 						chatId: (p.chatId as string) || "",
 						userText: (p.text as string) || "",
-						origin: "web",
+						origin: (p.origin as string) || "web",
 						status: (p.status as string) || "queued",
+						model: p.model as string | null | undefined,
+						resultText: p.resultText as string | null | undefined,
+						latencyMs: p.latencyMs != null ? Number(p.latencyMs) : undefined,
 					};
-					setRuns((prev) => [task, ...prev]);
+					setRuns((prev) => {
+						if (prev.some((r) => r.id === task.id)) return prev; // dedup
+						return [task, ...prev];
+					});
 					showToast("Nueva tarea creada", "success");
 					break;
 				}
-				case "task_status": {
-					const p = (msg.payload || {}) as Record<string, unknown>;
-					const runId = p.runId as number | undefined;
+				case "task_status":
+				case "task_completed":
+				case "task_failed": {
 					const status = p.status as string | undefined;
 					if (runId != null && status) {
-						setRuns((prev) => prev.map((r) => (r.id === Number(runId) ? { ...r, status } : r)));
+						setRuns((prev) => {
+							const exists = prev.find((r) => r.id === runId);
+							if (exists) {
+								// Update existing entry with ALL available fields
+								return prev.map((r) =>
+									r.id === runId
+										? {
+												...r,
+												status,
+												...(p.model != null ? { model: p.model as string } : {}),
+												...(p.resultText != null ? { resultText: p.resultText as string } : {}),
+												...(p.latencyMs != null ? { latencyMs: Number(p.latencyMs) } : {}),
+												...(p.error != null ? { errorText: p.error as string } : {}),
+											}
+										: r,
+								);
+							}
+							// Task not in list yet (e.g. from tool/scheduler) — create entry
+							return [
+								{
+									id: runId,
+									chatId: (p.chatId as string) || "",
+									userText: (p.text as string) || "",
+									origin: (p.origin as string) || "tool",
+									status,
+									model: p.model as string | null | undefined,
+									resultText: p.resultText as string | null | undefined,
+									errorText: p.error as string | null | undefined,
+									latencyMs: p.latencyMs != null ? Number(p.latencyMs) : undefined,
+								},
+								...prev,
+							];
+						});
+						if (status === "completed" || status === "failed") {
+							showToast(
+								`Tarea #${runId} ${status === "completed" ? "completada" : "falló"}`,
+								status === "completed" ? "success" : "error",
+							);
+						}
 					}
 					break;
 				}
 				case "task_cancelled": {
-					const p = (msg.payload || {}) as Record<string, unknown>;
-					const runId = p.runId as number | undefined;
 					if (runId != null) {
 						setRuns((prev) =>
-							prev.map((r) => (r.id === Number(runId) ? { ...r, status: "cancelled" } : r))
+							prev.map((r) => (r.id === Number(runId) ? { ...r, status: "cancelled" } : r)),
 						);
 						showToast("Tarea cancelada", "info");
-					}
-					break;
-				}
-				case "task_completed": {
-					const p = (msg.payload || {}) as Record<string, unknown>;
-					const runId = p.runId as number | undefined;
-					if (runId != null) {
-						setRuns((prev) =>
-							prev.map((r) => (r.id === Number(runId) ? { ...r, status: "completed" } : r))
-						);
-					}
-					break;
-				}
-				case "task_failed": {
-					const p = (msg.payload || {}) as Record<string, unknown>;
-					const runId = p.runId as number | undefined;
-					if (runId != null) {
-						setRuns((prev) => prev.map((r) => (r.id === Number(runId) ? { ...r, status: "failed" } : r)));
 					}
 					break;
 				}
@@ -240,47 +274,66 @@ export const Tareas: React.FC = () => {
 	};
 
 	const handleCancelTask = (runId: number) => {
-		sendWs("cancel_task", { runId });
-		showToast("Cancelando tarea...", "info");
+		const ok = sendWs("cancel_task", { runId });
+		if (ok) {
+			showToast("Cancelando tarea...", "info");
+		} else {
+			showToast("Error: No hay conexión WebSocket.", "error");
+		}
 	};
 
 	const handleNewTask = () => {
 		if (!newTaskText.trim()) return;
-		sendWs("new_task", { text: newTaskText.trim() });
+		const ok = sendWs("new_task", { text: newTaskText.trim() });
 		setNewTaskText("");
 		setShowNewTaskModal(false);
-		showToast("Tarea enviada", "success");
+		if (ok) {
+			showToast("Tarea enviada", "success");
+		} else {
+			showToast("Error: No hay conexión WebSocket. Verifica la conexión.", "error");
+		}
 	};
 
 	// Scheduled task CRUD
 	const handleToggleScheduled = async (id: number) => {
 		try {
-			await fetch(`${config.engineUrl}/api/scheduled-tasks/${id}/toggle`, {
+			const res = await fetch(`${config.engineUrl}/api/scheduled-tasks/${id}/toggle`, {
 				method: "POST",
 				headers: apiHeaders,
 			});
+			if (!res.ok) throw new Error(`Error HTTP ${res.status}`);
 			fetchScheduledTasks();
+			showToast("Estado cambiado", "success");
 		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
 			console.error("Failed to toggle scheduled task", err);
+			showToast("Error al cambiar estado: " + msg, "error");
 		}
 	};
 
 	const handleDeleteScheduled = async (id: number) => {
 		try {
-			await fetch(`${config.engineUrl}/api/scheduled-tasks/${id}`, {
+			const res = await fetch(`${config.engineUrl}/api/scheduled-tasks/${id}`, {
 				method: "DELETE",
 				headers: apiHeaders,
 			});
+			if (!res.ok) throw new Error(`Error HTTP ${res.status}`);
 			setScheduledTasks((prev) => prev.filter((t) => t.id !== id));
 			showToast("Tarea programada eliminada", "info");
 		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
 			console.error("Failed to delete scheduled task", err);
+			showToast("Error al eliminar: " + msg, "error");
 		}
 	};
 
 	const handleExecuteScheduled = (task: ScheduledTask) => {
-		sendWs("new_task", { text: task.task_text });
-		showToast("Tarea ejecutada", "success");
+		const ok = sendWs("new_task", { text: task.task_text });
+		if (ok) {
+			showToast("Tarea ejecutada", "success");
+		} else {
+			showToast("Error: No hay conexión WebSocket.", "error");
+		}
 	};
 
 	const handleCreateScheduled = async () => {
@@ -389,25 +442,53 @@ export const Tareas: React.FC = () => {
 					Programadas
 				</button>
 				<span style={{ flex: 1 }} />
+				{/* Connection indicator */}
+				<span
+					title={connected ? "Conectado" : "Desconectado"}
+					style={{
+						display: "inline-flex",
+						alignItems: "center",
+						gap: "4px",
+						fontSize: "10px",
+						color: connected ? "var(--success)" : "var(--error)",
+						fontWeight: 600,
+					}}
+				>
+					<span
+						style={{
+							width: 8,
+							height: 8,
+							borderRadius: "50%",
+							background: connected ? "var(--success)" : "var(--error)",
+							display: "inline-block",
+						}}
+					/>
+					{connected ? "Conectado" : "Desconectado"}
+				</span>
 				<button
 					type="button"
-					onClick={() => setShowNewTaskModal(true)}
+					disabled={!connected}
+					onClick={() => {
+						if (tabMode === "history") setShowNewTaskModal(true);
+						else setShowScheduledForm(true);
+					}}
 					style={{
 						padding: "6px 14px",
 						borderRadius: "6px",
-						border: "1px solid var(--accent)",
-						background: "rgba(79,140,255,0.15)",
-						color: "var(--accent)",
-						cursor: "pointer",
+						border: `1px solid ${connected ? "var(--accent)" : "var(--border-light)"}`,
+						background: connected ? "rgba(79,140,255,0.15)" : "rgba(255,255,255,0.02)",
+						color: connected ? "var(--accent)" : "var(--text-muted)",
+						cursor: connected ? "pointer" : "not-allowed",
 						fontSize: "11px",
 						fontWeight: 600,
 						display: "flex",
 						alignItems: "center",
 						gap: "6px",
+						opacity: connected ? 1 : 0.5,
 					}}
 				>
 					<Plus size={14} />
-					Nueva Tarea
+					{tabMode === "history" ? "Nueva Tarea" : "Nueva Programada"}
 				</button>
 			</div>
 
@@ -623,28 +704,6 @@ export const Tareas: React.FC = () => {
 						</div>
 					) : (
 						<>
-							<div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "12px" }}>
-								<button
-									type="button"
-									onClick={() => setShowScheduledForm(true)}
-									style={{
-										padding: "6px 14px",
-										borderRadius: "6px",
-										border: "1px solid var(--accent)",
-										background: "rgba(79,140,255,0.15)",
-										color: "var(--accent)",
-										cursor: "pointer",
-										fontSize: "11px",
-										fontWeight: 600,
-										display: "flex",
-										alignItems: "center",
-										gap: "6px",
-									}}
-								>
-									<Plus size={14} />
-									Nueva Programada
-								</button>
-							</div>
 							{scheduledTasks.length === 0 ? (
 								<div
 									style={{
