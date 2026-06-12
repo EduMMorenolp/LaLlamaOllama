@@ -7,6 +7,19 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 
 ## [Unreleased]
 
+### 📝 Backend: Logging completo estilo agent-engine (2026-06-12)
+
+#### Backend
+- **➕ Niveles custom `agent` y `tool`** — Añadidos via Pino customLevels (magenta/green con pino-pretty)
+- **➕ Request logging middleware** — Log automático de method, path, status, durationMs e IP en cada request (excluye polling)
+- **➕ WS connection logs** — `io.on("connection")` y `socket.on("disconnect")` con id, ip y razón
+- **➕ Session manager logs** — `console.log` reemplazado por `log.agent()` en creación/cierre/limpieza de sesiones
+- **➕ Tool call logs** — `log.tool()` en cada handler MCP (list_models, pull, chat, generate, etc.)
+- **➕ Chat/LLM call logs** — `log.agent()` antes de llamadas a Ollama en `chat()` y `chatStream()`
+- **➕ Route entry/exit logs** — Logger añadido a agents, auth, chat, docker, hardware, models, ngrok, search, security y status routes
+- **➕ Error handler logging** — `log.error()` en el middleware global de errores
+- **🔧 console.log/error eliminados** — `session.manager.ts`, `app.module.ts`, `agents.service.ts` ahora usan Pino
+
 ### 🧠 Cerebro: Gestor visual de memorias con CRUD, timeline y consolidación (2026-06-11)
 
 #### MCP Brain
