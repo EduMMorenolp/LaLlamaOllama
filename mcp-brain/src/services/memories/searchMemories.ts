@@ -2,6 +2,9 @@ import type { DatabaseService } from "../../database/connection.js";
 import { cosineSimilarity, embed } from "../llm/index.js";
 import { getGlobalSetting } from "../settings/index.js";
 import type { Memory } from "../types.js";
+import logger from "../../utils/logger.js";
+
+const log = logger.child({ component: "memory-service" });
 
 // Embedding cache with 5-minute TTL
 interface EmbeddingCacheEntry {
@@ -93,7 +96,7 @@ DIRECTIVA DE DELEGACIÓN: Detén la búsqueda actual. Evalúa cambiar de fase SD
 		try {
 			queryVector = await getEmbeddingWithCache(query);
 		} catch (err) {
-			console.error("[MemoryService] Semantic search failed. Falling back to lexical.", err);
+			log.error({ err, query: query.substring(0, 80) }, "Semantic search failed, falling back to lexical");
 			if (mode === "hybrid") return searchMemories(dbService, query, project, "lexical", limit);
 			return [];
 		}

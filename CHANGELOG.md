@@ -7,6 +7,18 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 
 ## [Unreleased]
 
+### 🧠 MCP Brain: Logging completo estilo agent-engine (2026-06-12)
+
+#### MCP Brain
+- **➕ Logger centralizado con Pino** — Creado `src/utils/logger.ts` con customLevels `agent` (magenta) y `tool` (green), pino-pretty en dev, JSON en prod
+- **➕ Request logging middleware** — Log automático de method, path, status, durationMs en cada request HTTP
+- **➕ SSE connection logs** — `log.info()` en conexión y desconexión de clientes SSE (`/sse`)
+- **➕ Tool call logs** — `log.tool()` en cada handler MCP con tool name y agent identity
+- **➕ Cron job logs** — `log.agent()` en consolidación programada
+- **➕ Route entry/exit logs** — Logger añadido a todos los endpoints: memory CRUD, search, timeline, consolidate, sync, sessions, templates, directives, settings, projects
+- **🔧 22 console.error + 1 console.warn reemplazados** — En `api.ts`, `mcp.ts`, `cron.ts`, `searchMemories.ts`, `saveMemory.ts`, `generate.ts`, `embed.ts`, `consolidation.ts`, `index.ts`
+- **➕ Dependencias** — `pino@^9.0.0`, `pino-pretty@^11.0.0`
+
 ### 📝 Backend: Logging completo estilo agent-engine (2026-06-12)
 
 #### Backend

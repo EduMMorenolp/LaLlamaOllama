@@ -3,6 +3,9 @@ import { cosineSimilarity, embed } from "../llm/index.js";
 import type { Memory } from "../types.js";
 import { getMemory } from "./getMemory.js";
 import { updateMemory } from "./updateMemory.js";
+import logger from "../../utils/logger.js";
+
+const log = logger.child({ component: "memory-service" });
 
 interface MemoryCandidate {
 	judgment_id: string;
@@ -58,7 +61,7 @@ export async function saveMemory(
 			vectorJson = JSON.stringify(queryVector);
 		}
 	} catch (_err) {
-		console.warn("[MemoryService] Warning: Could not generate embeddings.");
+		log.warn("Could not generate embeddings");
 	}
 
 	await dbService.enqueueWrite(async () => {
