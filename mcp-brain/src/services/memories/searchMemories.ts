@@ -44,7 +44,8 @@ export async function searchMemories(
 	query: string,
 	project: string,
 	mode: "lexical" | "semantic" | "hybrid" = "hybrid",
-	limit: number = 10
+	limit: number = 10,
+	offset: number = 0
 ): Promise<Memory[]> {
 	const db = dbService.getDb();
 	const now = Date.now();
@@ -83,8 +84,8 @@ DIRECTIVA DE DELEGACIÓN: Detén la búsqueda actual. Evalúa cambiar de fase SD
              FROM memories_fts f 
              JOIN memories m ON f.id = m.id 
              WHERE f.memories_fts MATCH ? AND m.project = ? 
-             ORDER BY rank LIMIT ?`,
-			[`"${query}"*`, project, limit]
+             ORDER BY rank LIMIT ? OFFSET ?`,
+			[`"${query}"*`, project, limit, offset]
 		);
 		results = rows as Memory[];
 	} else if (mode === "semantic" || mode === "hybrid") {
@@ -125,7 +126,7 @@ DIRECTIVA DE DELEGACIÓN: Detén la búsqueda actual. Evalúa cambiar de fase SD
 			);
 
 			semanticResults.sort((a, b) => (b.score || 0) - (a.score || 0));
-			results = semanticResults.slice(0, limit);
+			results = semanticResults.slice(offset, offset + limit);
 		}
 	}
 

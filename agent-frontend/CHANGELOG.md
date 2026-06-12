@@ -12,7 +12,13 @@
 - **➕ Consolidación manual** — Botón "Consolidar" que dispara `POST /api/memory/consolidate` con feedback visual
 - **➕ Timeline view** — Vista cronológica agrupada por día con filtro por tipo
 - **➕ Quick‑memo** — Botón flotante "+" para crear memoria rápida sin cambiar de tab
-- **🔧 `App.tsx`** — Descripciones de tabs actualizadas: "Cerebro → Memorias, timeline y archivos RAG", "Memoria → Búsqueda avanzada en MCP Brain"
+- **➕ Paginación (scroll infinito)** — `IntersectionObserver` con sentinel, carga batches de 50
+- **➕ Filtro por tags** — Input que filtra memorias por tags (client-side, múltiples tags separados por coma)
+- **➕ Ordenamiento** — Dropdown "Fecha ↓", "Fecha ↑", "Tipo" client-side
+- **➕ Toast feedback** — `useToast()` en crear, editar, eliminar, bulk delete y consolidar
+- **➕ WS sync** — Suscripción a `memory_changed` vía `useWs()`; refresca lista y stats
+- **➕ Notification toast** — Suscripción al evento WS `"notification"` en `AgentChat.tsx`
+- **🔧 `App.tsx`** — Descripciones de tabs actualizadas
 
 ### 🐛 Corrección de bugs y encoding
 

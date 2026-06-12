@@ -161,11 +161,13 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 		const q = (req.query.q as string) || "";
 		const project = normalizeProject((req.query.project as string) || "lallamaollama");
 		const mode = (req.query.mode as "lexical" | "semantic" | "hybrid") || "hybrid";
+		const limit = parseInt((req.query.limit as string) || "50", 10);
+		const offset = parseInt((req.query.offset as string) || "0", 10);
 		try {
 			const results =
 				q.trim() === ""
-					? await memories.getContext(dbService, project, 50)
-					: await memories.searchMemories(dbService, q, project, mode, 50);
+					? await memories.getContext(dbService, project, limit, false, offset)
+					: await memories.searchMemories(dbService, q, project, mode, limit, offset);
 			res.json(results);
 		} catch (e: unknown) {
 			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
@@ -176,8 +178,9 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 		const project = normalizeProject((req.query.project as string) || "lallamaollama");
 		const type = req.query.type as string | undefined;
 		const limit = parseInt((req.query.limit as string) || "100", 10);
+		const offset = parseInt((req.query.offset as string) || "0", 10);
 		try {
-			const results = await memories.getTimeline(dbService, project, limit, type);
+			const results = await memories.getTimeline(dbService, project, limit, type, offset);
 			res.json(results);
 		} catch (e: unknown) {
 			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });

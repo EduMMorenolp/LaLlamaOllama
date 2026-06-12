@@ -98,8 +98,8 @@ async function bootstrap() {
 	}
 
 	// 9. Start servers
-	startApiServer(config, brain);
 	const wsServer = new WsServer(config, brain);
+	startApiServer(config, brain, wsServer);
 
 	// Set wsServer reference for tools that need it (e.g., notify_frontend)
 	setWsServer(wsServer);

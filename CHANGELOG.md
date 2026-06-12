@@ -10,6 +10,24 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 ### 🧠 Cerebro: Gestor visual de memorias con CRUD, timeline y consolidación (2026-06-11)
 
 #### MCP Brain
+- **➕ `GET/POST /api/memory/consolidate`** — Endpoint de consolidación ahora accesible vía agent-engine proxy
+- **➕ `offset` parameter** — Añadido soporte de offset en `/api/memory/timeline`, `/api/memory/search` y servicios subyacentes (getTimeline, searchMemories, getContext)
+- **🐛 Fix: typo en cron** — `"lallamasollama"` → `"lallamaollama"` en `cron.ts`
+
+#### Agent Engine
+- **➕ Consolidate proxy** — Nuevo `POST /api/memory/consolidate` que proxea a mcp-brain
+- **➕ `offset` en proxies** — `GET /api/memory/search` y `GET /api/memory/timeline` ahora reenvían `offset`
+- **➕ WS broadcast** — `WsServer` pasado a `startApiServer()`; emite `memory_changed` tras cada POST/PUT/DELETE /api/memory
+- **➕ Tools `update_memory` y `delete_memory`** — Nuevas tools del agente para editar y eliminar memorias por ID
+- **🔧 Orden de arranque** — `WsServer` se crea antes de `startApiServer` para poder inyectarlo
+
+#### Agent Frontend
+- **➕ Paginación (scroll infinito)** — `IntersectionObserver` con sentinel, carga batches de 50, concatenación automática
+- **➕ Filtro por tags** — Input que filtra memorias por tags (client-side, múltiples tags separados por coma)
+- **➕ Ordenamiento** — Dropdown con "Fecha ↓", "Fecha ↑", "Tipo" (sort client-side)
+- **➕ Toast feedback** — `useToast()` en todas las operaciones: crear, editar, eliminar, bulk delete y consolidar (success/error)
+- **➕ WS sync** — Suscripción a `memory_changed` vía `useWs()`; refresca automáticamente la lista y stats
+- **➕ Notification toast** — Suscripción al evento WS `"notification"` en `AgentChat.tsx`; muestra el mensaje via toast según nivel (error/success/info)
 - **➕ `GET /api/memory/:id`** — Endpoint para obtener una memoria individual por ID
 - **➕ `PUT /api/memory/:id`** — Endpoint para actualizar título, contenido, tipo y tags de una memoria existente
 - **➕ `GET /api/memory/timeline`** — Endpoint que agrupa memorias por día para vista cronológica (soporta filtro opcional `?type=`)

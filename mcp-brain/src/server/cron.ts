@@ -13,7 +13,7 @@ export async function startCronJobs(dbService: DatabaseService) {
 			// In a real multi-project setup, we'd iterate active projects.
 			// Here we run for the default project.
 			console.error("[Cron] Running scheduled memory consolidation...");
-			const res = await consolidateMemories(dbService, "lallamasollama");
+			const res = await consolidateMemories(dbService, "lallamaollama");
 			if (res.consolidatedGroups > 0) {
 				console.error(`[Cron] Consolidated ${res.consolidatedGroups} topic groups.`);
 			}

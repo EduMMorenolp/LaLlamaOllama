@@ -11,7 +11,9 @@ import {
 	Upload,
 	X,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useToast } from "../contexts/ToastContext";
+import { useWs } from "../contexts/WebSocketContext";
 import { config } from "../config";
 import { ConfirmModal } from "./ConfirmModal";
 
@@ -234,9 +236,9 @@ function ArchivosRag() {
 									<Trash2 size={14} />
 								</button>
 							</div>
-						))
-					)}
-				</div>
+					))
+				)}
+			</div>
 
 				<div style={{ width: "360px", flexShrink: 0, display: "flex", flexDirection: "column" }}>
 					<div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid var(--border-light)", borderRadius: "8px", marginBottom: "12px" }}>
@@ -277,12 +279,21 @@ function ArchivosRag() {
 
 // ─── Cerebro Tab ────────────────────────────────────────────────────
 
+const PAGE_SIZE = 50;
+
 function Cerebro() {
+	const { show: showToast } = useToast();
+	const { subscribe } = useWs();
 	const [memories, setMemories] = useState<Memory[]>([]);
 	const [stats, setStats] = useState<MemoryStats>({});
 	const [loading, setLoading] = useState(true);
+	const [loadingMore, setLoadingMore] = useState(false);
+	const [hasMore, setHasMore] = useState(true);
 	const [searchQuery, setSearchQuery] = useState("");
 	const [filterType, setFilterType] = useState("");
+	const [tagsFilter, setTagsFilter] = useState("");
+	const [sortBy, setSortBy] = useState<"date" | "type">("date");
+	const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 	const [selectedMemory, setSelectedMemory] = useState<Memory | null>(null);
 	const [editingMemory, setEditingMemory] = useState<Memory | null>(null);
 	const [editTitle, setEditTitle] = useState("");
@@ -300,25 +311,37 @@ function Cerebro() {
 	const [consolidating, setConsolidating] = useState(false);
 	const [consolidateResult, setConsolidateResult] = useState("");
 	const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+	const scrollRef = useRef<HTMLDivElement | null>(null);
+	const sentinelRef = useRef<HTMLDivElement | null>(null);
+	const offsetRef = useRef(0);
 
-	const fetchMemories = useCallback(async () => {
-		setLoading(true);
+	const fetchMemories = useCallback(async (append = false) => {
+		if (!append) { setLoading(true); offsetRef.current = 0; }
+		else setLoadingMore(true);
 		try {
-			const params = new URLSearchParams({ q: searchQuery, limit: "200" });
+			const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offsetRef.current) });
 			if (filterType) params.set("type", filterType);
+			let data: Memory[];
 			if (searchQuery.trim()) {
+				params.set("q", searchQuery.trim());
 				const res = await fetch(`${engine}/api/memory/search?${params}`, { headers: apiHeaders });
-				const data = await res.json();
-				setMemories(data.results || []);
+				data = (await res.json()).results || [];
 			} else {
-				const res = await fetch(`${engine}/api/memory/timeline?limit=200${filterType ? `&type=${filterType}` : ""}`, { headers: apiHeaders });
-				const data = await res.json();
-				setMemories(Array.isArray(data) ? data : []);
+				const res = await fetch(`${engine}/api/memory/timeline?${params}`, { headers: apiHeaders });
+				data = (await res.json()) || [];
 			}
+			if (append) {
+				setMemories((prev) => [...prev, ...data]);
+			} else {
+				setMemories(data);
+			}
+			setHasMore(data.length >= PAGE_SIZE);
+			offsetRef.current += data.length;
 		} catch (err) {
 			console.error("Failed to fetch memories", err);
 		} finally {
 			setLoading(false);
+			setLoadingMore(false);
 		}
 	}, [searchQuery, filterType]);
 
@@ -333,6 +356,33 @@ function Cerebro() {
 	useEffect(() => { fetchStats(); }, [fetchStats]);
 	useEffect(() => { fetchMemories(); }, [fetchMemories]);
 
+	// Infinite scroll via IntersectionObserver
+	useEffect(() => {
+		const sentinel = sentinelRef.current;
+		if (!sentinel) return;
+		const observer = new IntersectionObserver(
+			(entries) => {
+				if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
+					fetchMemories(true);
+				}
+			},
+			{ root: scrollRef.current, rootMargin: "200px" }
+		);
+		observer.observe(sentinel);
+		return () => observer.disconnect();
+	}, [hasMore, loadingMore, loading, fetchMemories]);
+
+	// WS sync: refresh when another client changes memories
+	useEffect(() => {
+		const unsub = subscribe((msg: { type: string }) => {
+			if (msg.type === "memory_changed") {
+				fetchMemories();
+				fetchStats();
+			}
+		});
+		return unsub;
+	}, [subscribe, fetchMemories, fetchStats]);
+
 	const handleDelete = async (id: string) => {
 		try {
 			await fetch(`${engine}/api/memory/${encodeURIComponent(id)}`, {
@@ -343,8 +393,9 @@ function Cerebro() {
 			setConfirmDeleteId(null);
 			setSelectedMemory(null);
 			fetchStats();
+			showToast("Memoria eliminada", "success");
 		} catch (err) {
-			console.error("Delete failed", err);
+			showToast("Error al eliminar memoria", "error");
 		}
 	};
 
@@ -358,6 +409,7 @@ function Cerebro() {
 		setMemories((prev) => prev.filter((m) => !selectedIds.has(m.id)));
 		setSelectedIds(new Set());
 		fetchStats();
+		showToast(`${selectedIds.size} memorias eliminadas`, "success");
 	};
 
 	const openEdit = (mem: Memory) => {
@@ -383,9 +435,10 @@ function Cerebro() {
 					setSelectedMemory({ ...selectedMemory, title: editTitle, content: editContent, tags: editTags, type: editType });
 				}
 				setEditingMemory(null);
+				showToast("Memoria actualizada", "success");
 			}
 		} catch (err) {
-			console.error("Save failed", err);
+			showToast("Error al guardar memoria", "error");
 		} finally {
 			setSaving(false);
 		}
@@ -406,8 +459,9 @@ function Cerebro() {
 			setShowNewMemo(false);
 			fetchMemories();
 			fetchStats();
+			showToast("Memoria creada", "success");
 		} catch (err) {
-			console.error("Create failed", err);
+			showToast("Error al crear memoria", "error");
 		} finally {
 			setCreating(false);
 		}
@@ -423,11 +477,14 @@ function Cerebro() {
 				body: JSON.stringify({ project: "lallamaollama" }),
 			});
 			const data = await res.json();
-			setConsolidateResult(data.message || data.summary || "Consolidaci\u00F3n completada");
+			const msg = data.message || data.summary || "Consolidaci\u00F3n completada";
+			setConsolidateResult(msg);
+			showToast(`Consolidaci\u00F3n: ${data.consolidatedGroups || 0} grupos consolidados`, "success");
 			fetchMemories();
 			fetchStats();
 		} catch (err) {
 			setConsolidateResult("Error al consolidar");
+			showToast("Error al consolidar memorias", "error");
 		} finally {
 			setConsolidating(false);
 		}
@@ -443,6 +500,21 @@ function Cerebro() {
 	};
 
 	const formatDate = (ts: number) => new Date(ts).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+	// Client-side sort + tags filter
+	const filteredMemories = memories
+		.filter((m) => {
+			if (!tagsFilter.trim()) return true;
+			const tagList = tagsFilter.split(",").map((t) => t.trim().toLowerCase());
+			return tagList.some((tag) => (m.tags || "").toLowerCase().includes(tag));
+		})
+		.sort((a, b) => {
+			if (sortBy === "type") {
+				const cmp = a.type.localeCompare(b.type);
+				return sortOrder === "asc" ? cmp : -cmp;
+			}
+			return sortOrder === "asc" ? a.createdAt - b.createdAt : b.createdAt - a.createdAt;
+		});
 
 	return (
 		<div style={{ height: "calc(100vh - 200px)", display: "flex", flexDirection: "column" }}>
@@ -461,7 +533,7 @@ function Cerebro() {
 				))}
 			</div>
 
-			{/* Actions + Search */}
+			{/* Actions + Filters */}
 			<div style={{ display: "flex", gap: "8px", marginBottom: "12px", alignItems: "center", flexWrap: "wrap" }}>
 				<button type="button" onClick={() => setShowNewMemo(true)}
 					style={{ padding: "6px 14px", background: "rgba(79,140,255,0.1)", border: "1px solid rgba(79,140,255,0.2)", borderRadius: "8px", color: "var(--accent)", cursor: "pointer", fontSize: "11px", fontWeight: 600, display: "flex", alignItems: "center", gap: "6px" }}>
@@ -485,11 +557,26 @@ function Cerebro() {
 					</button>
 				)}
 				<div style={{ flex: 1 }} />
-				<div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "6px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid var(--border-light)", borderRadius: "8px", maxWidth: "280px" }}>
+				<input type="text" value={tagsFilter} onChange={(e) => setTagsFilter(e.target.value)}
+					placeholder="Filtrar por tags..."
+					style={{ width: "140px", padding: "6px 10px", background: "rgba(255,255,255,0.03)", border: "1px solid var(--border-light)", borderRadius: "8px", color: "var(--text-main)", fontSize: "10px", fontFamily: "inherit", outline: "none" }} />
+				<select value={sortBy === "date" ? (sortOrder === "desc" ? "date_desc" : "date_asc") : "type"}
+					onChange={(e) => {
+						const v = e.target.value;
+						if (v === "type") { setSortBy("type"); setSortOrder("asc"); }
+						else if (v === "date_asc") { setSortBy("date"); setSortOrder("asc"); }
+						else { setSortBy("date"); setSortOrder("desc"); }
+					}}
+					style={{ padding: "6px 10px", background: "rgba(255,255,255,0.03)", border: "1px solid var(--border-light)", borderRadius: "8px", color: "var(--text-main)", fontSize: "10px", fontFamily: "inherit", outline: "none", cursor: "pointer" }}>
+					<option value="date_desc">Fecha ↓</option>
+					<option value="date_asc">Fecha ↑</option>
+					<option value="type">Tipo</option>
+				</select>
+				<div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "6px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid var(--border-light)", borderRadius: "8px", maxWidth: "220px" }}>
 					<Search size={14} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
 					<input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-						placeholder="Buscar en memorias..."
-						style={{ flex: 1, background: "none", border: "none", color: "var(--text-main)", fontSize: "11px", fontFamily: "inherit", outline: "none", width: "100%" }} />
+						placeholder="Buscar..."
+						style={{ flex: 1, background: "none", border: "none", color: "var(--text-main)", fontSize: "10px", fontFamily: "inherit", outline: "none", width: "100%" }} />
 				</div>
 			</div>
 
@@ -539,18 +626,18 @@ function Cerebro() {
 			)}
 
 			{/* Memory List */}
-			<div style={{ flex: 1, overflowY: "auto" }}>
+			<div ref={scrollRef} style={{ flex: 1, overflowY: "auto" }}>
 				{loading ? (
 					<div style={{ textAlign: "center", padding: "40px", color: "var(--text-muted)" }}>
 						<Loader2 size={24} className="animate-spin" style={{ margin: "0 auto 12px", display: "block" }} />
 					</div>
-				) : memories.length === 0 ? (
+				) : filteredMemories.length === 0 ? (
 					<div style={{ textAlign: "center", padding: "60px 20px", color: "var(--text-dim)", fontSize: "13px" }}>
 						<Brain size={48} style={{ margin: "0 auto 16px", opacity: 0.15, display: "block" }} />
-						{searchQuery || filterType ? "Sin resultados para esta b\u00FAsqueda." : "No hay memorias en el Cerebro. Las memorias se crean autom\u00E1ticamente cuando el agente trabaja."}
+						{searchQuery || filterType || tagsFilter ? "Sin resultados para esta b\u00FAsqueda." : "No hay memorias en el Cerebro. Las memorias se crean autom\u00E1ticamente cuando el agente trabaja."}
 					</div>
 				) : (
-					memories.map((mem) => (
+					filteredMemories.map((mem) => (
 						<div key={mem.id}
 							style={{
 								padding: "10px 14px",
@@ -595,6 +682,12 @@ function Cerebro() {
 						</div>
 					))
 				)}
+				{loadingMore && (
+					<div style={{ textAlign: "center", padding: "16px", color: "var(--text-muted)" }}>
+						<Loader2 size={16} className="animate-spin" style={{ margin: "0 auto", display: "block" }} />
+					</div>
+				)}
+				<div ref={sentinelRef} style={{ height: 1 }} />
 			</div>
 
 			{/* Detail Modal */}

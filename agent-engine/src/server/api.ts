@@ -24,6 +24,7 @@ import {
 	saveKnowledgeFile,
 } from "../services/knowledge/index.js";
 import { toolRegistry } from "../services/tools/registry.js";
+import type { WsServer } from "./ws.js";
 import { logger } from "../utils/logger.js";
 
 const apiLimiter = rateLimit({
@@ -33,7 +34,7 @@ const apiLimiter = rateLimit({
 	legacyHeaders: false,
 });
 
-export function startApiServer(config: AppConfig, brain?: BrainClient) {
+export function startApiServer(config: AppConfig, brain?: BrainClient, wsServer?: WsServer) {
 	const app = express();
 	app.use(
 		cors({
@@ -68,9 +69,10 @@ export function startApiServer(config: AppConfig, brain?: BrainClient) {
 			const q = req.query.q as string;
 			const mode = (req.query.mode as string) || "semantic";
 			const limit = parseInt(req.query.limit as string, 10) || 10;
+			const offset = parseInt(req.query.offset as string, 10) || 0;
 			const project = (req.query.project as string) || "lallamaollama";
 			const axiosResp = await (await import("axios")).default.get(`${config.brainUrl}/api/memory/search`, {
-				params: { q, project, mode, limit },
+				params: { q, project, mode, limit, offset },
 				timeout: 10000,
 			});
 			res.json(axiosResp.data);
@@ -105,6 +107,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient) {
 			const axiosResp = await (await import("axios")).default.post(
 				`${config.brainUrl}/api/memory`, req.body, { timeout: 10000 }
 			);
+			wsServer?.sendToAll("memory_changed", { action: "created" });
 			res.status(201).json(axiosResp.data);
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err);
@@ -118,8 +121,9 @@ export function startApiServer(config: AppConfig, brain?: BrainClient) {
 		try {
 			const type = req.query.type as string | undefined;
 			const limit = parseInt(req.query.limit as string, 10) || 100;
+			const offset = parseInt(req.query.offset as string, 10) || 0;
 			const axiosResp = await (await import("axios")).default.get(`${config.brainUrl}/api/memory/timeline`, {
-				params: { project: "lallamaollama", limit, ...(type ? { type } : {}) },
+				params: { project: "lallamaollama", limit, offset, ...(type ? { type } : {}) },
 				timeout: 10000,
 			});
 			res.json(axiosResp.data);
@@ -150,6 +154,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient) {
 			const axiosResp = await (await import("axios")).default.put(
 				`${config.brainUrl}/api/memory/${encodeURIComponent(req.params.id)}`, req.body, { timeout: 10000 }
 			);
+			wsServer?.sendToAll("memory_changed", { action: "updated", id: req.params.id });
 			res.json(axiosResp.data);
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err);
@@ -164,11 +169,27 @@ export function startApiServer(config: AppConfig, brain?: BrainClient) {
 			const axiosResp = await (await import("axios")).default.delete(
 				`${config.brainUrl}/api/memory/${encodeURIComponent(req.params.id)}`, { timeout: 10000 }
 			);
+			wsServer?.sendToAll("memory_changed", { action: "deleted", id: req.params.id });
 			res.json(axiosResp.data);
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err);
 			logger.error(`[Brain Proxy] Delete memory failed: ${msg}`);
 			res.status(502).json({ error: "Brain delete memory failed", detail: msg });
+		}
+	});
+
+	app.post("/api/memory/consolidate", async (req: Request, res: Response) => {
+		if (!brain) { res.status(503).json({ error: "Brain not available" }); return; }
+		try {
+			const axiosResp = await (await import("axios")).default.post(
+				`${config.brainUrl}/api/memory/consolidate`, req.body, { timeout: 60000 }
+			);
+			wsServer?.sendToAll("memory_changed", { action: "consolidated" });
+			res.json(axiosResp.data);
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			logger.error(`[Brain Proxy] Consolidate failed: ${msg}`);
+			res.status(502).json({ error: "Brain consolidate failed", detail: msg });
 		}
 	});
 

@@ -7,7 +7,12 @@
 #### Añadido
 - **➕ 4 nuevos métodos en `BrainClient`** — `getMemory(id)`, `updateMemory(id, data)`, `deleteMemory(id)`, `getTimeline(type?)`
 - **➕ 5 nuevos endpoints REST proxy** — `POST /api/memory` (crear), `GET /api/memory/:id` (obtener), `PUT /api/memory/:id` (actualizar), `DELETE /api/memory/:id` (eliminar), `GET /api/memory/timeline` (timeline cronológico)
+- **➕ Consolidate proxy** — `POST /api/memory/consolidate` que proxea a mcp-brain
+- **➕ `offset` en proxies** — `search` y `timeline` reenvían `offset` para paginación
+- **➕ WS broadcast** — Emite `memory_changed` tras POST/PUT/DELETE/consolidate
+- **➕ Tools `update_memory` y `delete_memory`** — Nuevas tools del agente para editar/eliminar memorias
 - **🔧 `authMiddleware`** — Añadido `req.path === "/memory"` a la whitelist para que POST /api/memory funcione sin API key
+- **🔧 Orden de arranque** — `WsServer` creado antes de `startApiServer`, se inyecta como tercer parámetro
 
 ### 📱 Telegram: Adjuntos multi-modal, Whisper, typing persistente y reacciones
 

@@ -504,11 +504,19 @@ export const AgentChat: React.FC = () => {
 						...prev,
 						{
 							role: "system" as ChatMessage["role"],
-							content: `?? Modo cambiado a ${modeLabel}. ${resetSession ? "La sesi\u00f3n se ha reiniciado." : ""}`,
+							content: `Modo cambiado a ${modeLabel}. ${resetSession ? "La sesi\u00f3n se ha reiniciado." : ""}`,
 							timestamp: new Date(),
 						},
 					]);
 				}
+				break;
+			}
+
+			case "notification": {
+				const title = msg.payload?.title as string;
+				const message = msg.payload?.message as string;
+				const level = msg.payload?.level as string;
+				if (message) showToast(`${title ? title + ": " : ""}${message}`, level === "error" ? "error" : level === "success" ? "success" : "info");
 				break;
 			}
 		}
