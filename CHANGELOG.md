@@ -7,6 +7,23 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 
 ## [Unreleased]
 
+### 🐛 Corrección 429 + 401 + Mejoras en Tareas y contexto programado (2026-06-12)
+
+#### Agent Engine
+- **🐛 Fix: 429 Too Many Requests** — Rate limit subido de 100 → 500 req/min en `api.ts`
+- **🐛 Fix: 401 en `/api/knowledge`** — Agregado `req.path === "/knowledge"` a la lista de exenciones del `authMiddleware`
+- **➕ Contexto "tarea programada" para el LLM** — Cuando `origin === "scheduler"`, se inyecta mensaje `system` en `runAgentCore.ts` informando al modelo que es una tarea automática
+- **🔧 `import("axios")` dinámico → import estático** — Reemplazadas 8 ocurrencias de lazy import por `import axios from "axios"` al tope del archivo, eliminando riesgo de conexiones truncadas
+
+#### Agent Frontend
+- **🐛 Fix: 429 por bucle de re-render** — `apiHeaders` movido a nivel de módulo en `Tareas.tsx` (estable); eliminado `showToast` del catch del fetch inicial que realimentaba el ciclo
+- **👆 Botón "Nueva Tarea" unificado** — Único botón que abre modal de tarea normal o programada según la sección activa; eliminado botón duplicado "Nueva Programada"
+- **⚡ Timeline `limit: 500` → `100`** — Reducida carga en brain SQLite para respuestas más rápidas
+
+#### Configuración
+- **➕ `agent-frontend/.env`** — Creado con `VITE_API_KEY=McPOllama2026-V1-Home` para desarrollo local
+- **➕ `docker-compose.yml`** — Agregado `VITE_API_KEY` a build args y environment de `agent-frontend`
+
 ### 🤖 Sistema de Agentes: Cobertura completa con 7 agentes (2026-06-12)
 
 #### OpenCode Agents
