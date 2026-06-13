@@ -51,8 +51,10 @@ export function registerNotifyTelegramTool() {
 
 			try {
 				if (specificChatId) {
-					// Enviar a un chat específico
-					await bot.sendMessage(specificChatId, message, options);
+					// Enviar a un chat específico - convertir a número si es un ID numérico de Telegram
+					const numericChatId = parseInt(specificChatId, 10);
+					const targetChatId = isNaN(numericChatId) ? specificChatId : numericChatId;
+					await bot.sendMessage(targetChatId, message, options);
 					return `✅ Notificación enviada al chat ${specificChatId}.`;
 				}
 

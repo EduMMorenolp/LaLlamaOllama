@@ -1,5 +1,7 @@
-﻿import { toolRegistry } from "./registry.js";
-import { submitAgentRun } from "../orchestrator/index.js";
+﻿import * as crypto from "node:crypto";
+import { toolRegistry } from "./registry.js";
+import { getRuntimeContext } from "../runtime.js";
+import { runAgentCore } from "../agent/runAgentCore.js";
 
 export function registerCreateTaskTool(): void {
 	toolRegistry.register({
@@ -15,34 +17,39 @@ export function registerCreateTaskTool(): void {
 							type: "string",
 							description: "Texto descriptivo de la tarea a ejecutar",
 						},
-						chatId: {
-							type: "string",
-							description: "ID del chat (opcional, por defecto 'web')",
-						},
 					},
 					required: ["text"],
 				},
 			},
 		},
 		handler: async (args) => {
-			const text = args.text as string;
-			const chatId = (args.chatId as string) || "web";
+			const text = (args.text as string || "").trim();
+			if (!text) {
+				return JSON.stringify({ success: false, error: "El texto de la tarea no puede estar vacío." });
+			}
+			const subChatId = `task-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
 			try {
-				const result = await submitAgentRun({ chatId, userText: text, origin: "tool" });
+				const { config, brain } = getRuntimeContext();
+				const result = await runAgentCore({
+					chatId: subChatId,
+					userText: text,
+					config,
+					brain,
+					origin: "tool",
+					skipPersistUserMsg: false,
+				});
 				return JSON.stringify({
 					success: true,
-					runId: result.runId,
 					status: "completed",
 					result: result.text,
 					latencyMs: result.latencyMs,
+					model: result.model,
 				});
 			} catch (err) {
-				return JSON.stringify({
-					success: false,
-					error: err instanceof Error ? err.message : String(err),
-				});
+				const msg = err instanceof Error ? err.message : String(err);
+				return JSON.stringify({ success: false, error: msg });
 			}
 		},
-		enabled: false, // disabled by default, enabled by mode
+		enabled: false,
 	});
 }

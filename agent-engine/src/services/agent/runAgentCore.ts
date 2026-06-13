@@ -152,12 +152,32 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 			});
 		}
 
-		// Inform about available tools
+		// Inform about available tools and modes
 		const toolNames = toolRegistry.getToolNames();
 		if (toolNames.length > 0) {
+			let toolsBlock = `<available_tools>\nPuedes usar estas herramientas cuando el usuario lo solicite:\n${toolNames.map((n: string) => `- ${n}`).join("\n")}\n</available_tools>`;
+
+			try {
+				const { listModes } = await import("../db/modes.js");
+				const allModes = listModes();
+				const activeModeName = (await import("../db/modes.js").then(m => m.getActiveMode())).name;
+				if (allModes.length > 0) {
+					const modesLines = allModes
+						.filter(m => m.name !== "__general__")
+						.map(m => {
+							const isActive = m.name === activeModeName ? " [ACTIVO]" : "";
+							return `  - ${m.name}${isActive}: ${m.tools.join(", ")}`;
+						})
+						.join("\n");
+					toolsBlock += `\n\n<available_modes>\nModos disponibles en el sistema:\n${modesLines}\n\nSi el usuario te pide hacer algo que requiere herramientas que NO tienes en tu modo actual, indícale qué otro modo tiene esa capacidad. Si el usuario te pide explícitamente cambiar de modo, usa la herramienta switch_mode.\n</available_modes>`;
+				}
+			} catch {
+				// modes DB not available, skip
+			}
+
 			session.messages.push({
 				role: "system",
-				content: `## Herramientas disponibles\nPuedes usar estas herramientas cuando el usuario lo solicite:\n${toolNames.map((n: string) => `- ${n}`).join("\n")}\n\nResponde siempre en español.`,
+				content: `## Herramientas y modos\n${toolsBlock}\n\nResponde siempre en español.`,
 			});
 		}
 

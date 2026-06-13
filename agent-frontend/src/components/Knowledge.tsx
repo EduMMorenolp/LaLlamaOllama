@@ -883,9 +883,411 @@ function Timeline() {
 	);
 }
 
+// ─── Documentos Tab ─────────────────────────────────────────────────
+
+interface DocFile {
+	name: string;
+	relativePath: string;
+	size: number;
+	ext: string;
+	modifiedAt: string;
+	chunks: number;
+}
+
+const FILE_ICONS: Record<string, string> = {
+	".pdf": "📄",
+	".txt": "📝",
+	".md": "📋",
+	".json": "📦",
+	".csv": "📊",
+	".xml": "📐",
+	".yaml": "⚙️",
+	".yml": "⚙️",
+	".png": "🖼️",
+	".jpg": "🖼️",
+	".jpeg": "🖼️",
+	".gif": "🖼️",
+	".mp3": "🎵",
+	".ogg": "🎵",
+	".wav": "🎵",
+	".mp4": "🎬",
+	".mov": "🎬",
+	".zip": "📦",
+	".tar": "📦",
+	".gz": "📦",
+};
+
+function getFileIcon(name: string): string {
+	const ext = name.substring(name.lastIndexOf(".")).toLowerCase();
+	return FILE_ICONS[ext] || "📄";
+}
+
+function formatDocSize(bytes: number): string {
+	if (bytes < 1024) return `${bytes}B`;
+	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+	return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
+
+function Documentos() {
+	const [files, setFiles] = useState<DocFile[]>([]);
+	const [loading, setLoading] = useState(true);
+	const [selectedFile, setSelectedFile] = useState<DocFile | null>(null);
+	const [fileContent, setFileContent] = useState("");
+	const [loadingContent, setLoadingContent] = useState(false);
+	const [showCreate, setShowCreate] = useState(false);
+	const [newFilePath, setNewFilePath] = useState("");
+	const [newContent, setNewContent] = useState("");
+	const [creating, setCreating] = useState(false);
+	const [editingFile, setEditingFile] = useState<DocFile | null>(null);
+	const [editContent, setEditContent] = useState("");
+	const [saving, setSaving] = useState(false);
+	const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+	const [deleting, setDeleting] = useState(false);
+	const [searchQuery, setSearchQuery] = useState("");
+	const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+	const { show: showToast } = useToast();
+
+	const fetchFiles = useCallback(async () => {
+		setLoading(true);
+		try {
+			const res = await fetch(`${engine}/api/knowledge/all`, { headers: apiHeaders });
+			const data = await res.json();
+			setFiles(data.files || []);
+		} catch (err) {
+			console.error("Failed to fetch documents", err);
+		} finally {
+			setLoading(false);
+		}
+	}, []);
+
+	useEffect(() => { fetchFiles(); }, [fetchFiles]);
+
+	const handleSelectFile = async (file: DocFile) => {
+		setSelectedFile(file);
+		setFileContent("");
+		setLoadingContent(true);
+		try {
+			const res = await fetch(`${engine}/api/knowledge/read?path=${encodeURIComponent(file.relativePath)}`, { headers: apiHeaders });
+			const data = await res.json();
+			setFileContent(data.content || "");
+		} catch {
+			setFileContent("Error al cargar el contenido");
+		} finally {
+			setLoadingContent(false);
+		}
+	};
+
+	const handleCreate = async () => {
+		if (!newFilePath.trim() || !newContent.trim()) return;
+		setCreating(true);
+		try {
+			const res = await fetch(`${engine}/api/knowledge/upload`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json", ...apiHeaders },
+				body: JSON.stringify({ name: newFilePath.trim(), content: newContent }),
+			});
+			const data = await res.json();
+			if (data.success) {
+				setNewFilePath("");
+				setNewContent("");
+				setShowCreate(false);
+				fetchFiles();
+				showToast("Documento creado", "success");
+			}
+		} catch {
+			showToast("Error al crear documento", "error");
+		} finally {
+			setCreating(false);
+		}
+	};
+
+	const openEdit = (file: DocFile, content: string) => {
+		setEditingFile(file);
+		setEditContent(content);
+	};
+
+	const handleSaveEdit = async () => {
+		if (!editingFile) return;
+		setSaving(true);
+		try {
+			const res = await fetch(`${engine}/api/knowledge/update`, {
+				method: "PUT",
+				headers: { "Content-Type": "application/json", ...apiHeaders },
+				body: JSON.stringify({ path: editingFile.relativePath, content: editContent }),
+			});
+			const data = await res.json();
+			if (data.success) {
+				setFileContent(editContent);
+				setEditingFile(null);
+				showToast("Documento actualizado", "success");
+			}
+		} catch {
+			showToast("Error al guardar documento", "error");
+		} finally {
+			setSaving(false);
+		}
+	};
+
+	const handleDelete = async (relativePath: string) => {
+		setDeleting(true);
+		try {
+			const res = await fetch(`${engine}/api/knowledge/delete?path=${encodeURIComponent(relativePath)}`, {
+				method: "DELETE",
+				headers: apiHeaders,
+			});
+			const data = await res.json();
+			if (data.success) {
+				setFiles((prev) => prev.filter((f) => f.relativePath !== relativePath));
+				if (selectedFile?.relativePath === relativePath) {
+					setSelectedFile(null);
+					setFileContent("");
+				}
+				setConfirmDelete(null);
+				showToast("Documento eliminado", "success");
+			}
+		} catch {
+			showToast("Error al eliminar documento", "error");
+		} finally {
+			setDeleting(false);
+		}
+	};
+
+	const handleSearch = useCallback(async () => {
+		if (!searchQuery.trim()) { setSearchResults([]); return; }
+		try {
+			const res = await fetch(
+				`${engine}/api/memory/search?q=${encodeURIComponent(searchQuery)}&limit=20`,
+				{ headers: apiHeaders }
+			);
+			const data = await res.json();
+			setSearchResults(data.results || []);
+		} catch {
+			setSearchResults([]);
+		}
+	}, [searchQuery]);
+
+	useEffect(() => {
+		const timer = setTimeout(handleSearch, 500);
+		return () => clearTimeout(timer);
+	}, [searchQuery, handleSearch]);
+
+	const groupedByDir = files.reduce<Record<string, DocFile[]>>((acc, file) => {
+		const parts = file.relativePath.split("/");
+		const dir = parts.length > 1 ? parts.slice(0, -1).join("/") : ".";
+		if (!acc[dir]) acc[dir] = [];
+		acc[dir].push(file);
+		return acc;
+	}, {});
+
+	const dirNames = Object.keys(groupedByDir).sort((a, b) => {
+		if (a === ".") return -1;
+		if (b === ".") return 1;
+		return a.localeCompare(b);
+	});
+
+	return (
+		<div style={{ height: "calc(100vh - 200px)", display: "flex", flexDirection: "column" }}>
+			{/* Toolbar */}
+			<div style={{ display: "flex", gap: "8px", marginBottom: "12px", alignItems: "center", flexWrap: "wrap" }}>
+				<button type="button" onClick={() => setShowCreate(!showCreate)}
+					style={{ padding: "6px 14px", background: "rgba(79,140,255,0.1)", border: "1px solid rgba(79,140,255,0.2)", borderRadius: "8px", color: "var(--accent)", cursor: "pointer", fontSize: "11px", fontWeight: 600, display: "flex", alignItems: "center", gap: "6px" }}>
+					{showCreate ? <X size={14} /> : <Plus size={14} />}
+					{showCreate ? "Cancelar" : "Nuevo Documento"}
+				</button>
+				<div style={{ fontSize: "11px", color: "var(--text-dim)" }}>{files.length} archivo{files.length !== 1 ? "s" : ""}</div>
+				<div style={{ flex: 1 }} />
+				<div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "6px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid var(--border-light)", borderRadius: "8px", maxWidth: "240px" }}>
+					<Search size={14} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
+					<input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+						placeholder="Buscar en documentos..."
+						style={{ flex: 1, background: "none", border: "none", color: "var(--text-main)", fontSize: "10px", fontFamily: "inherit", outline: "none", width: "100%" }} />
+				</div>
+			</div>
+
+			{/* Create Form */}
+			{showCreate && (
+				<div style={{ padding: "16px", marginBottom: "12px", borderRadius: "8px", background: "rgba(79,140,255,0.05)", border: "1px solid rgba(79,140,255,0.15)" }}>
+					<div style={{ marginBottom: "12px" }}>
+						<label style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>Ruta del archivo</label>
+						<input type="text" value={newFilePath} onChange={(e) => setNewFilePath(e.target.value)} placeholder="telegram/documentos/mi-archivo.txt" style={inputStyle} />
+						<div style={{ fontSize: "9px", color: "var(--text-dim)", marginTop: "4px" }}>Usa rutas relativas como telegram/documentos/ para organizar en subcarpetas.</div>
+					</div>
+					<div style={{ marginBottom: "12px" }}>
+						<label style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>Contenido</label>
+						<textarea value={newContent} onChange={(e) => setNewContent(e.target.value)} rows={8}
+							style={{ ...inputStyle, resize: "vertical", fontFamily: "var(--font-mono)", fontSize: "12px" }}
+							placeholder="Pega el contenido del documento aquí..." />
+					</div>
+					<button type="button" onClick={handleCreate} disabled={creating || !newFilePath.trim() || !newContent.trim()}
+						style={{ padding: "8px 20px", background: "linear-gradient(135deg, var(--accent), #7c3aed)", border: "none", borderRadius: "8px", color: "white", cursor: "pointer", fontSize: "11px", fontWeight: 600, opacity: creating ? 0.6 : 1, display: "flex", alignItems: "center", gap: "6px" }}>
+						{creating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+						{creating ? "Creando..." : "Crear Documento"}
+					</button>
+				</div>
+			)}
+
+			{/* Search Results */}
+			{searchQuery.trim() && searchResults.length > 0 && (
+				<div style={{ marginBottom: "12px", padding: "12px", borderRadius: "8px", background: "rgba(79,140,255,0.05)", border: "1px solid rgba(79,140,255,0.15)" }}>
+					<div style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", marginBottom: "8px" }}>Resultados de búsqueda en Brain ({searchResults.length})</div>
+					{searchResults.map((r) => (
+						<div key={r.id} style={{ padding: "8px 10px", marginBottom: "4px", borderRadius: "6px", background: "rgba(255,255,255,0.02)", border: "1px solid var(--border-light)", fontSize: "11px" }}>
+							<div style={{ fontWeight: 600, color: "var(--text-main)", marginBottom: "2px" }}>{r.title}</div>
+							<div style={{ fontSize: "10px", color: "var(--text-dim)", maxHeight: "40px", overflow: "hidden" }}>{r.content}</div>
+						</div>
+					))}
+				</div>
+			)}
+
+			{/* Main Content */}
+			<div style={{ flex: 1, display: "flex", gap: "16px", overflow: "hidden" }}>
+				{/* File List */}
+				<div style={{ flex: "0 0 320px", overflowY: "auto", borderRight: "1px solid var(--border-light)", paddingRight: "12px" }}>
+					{loading ? (
+						<div style={{ textAlign: "center", padding: "40px", color: "var(--text-muted)" }}>
+							<Loader2 size={24} className="animate-spin" style={{ margin: "0 auto 12px", display: "block" }} />
+						</div>
+					) : files.length === 0 ? (
+						<div style={{ textAlign: "center", padding: "40px", color: "var(--text-dim)", fontSize: "13px" }}>
+							<BookOpen size={32} style={{ margin: "0 auto 12px", opacity: 0.3, display: "block" }} />
+							No hay documentos
+						</div>
+					) : (
+						dirNames.map((dir) => (
+							<div key={dir}>
+								{dir !== "." && (
+									<div style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.5px", padding: "8px 8px 4px", borderBottom: "1px solid var(--border-light)", marginBottom: "4px" }}>
+										📁 {dir}
+									</div>
+								)}
+								{groupedByDir[dir]
+									.sort((a, b) => a.name.localeCompare(b.name))
+									.map((file) => (
+										<div key={file.relativePath}
+											onClick={() => handleSelectFile(file)}
+											style={{
+												padding: "8px 10px",
+												marginBottom: "2px",
+												borderRadius: "6px",
+												cursor: "pointer",
+												background: selectedFile?.relativePath === file.relativePath ? "rgba(79,140,255,0.08)" : "transparent",
+												border: selectedFile?.relativePath === file.relativePath ? "1px solid rgba(79,140,255,0.2)" : "1px solid transparent",
+												display: "flex",
+												alignItems: "center",
+												gap: "8px",
+											}}>
+											<span style={{ fontSize: "14px", flexShrink: 0 }}>{getFileIcon(file.name)}</span>
+											<div style={{ flex: 1, minWidth: 0 }}>
+												<div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-main)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</div>
+												<div style={{ fontSize: "9px", color: "var(--text-dim)" }}>
+													{formatDocSize(file.size)} · {file.modifiedAt ? new Date(file.modifiedAt).toLocaleDateString() : ""}
+												</div>
+											</div>
+										</div>
+									))}
+							</div>
+						))
+					)}
+				</div>
+
+				{/* Detail Panel */}
+				<div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+					{!selectedFile ? (
+						<div style={{ textAlign: "center", padding: "60px 20px", color: "var(--text-dim)", fontSize: "13px" }}>
+							<BookOpen size={48} style={{ margin: "0 auto 16px", opacity: 0.15, display: "block" }} />
+							Selecciona un documento para ver su contenido
+						</div>
+					) : loadingContent ? (
+						<div style={{ textAlign: "center", padding: "40px", color: "var(--text-muted)" }}>
+							<Loader2 size={24} className="animate-spin" style={{ margin: "0 auto 12px", display: "block" }} />
+						</div>
+					) : (
+						<>
+							{/* File Header */}
+							<div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px", paddingBottom: "8px", borderBottom: "1px solid var(--border-light)" }}>
+								<span style={{ fontSize: "20px" }}>{getFileIcon(selectedFile.name)}</span>
+								<div style={{ flex: 1 }}>
+									<div style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-main)" }}>{selectedFile.name}</div>
+									<div style={{ fontSize: "10px", color: "var(--text-dim)" }}>
+										{selectedFile.relativePath} · {formatDocSize(selectedFile.size)} · {selectedFile.modifiedAt ? new Date(selectedFile.modifiedAt).toLocaleString() : ""}
+										{selectedFile.chunks > 0 && <> · {selectedFile.chunks} chunks</>}
+									</div>
+								</div>
+								<button type="button" onClick={() => openEdit(selectedFile, fileContent)}
+									style={{ padding: "6px 14px", background: "rgba(79,140,255,0.1)", border: "1px solid rgba(79,140,255,0.2)", borderRadius: "8px", color: "var(--accent)", cursor: "pointer", fontSize: "11px", fontWeight: 600, display: "flex", alignItems: "center", gap: "6px" }}>
+									<Save size={14} /> Editar
+								</button>
+								<button type="button" onClick={() => setConfirmDelete(selectedFile.relativePath)}
+									style={{ padding: "6px 14px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: "8px", color: "var(--error)", cursor: "pointer", fontSize: "11px", fontWeight: 600, display: "flex", alignItems: "center", gap: "6px" }}>
+									<Trash2 size={14} /> Eliminar
+								</button>
+							</div>
+
+							{/* File Content */}
+							<div style={{
+								flex: 1,
+								padding: "16px",
+								background: "rgba(255,255,255,0.02)",
+								border: "1px solid var(--border-light)",
+								borderRadius: "8px",
+								fontFamily: "var(--font-mono)",
+								fontSize: "12px",
+								color: "var(--text-main)",
+								lineHeight: 1.6,
+								whiteSpace: "pre-wrap",
+								overflow: "auto",
+							}}>
+								{fileContent}
+							</div>
+						</>
+					)}
+				</div>
+			</div>
+
+			{/* Edit Modal */}
+			{editingFile && (
+				<div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
+					onClick={() => setEditingFile(null)}>
+					<div style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "16px", width: "700px", maxWidth: "90vw", maxHeight: "80vh", overflow: "auto", padding: "24px" }}
+						onClick={(e) => e.stopPropagation()}>
+						<div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
+							<span style={{ fontSize: "20px" }}>{getFileIcon(editingFile.name)}</span>
+							<h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "var(--text-main)", flex: 1 }}>Editar: {editingFile.name}</h3>
+						</div>
+						<div style={{ fontSize: "10px", color: "var(--text-dim)", marginBottom: "12px" }}>{editingFile.relativePath}</div>
+						<div style={{ marginBottom: "16px" }}>
+							<label style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>Contenido</label>
+							<textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} rows={16}
+								style={{ ...inputStyle, resize: "vertical", fontFamily: "var(--font-mono)", fontSize: "12px" }} />
+						</div>
+						<div style={{ display: "flex", gap: "8px" }}>
+							<button type="button" onClick={handleSaveEdit} disabled={saving}
+								style={{ padding: "10px 24px", background: "linear-gradient(135deg, var(--accent), #7c3aed)", border: "none", borderRadius: "8px", color: "white", cursor: "pointer", fontSize: "12px", fontWeight: 600, opacity: saving ? 0.6 : 1, display: "flex", alignItems: "center", gap: "6px" }}>
+								{saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+								{saving ? "Guardando..." : "Guardar Cambios"}
+							</button>
+							<button type="button" onClick={() => setEditingFile(null)}
+								style={{ padding: "10px 20px", background: "rgba(255,255,255,0.03)", border: "1px solid var(--border-light)", borderRadius: "8px", color: "var(--text-muted)", cursor: "pointer", fontSize: "12px" }}>
+								Cancelar
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
+
+			{/* Delete Confirm */}
+			<ConfirmModal open={!!confirmDelete} title="Eliminar documento"
+				message={confirmDelete ? `¿Estás seguro de eliminar "${confirmDelete}"? También se eliminarán los chunks indexados en Brain.` : ""}
+				confirmText={deleting ? "Eliminando..." : "Eliminar"}
+				onConfirm={() => { if (confirmDelete) { handleDelete(confirmDelete); } }}
+				onCancel={() => setConfirmDelete(null)} danger />
+		</div>
+	);
+}
+
 // ─── Main Component ─────────────────────────────────────────────────
 
-type KnowledgeTab = "archivos" | "cerebro" | "timeline";
+type KnowledgeTab = "archivos" | "cerebro" | "timeline" | "documentos";
 
 export const Knowledge: React.FC = () => {
 	const [tab, setTab] = useState<KnowledgeTab>("cerebro");
@@ -898,6 +1300,7 @@ export const Knowledge: React.FC = () => {
 					{ id: "cerebro" as const, label: "Cerebro 🧠", sub: "Memorias del agente" },
 					{ id: "timeline" as const, label: "Línea de Tiempo 📅", sub: "Historial cronológico" },
 					{ id: "archivos" as const, label: "Archivos RAG 📄", sub: "Documentos indexados" },
+					{ id: "documentos" as const, label: "Documentos 📁", sub: "Archivos del sistema" },
 				].map((t) => (
 					<button key={t.id} type="button" onClick={() => setTab(t.id)}
 						style={{
@@ -920,6 +1323,7 @@ export const Knowledge: React.FC = () => {
 			{tab === "archivos" && <ArchivosRag />}
 			{tab === "cerebro" && <Cerebro />}
 			{tab === "timeline" && <Timeline />}
+			{tab === "documentos" && <Documentos />}
 		</div>
 	);
 };

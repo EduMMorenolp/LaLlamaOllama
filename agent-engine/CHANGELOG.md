@@ -2,7 +2,20 @@
 
 ## [Unreleased]
 
-### 🧠 Cerebro: Proxy REST para CRUD de memorias y timeline
+### 🧠 Modos, Recordatorios y Prompt Engineering
+
+#### Añadido
+- **➕ Tool `switch_mode`** — Nueva herramienta que permite al agente cambiar de modo cuando el usuario lo solicita explícitamente
+- **➕ Inyección dinámica de modos** — El agente ahora conoce todos los modos disponibles y sus herramientas, puede sugerir cambios cuando falta una capability
+- **➕ `schedule_task` + `notify_telegram`** en modo `asistente` — El modo por defecto ahora puede programar recordatorios y enviar notificaciones por Telegram
+- **➕ `switch_mode`** en modo `asistente` — Permite cambiar a otros modos cuando el usuario lo pide
+
+#### Cambiado
+- **🔧 System prompts reestructurados con XML tags** — Todos los modos (`asistente`, `coach-personal`, `investigador`, `evolutivo`) ahora usan `<role>`, `<purpose>`, `<style>`, `<capabilities>` siguiendo best practices de Anthropic y OpenAI
+- **🔧 `buildPrompt.ts` reescrito con XML tags** — Separación clara en secciones: `<role>`, `<style>`, `<tool_use>`, `<behavior>`, `<safety>`, `<context>`
+
+#### Corregido
+- **🐛 Fix: `notify_telegram` con chat_id específico** — Ahora convierte strings numéricos a `number` antes de `sendMessage`
 
 #### Añadido
 - **➕ 4 nuevos métodos en `BrainClient`** — `getMemory(id)`, `updateMemory(id, data)`, `deleteMemory(id)`, `getTimeline(type?)`

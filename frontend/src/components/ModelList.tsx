@@ -8,12 +8,14 @@ import {
 	RefreshCw,
 	ScanSearch,
 	Search,
+	Settings,
 	Sparkles,
 	Trash2,
 } from "lucide-react";
 import type React from "react";
 import { useCallback, useState } from "react";
 import { api } from "../services/api.service";
+import { ModelConfigModal } from "./ModelConfigModal";
 import type { OllamaModel, PullProgressData } from "../types/api";
 
 interface ModelListProps {
@@ -79,6 +81,7 @@ export const ModelList: React.FC<ModelListProps> = ({ models, pullProgress, onPu
 	const [hasSearched, setHasSearched] = useState(false);
 	const [verificationModel, setVerificationModel] = useState<Record<string, any> | null>(null);
 	const [selectedTag, setSelectedTag] = useState<string | null>(null);
+	const [configModel, setConfigModel] = useState<string | null>(null);
 
 	const installedNames = models?.filter((m) => !!m?.name).map((m) => m.name as string) || [];
 
@@ -327,6 +330,15 @@ export const ModelList: React.FC<ModelListProps> = ({ models, pullProgress, onPu
 											</div>
 										</div>
 										<div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
+											<button
+												type="button"
+												className="btn-icon"
+												onClick={() => setConfigModel(model.name)}
+												title="Configurar"
+												style={{ color: "var(--text-muted)" }}
+											>
+												<Settings size={16} />
+											</button>
 											<button
 												type="button"
 												className="btn-icon"
@@ -746,7 +758,7 @@ export const ModelList: React.FC<ModelListProps> = ({ models, pullProgress, onPu
 													fontSize: "11px",
 													fontWeight: 700,
 													background: isTagInstalled 
-														? "rgba(16,185,129,0.15)" // Verde si ya está instalado
+														? "rgba(16,185,129,0.15)"
 														: isSelected ? "var(--accent)" : "rgba(255,255,255,0.05)",
 													color: isTagInstalled
 														? "var(--success)"
@@ -829,6 +841,9 @@ export const ModelList: React.FC<ModelListProps> = ({ models, pullProgress, onPu
 					</div>
 				</button>
 			)}
+
+			{/* Modal de Configuración */}
+			{configModel && <ModelConfigModal modelName={configModel} onClose={() => setConfigModel(null)} />}
 		</div>
 	);
 };

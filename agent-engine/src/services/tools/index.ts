@@ -19,6 +19,7 @@ import { registerEditFileTool, registerWriteFileTool } from "./write-file.js";
 import { registerCreateTaskTool } from "./create-task.js";
 import { registerCancelTaskTool } from "./cancel-task.js";
 import { registerScheduleTaskTool } from "./schedule-task.js";
+import { registerSwitchModeTool } from "./switch-mode.js";
 
 export function registerAllTools(brain: BrainClient): void {
 	registerBashTool();
@@ -46,6 +47,7 @@ export function registerAllTools(brain: BrainClient): void {
 	registerCreateTaskTool();
 	registerCancelTaskTool();
 	registerScheduleTaskTool();
+	registerSwitchModeTool();
 
 	registerEvolutivoTools();
 }

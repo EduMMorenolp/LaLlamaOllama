@@ -6,6 +6,7 @@ import type { PullModelUseCase } from "../use-cases/models/pull-model.js";
 import type { UnloadModelsUseCase } from "../use-cases/models/unload-models.js";
 import type { CleanWorkspaceUseCase } from "../use-cases/models/clean-workspace.js";
 import type { DeleteModelUseCase } from "../use-cases/models/delete-model.js";
+import type { ShowModelUseCase } from "../use-cases/models/show-model.js";
 import logger from "../utils/logger.js";
 
 const log = logger.child({ component: "models-routes" });
@@ -17,6 +18,7 @@ export function createModelsRouter(
   unloadModels: UnloadModelsUseCase,
   cleanWorkspace: CleanWorkspaceUseCase,
   deleteModel: DeleteModelUseCase,
+  showModel: ShowModelUseCase,
   authMiddleware: RequestHandler
 ) {
   const router = Router();
@@ -78,6 +80,19 @@ export function createModelsRouter(
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       log.error({ message }, "Clean workspace failed");
+      res.status(500).json({ error: { message, type: "server_error" } });
+    }
+  });
+
+  router.get("/api/models/:name/show", authMiddleware, async (req, res) => {
+    const { name } = req.params;
+    log.info({ model: name }, "GET /api/models/:name/show");
+    try {
+      const result = await showModel.execute(name);
+      res.json(result);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      log.error({ model: name, message }, "Model show failed");
       res.status(500).json({ error: { message, type: "server_error" } });
     }
   });

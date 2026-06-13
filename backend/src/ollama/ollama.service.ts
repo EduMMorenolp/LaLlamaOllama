@@ -334,6 +334,16 @@ export class OllamaService {
 		});
 	}
 
+	async showModel(model: string): Promise<Record<string, unknown>> {
+		try {
+			const response = await this.axiosClient.post(`${this.baseUrl}/api/show`, { name: model });
+			return response.data;
+		} catch (error) {
+			log.error({ err: error, model }, "Failed to show model details");
+			throw error;
+		}
+	}
+
 	async listModels(): Promise<OllamaModel[]> {
 		try {
 			const response = await this.axiosClient.get(`${this.baseUrl}/api/tags`, { timeout: 2000 });
