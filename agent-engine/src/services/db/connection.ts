@@ -1,4 +1,4 @@
-﻿import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import Database from "better-sqlite3";
 import { logger } from "../../utils/logger.js";
@@ -63,6 +63,11 @@ export function getDb(dbPath?: string): Database.Database {
 			resultText TEXT,
 			errorText TEXT,
 			latencyMs INTEGER,
+			priority TEXT DEFAULT 'medium',
+			preferred_model TEXT,
+			tags TEXT,
+			due_date TEXT,
+			description TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		);
@@ -217,6 +222,31 @@ export function getDb(dbPath?: string): Database.Database {
 	}
 	try {
 		_db.exec("ALTER TABLE sub_agents ADD COLUMN history_limit INTEGER DEFAULT 10");
+	} catch {
+		// already exists
+	}
+	try {
+		_db.exec("ALTER TABLE runs ADD COLUMN priority TEXT DEFAULT 'medium'");
+	} catch {
+		// already exists
+	}
+	try {
+		_db.exec("ALTER TABLE runs ADD COLUMN preferred_model TEXT");
+	} catch {
+		// already exists
+	}
+	try {
+		_db.exec("ALTER TABLE runs ADD COLUMN tags TEXT");
+	} catch {
+		// already exists
+	}
+	try {
+		_db.exec("ALTER TABLE runs ADD COLUMN due_date TEXT");
+	} catch {
+		// already exists
+	}
+	try {
+		_db.exec("ALTER TABLE runs ADD COLUMN description TEXT");
 	} catch {
 		// already exists
 	}

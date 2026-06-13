@@ -1,4 +1,4 @@
-﻿import {
+import {
 	AlertCircle,
 	Calendar,
 	CheckCircle,
@@ -12,6 +12,10 @@
 	Trash2,
 	X,
 	XCircle,
+	ChevronDown,
+	ChevronRight,
+	Tag,
+	FileText,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { config } from "../config";
@@ -28,6 +32,11 @@ interface Run {
 	resultText?: string | null;
 	errorText?: string | null;
 	latencyMs?: number | null;
+	priority?: string;
+	preferred_model?: string | null;
+	tags?: string | null;
+	due_date?: string | null;
+	description?: string | null;
 	created_at?: string;
 	updated_at?: string;
 }
@@ -50,19 +59,7 @@ interface ScheduledTask {
 	created_at?: string;
 }
 
-type StatusFilter = "all" | "queued" | "running" | "completed" | "failed" | "cancelled" | "scheduled";
-
 const apiHeaders = { "X-API-Key": config.apiKey };
-
-const FILTER_LABELS: Record<StatusFilter, string> = {
-	all: "Todas",
-	queued: "En cola",
-	running: "Ejecutando",
-	completed: "Completado",
-	failed: "Fallido",
-	cancelled: "Canceladas",
-	scheduled: "Programadas",
-};
 
 const ORIGIN_ICONS: Record<string, string> = {
 	web: String.fromCodePoint(0x1f310),
@@ -70,8 +67,6 @@ const ORIGIN_ICONS: Record<string, string> = {
 	scheduler: String.fromCodePoint(0x23f0),
 	tool: String.fromCodePoint(0x1f527),
 };
-
-const HISTORY_FILTERS: StatusFilter[] = ["all", "queued", "running", "completed", "failed", "cancelled"];
 
 type TabMode = "history" | "scheduled";
 
@@ -81,7 +76,6 @@ export const Tareas: React.FC = () => {
 
 	const [runs, setRuns] = useState<Run[]>([]);
 	const [loading, setLoading] = useState(true);
-	const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 	const [selectedRun, setSelectedRun] = useState<Run | null>(null);
 	const [selectedEvents, setSelectedEvents] = useState<RunEvent[]>([]);
 	const [detailLoading, setDetailLoading] = useState(false);
@@ -89,10 +83,29 @@ export const Tareas: React.FC = () => {
 	const [hasMore, setHasMore] = useState(true);
 	const [loadingMore, setLoadingMore] = useState(false);
 	const [tabMode, setTabMode] = useState<TabMode>("history");
+	const [isDraggingOverCancel, setIsDraggingOverCancel] = useState(false);
+	const [isDraggingOverBacklog, setIsDraggingOverBacklog] = useState(false);
+	const [isDraggingOverQueued, setIsDraggingOverQueued] = useState(false);
+	const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({});
+	const [availableModels, setAvailableModels] = useState<string[]>([]);
 
 	// Nueva Tarea modal
 	const [showNewTaskModal, setShowNewTaskModal] = useState(false);
 	const [newTaskText, setNewTaskText] = useState("");
+	const [newTaskInBacklog, setNewTaskInBacklog] = useState(false);
+	const [newTaskPriority, setNewTaskPriority] = useState("medium");
+	const [newTaskPreferredModel, setNewTaskPreferredModel] = useState("default");
+	const [newTaskTags, setNewTaskTags] = useState("");
+	const [newTaskDueDate, setNewTaskDueDate] = useState("");
+	const [newTaskDescription, setNewTaskDescription] = useState("");
+
+	// Editar Tarea properties (Notion style detail editor)
+	const [editTitle, setEditTitle] = useState("");
+	const [editDescription, setEditDescription] = useState("");
+	const [editPriority, setEditPriority] = useState("");
+	const [editModel, setEditModel] = useState("");
+	const [editTags, setEditTags] = useState("");
+	const [editDueDate, setEditDueDate] = useState("");
 
 	// Scheduled tasks
 	const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
@@ -109,10 +122,7 @@ export const Tareas: React.FC = () => {
 			try {
 				const currentOffset = append ? offsetRef.current : 0;
 				const params = new URLSearchParams();
-				if (statusFilter !== "all" && statusFilter !== "scheduled") {
-					params.set("status", statusFilter);
-				}
-				params.set("limit", "50");
+				params.set("limit", "100");
 				params.set("offset", String(currentOffset));
 				const res = await fetch(`${config.engineUrl}/api/runs?${params}`, { headers: apiHeaders });
 				if (!res.ok) {
@@ -126,7 +136,7 @@ export const Tareas: React.FC = () => {
 					setRuns(newRuns);
 				}
 				offsetRef.current = currentOffset + newRuns.length;
-				setHasMore(newRuns.length === 50);
+				setHasMore(newRuns.length === 100);
 			} catch (err) {
 				console.error("Failed to fetch runs", err);
 			} finally {
@@ -134,7 +144,7 @@ export const Tareas: React.FC = () => {
 				setLoadingMore(false);
 			}
 		},
-		[statusFilter]
+		[]
 	);
 
 	useEffect(() => {
@@ -145,6 +155,12 @@ export const Tareas: React.FC = () => {
 			fetchRuns(false);
 		}
 	}, [tabMode, fetchRuns]);
+
+	useEffect(() => {
+		if (connected) {
+			sendWs("list_ollama_models", {});
+		}
+	}, [connected, sendWs]);
 
 	// Fetch scheduled tasks
 	const fetchScheduledTasks = useCallback(async () => {
@@ -188,12 +204,44 @@ export const Tareas: React.FC = () => {
 						model: p.model as string | null | undefined,
 						resultText: p.resultText as string | null | undefined,
 						latencyMs: p.latencyMs != null ? Number(p.latencyMs) : undefined,
+						priority: p.priority as string | undefined,
+						preferred_model: p.preferredModel as string | null | undefined,
+						tags: p.tags as string | null | undefined,
+						due_date: p.dueDate as string | null | undefined,
+						description: p.description as string | null | undefined,
 					};
 					setRuns((prev) => {
 						if (prev.some((r) => r.id === task.id)) return prev; // dedup
 						return [task, ...prev];
 					});
 					showToast("Nueva tarea creada", "success");
+					break;
+				}
+				case "ollama_models": {
+					const models = (p.models as Array<{ name: string }>) || [];
+					setAvailableModels(models.map((m) => m.name));
+					break;
+				}
+				case "task_updated": {
+					if (runId != null && p.run) {
+						const updatedTask = p.run as Run;
+						setRuns((prev) =>
+							prev.map((r) => (r.id === runId ? { ...r, ...updatedTask } : r))
+						);
+						setSelectedRun((current) => {
+							if (current && current.id === runId) {
+								setEditTitle(updatedTask.userText || "");
+								setEditDescription(updatedTask.description || "");
+								setEditPriority(updatedTask.priority || "medium");
+								setEditModel(updatedTask.preferred_model || "default");
+								setEditTags(updatedTask.tags || "");
+								setEditDueDate(updatedTask.due_date || "");
+								return { ...current, ...updatedTask };
+							}
+							return current;
+						});
+						showToast(`Tarea #${runId} actualizada`, "success");
+					}
 					break;
 				}
 				case "task_status":
@@ -261,6 +309,12 @@ export const Tareas: React.FC = () => {
 
 	const openDetail = async (run: Run) => {
 		setSelectedRun(run);
+		setEditTitle(run.userText || "");
+		setEditDescription(run.description || "");
+		setEditPriority(run.priority || "medium");
+		setEditModel(run.preferred_model || "default");
+		setEditTags(run.tags || "");
+		setEditDueDate(run.due_date || "");
 		setDetailLoading(true);
 		try {
 			const res = await fetch(`${config.engineUrl}/api/runs/${run.id}`, { headers: apiHeaders });
@@ -282,16 +336,284 @@ export const Tareas: React.FC = () => {
 		}
 	};
 
+	const handleStartTask = (runId: number) => {
+		const ok = sendWs("start_task", { runId });
+		if (ok) {
+			showToast("Iniciando tarea...", "info");
+		} else {
+			showToast("Error: No hay conexión WebSocket.", "error");
+		}
+	};
+
+	const handleMoveToBacklog = (runId: number) => {
+		const ok = sendWs("move_to_backlog", { runId });
+		if (ok) {
+			showToast("Moviendo a Backlog...", "info");
+		} else {
+			showToast("Error: No hay conexión WebSocket.", "error");
+		}
+	};
+
 	const handleNewTask = () => {
 		if (!newTaskText.trim()) return;
-		const ok = sendWs("new_task", { text: newTaskText.trim() });
+		const ok = sendWs("new_task", {
+			text: newTaskText.trim(),
+			backlog: newTaskInBacklog,
+			priority: newTaskPriority,
+			preferredModel: newTaskPreferredModel === "default" ? null : newTaskPreferredModel,
+			tags: newTaskTags.trim() ? newTaskTags.trim() : null,
+			dueDate: newTaskDueDate || null,
+			description: newTaskDescription.trim() ? newTaskDescription.trim() : null,
+		});
 		setNewTaskText("");
+		setNewTaskInBacklog(false);
+		setNewTaskPriority("medium");
+		setNewTaskPreferredModel("default");
+		setNewTaskTags("");
+		setNewTaskDueDate("");
+		setNewTaskDescription("");
 		setShowNewTaskModal(false);
 		if (ok) {
 			showToast("Tarea enviada", "success");
 		} else {
 			showToast("Error: No hay conexión WebSocket. Verifica la conexión.", "error");
 		}
+	};
+
+	const renderCard = (run: Run, canCancel: boolean) => {
+		const priorityColors: Record<string, { bg: string; text: string; label: string }> = {
+			low: { bg: "rgba(255, 255, 255, 0.05)", text: "#a0a0a0", label: "Baja" },
+			medium: { bg: "rgba(79, 140, 255, 0.1)", text: "var(--accent)", label: "Media" },
+			high: { bg: "rgba(245, 158, 11, 0.15)", text: "#f59e0b", label: "Alta" },
+			urgent: { bg: "rgba(239, 68, 68, 0.15)", text: "#ef4444", label: "Urgente" },
+		};
+
+		const prio = run.priority || "medium";
+		const pColor = priorityColors[prio] || priorityColors.medium;
+
+		// Tags parsing
+		const tagList = run.tags
+			? run.tags
+					.split(",")
+					.map((t) => t.trim())
+					.filter(Boolean)
+			: [];
+
+		// Due date evaluation
+		let isOverdue = false;
+		if (run.due_date && run.status !== "completed") {
+			const today = new Date();
+			today.setHours(0, 0, 0, 0);
+			const due = new Date(run.due_date);
+			due.setHours(0, 0, 0, 0);
+			isOverdue = due < today;
+		}
+
+		return (
+			<div
+				key={run.id}
+				onClick={() => openDetail(run)}
+				draggable={true}
+				onDragStart={(e) => {
+					e.dataTransfer.setData("text/plain", run.id.toString());
+				}}
+				style={{
+					padding: "12px",
+					borderRadius: "10px",
+					background: "rgba(255,255,255,0.02)",
+					border: "1px solid var(--border-light)",
+					cursor: "grab",
+					transition: "all 0.15s ease",
+					position: "relative",
+					display: "flex",
+					flexDirection: "column",
+					gap: "8px",
+				}}
+				onMouseEnter={(e) => {
+					e.currentTarget.style.borderColor = "var(--accent-glow)";
+					e.currentTarget.style.background = "rgba(255,255,255,0.04)";
+				}}
+				onMouseLeave={(e) => {
+					e.currentTarget.style.borderColor = "var(--border-light)";
+					e.currentTarget.style.background = "rgba(255,255,255,0.02)";
+				}}
+			>
+				{/* Top line: Task ID & Priority */}
+				<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+					<span style={{ fontSize: "9px", fontWeight: 700, color: "var(--text-dim)" }}>
+						#{run.id}
+					</span>
+					<span
+						style={{
+							fontSize: "9px",
+							fontWeight: 600,
+							padding: "2px 6px",
+							borderRadius: "4px",
+							background: pColor.bg,
+							color: pColor.text,
+						}}
+					>
+						{pColor.label}
+					</span>
+				</div>
+
+				{/* Title / User text */}
+				<div
+					style={{
+						fontSize: "11px",
+						fontWeight: 600,
+						color: "var(--text-main)",
+						wordBreak: "break-word",
+						lineHeight: "1.4",
+						display: "-webkit-box",
+						WebkitLineClamp: 3,
+						WebkitBoxOrient: "vertical",
+						overflow: "hidden",
+					}}
+					title={run.userText}
+				>
+					{run.userText || "(sin texto)"}
+				</div>
+
+				{/* Preferred Model & Description flag */}
+				{(run.preferred_model || run.description) && (
+					<div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
+						{run.preferred_model && run.preferred_model !== "default" && (
+							<span
+								title="Modelo preferido"
+								style={{
+									fontSize: "9px",
+									fontFamily: "var(--font-mono)",
+									color: "var(--text-dim)",
+									background: "rgba(255,255,255,0.04)",
+									padding: "1px 5px",
+									borderRadius: "3px",
+									display: "inline-flex",
+									alignItems: "center",
+									gap: "3px",
+								}}
+							>
+								🤖 {run.preferred_model.split("/").pop()}
+							</span>
+						)}
+						{run.description && (
+							<span
+								title="Tiene descripción detallada"
+								style={{
+									display: "inline-flex",
+									color: "var(--text-muted)",
+								}}
+							>
+								<FileText size={10} />
+							</span>
+						)}
+					</div>
+				)}
+
+				{/* Due date & Tags */}
+				{(run.due_date || tagList.length > 0) && (
+					<div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "2px" }}>
+						{run.due_date && (
+							<div
+								style={{
+									display: "flex",
+									alignItems: "center",
+									gap: "4px",
+									fontSize: "9px",
+									color: isOverdue ? "var(--error)" : "var(--text-dim)",
+									fontWeight: isOverdue ? 600 : 500,
+								}}
+							>
+								<Calendar size={10} />
+								<span>{new Date(run.due_date).toLocaleDateString(undefined, { day: "numeric", month: "short" })}</span>
+								{isOverdue && <span style={{ fontSize: "8px", textTransform: "uppercase" }}>(Vencida)</span>}
+							</div>
+						)}
+						{tagList.length > 0 && (
+							<div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+								{tagList.map((tag, i) => (
+									<span
+										key={i}
+										style={{
+											fontSize: "8px",
+											fontWeight: 600,
+											padding: "1px 5px",
+											borderRadius: "3px",
+											background: "rgba(255, 255, 255, 0.03)",
+											border: "1px solid var(--border-light)",
+											color: "var(--text-dim)",
+											display: "inline-flex",
+											alignItems: "center",
+											gap: "2px",
+										}}
+									>
+										<Tag size={6} />
+										{tag}
+									</span>
+								))}
+							</div>
+						)}
+					</div>
+				)}
+
+				{/* Card Footer Metadata */}
+				<div
+					style={{
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "space-between",
+						marginTop: "4px",
+						borderTop: "1px solid rgba(255,255,255,0.02)",
+						paddingTop: "6px",
+						fontSize: "9px",
+						color: "var(--text-dim)",
+					}}
+				>
+					<div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+						<span title={run.origin} style={{ fontSize: "11px" }}>
+							{ORIGIN_ICONS[run.origin] || `(${run.origin})`}
+						</span>
+						{run.model && (
+							<span
+								style={{
+									color: "var(--accent)",
+									fontFamily: "var(--font-mono)",
+								}}
+							>
+								{run.model.split("/").pop()}
+							</span>
+						)}
+						{run.latencyMs != null && (
+							<span>{(run.latencyMs / 1000).toFixed(1)}s</span>
+						)}
+					</div>
+
+					{canCancel && (
+						<button
+							type="button"
+							onClick={(e) => {
+								e.stopPropagation();
+								handleCancelTask(run.id);
+							}}
+							title="Cancelar tarea"
+							style={{
+								background: "rgba(239,68,68,0.1)",
+								border: "1px solid rgba(239,68,68,0.2)",
+								borderRadius: "4px",
+								color: "var(--error)",
+								cursor: "pointer",
+								padding: "3px",
+								display: "flex",
+								alignItems: "center",
+								justifyContent: "center",
+							}}
+						>
+							<X size={10} />
+						</button>
+					)}
+				</div>
+			</div>
+		);
 	};
 
 	// Scheduled task CRUD
@@ -380,22 +702,7 @@ export const Tareas: React.FC = () => {
 		}
 	};
 
-	const statusColor = (status: string) => {
-		switch (status) {
-			case "completed":
-				return "rgba(16,185,129,0.15)";
-			case "running":
-				return "rgba(79,140,255,0.15)";
-			case "queued":
-				return "rgba(245,158,11,0.15)";
-			case "failed":
-				return "rgba(239,68,68,0.15)";
-			case "cancelled":
-				return "rgba(255,255,255,0.05)";
-			default:
-				return "rgba(255,255,255,0.03)";
-		}
-	};
+
 
 	return (
 		<div style={{ height: "calc(100vh - 160px)", display: "flex", flexDirection: "column" }}>
@@ -465,6 +772,37 @@ export const Tareas: React.FC = () => {
 					/>
 					{connected ? "Conectado" : "Desconectado"}
 				</span>
+				{tabMode === "history" && hasMore && (
+					<button
+						type="button"
+						disabled={loadingMore}
+						onClick={() => {
+							setLoadingMore(true);
+							fetchRuns(true);
+						}}
+						style={{
+							padding: "6px 14px",
+							borderRadius: "6px",
+							border: "1px solid rgba(79,140,255,0.2)",
+							background: "rgba(79,140,255,0.05)",
+							color: "var(--accent)",
+							cursor: "pointer",
+							fontSize: "11px",
+							fontWeight: 600,
+							display: "flex",
+							alignItems: "center",
+							gap: "6px",
+							opacity: loadingMore ? 0.6 : 1,
+						}}
+					>
+						{loadingMore ? (
+							<Loader2 size={12} className="animate-spin" />
+						) : (
+							<List size={12} />
+						)}
+						Cargar más ({runs.length})
+					</button>
+				)}
 				<button
 					type="button"
 					disabled={!connected}
@@ -495,34 +833,10 @@ export const Tareas: React.FC = () => {
 			{/* History tab */}
 			{tabMode === "history" && (
 				<>
-					{/* Status filters */}
-					<div style={{ display: "flex", gap: "8px", padding: "0 0 16px", flexWrap: "wrap" }}>
-						{HISTORY_FILTERS.map((f) => (
-							<button
-								key={f}
-								type="button"
-								onClick={() => setStatusFilter(f)}
-								style={{
-									padding: "6px 14px",
-									borderRadius: "6px",
-									border: "1px solid var(--border-light)",
-									background: statusFilter === f ? "rgba(79,140,255,0.1)" : "rgba(255,255,255,0.02)",
-									color: statusFilter === f ? "var(--accent)" : "var(--text-muted)",
-									cursor: "pointer",
-									fontSize: "11px",
-									fontWeight: 600,
-									textTransform: "capitalize",
-								}}
-							>
-								{FILTER_LABELS[f]}
-							</button>
-						))}
-					</div>
-
-					{/* Task List */}
-					<div style={{ flex: 1, overflowY: "auto" }}>
+					{/* Kanban Board */}
+					<div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
 						{loading ? (
-							<div style={{ textAlign: "center", padding: "40px", color: "var(--text-muted)" }}>
+							<div style={{ textAlign: "center", padding: "40px", color: "var(--text-muted)", flex: 1 }}>
 								<Loader2
 									size={24}
 									className="animate-spin"
@@ -537,159 +851,333 @@ export const Tareas: React.FC = () => {
 									padding: "40px",
 									color: "var(--text-dim)",
 									fontSize: "13px",
+									flex: 1,
 								}}
 							>
-								No hay tareas{" "}
-								{statusFilter !== "all" ? `con estado "${FILTER_LABELS[statusFilter]}"` : ""}.
+								No hay tareas en el historial. Crea una nueva tarea para comenzar.
 							</div>
-						) : (
-							<>
-								{runs.map((run) => (
+						) : (() => {
+							const runsByStatus = {
+								backlog: runs.filter((r) => r.status === "backlog"),
+								queued: runs.filter((r) => r.status === "queued"),
+								running: runs.filter((r) => r.status === "running"),
+								completed: runs.filter((r) => r.status === "completed"),
+								failed: runs.filter((r) => r.status === "failed"),
+								cancelled: runs.filter((r) => r.status === "cancelled"),
+							};
+
+							const columns: { id: string; label: string; icon: React.ReactNode; color: string; list: Run[] }[] = [
+								{
+									id: "backlog",
+									label: "Backlog",
+									icon: <List size={13} style={{ color: "var(--text-muted)" }} />,
+									color: "var(--text-muted)",
+									list: runsByStatus.backlog,
+								},
+								{
+									id: "queued",
+									label: "En cola",
+									icon: <Clock size={13} style={{ color: "var(--warning)" }} />,
+									color: "var(--warning)",
+									list: runsByStatus.queued,
+								},
+								{
+									id: "running",
+									label: "Ejecutando",
+									icon: <Loader2 size={13} style={{ color: "var(--accent)" }} className="animate-spin" />,
+									color: "var(--accent)",
+									list: runsByStatus.running,
+								},
+								{
+									id: "completed",
+									label: "Completado",
+									icon: <CheckCircle size={13} style={{ color: "var(--success)" }} />,
+									color: "var(--success)",
+									list: runsByStatus.completed,
+								},
+								{
+									id: "failed",
+									label: "Fallido",
+									icon: <XCircle size={13} style={{ color: "var(--error)" }} />,
+									color: "var(--error)",
+									list: runsByStatus.failed,
+								},
+								{
+									id: "cancelled",
+									label: "Cancelado",
+									icon: <XCircle size={13} style={{ color: "var(--text-muted)" }} />,
+									color: "var(--text-muted)",
+									list: runsByStatus.cancelled,
+								},
+							];
+
+							return (
+								<>
 									<div
-										key={run.id}
-										onClick={() => openDetail(run)}
 										style={{
-											padding: "12px 16px",
-											marginBottom: "6px",
+											padding: "10px 14px",
+											marginBottom: "12px",
 											borderRadius: "8px",
-											background: "rgba(255,255,255,0.02)",
-											border: "1px solid var(--border-light)",
-											cursor: "pointer",
-											transition: "all 0.15s",
-										}}
-										onMouseEnter={(e) => {
-											e.currentTarget.style.borderColor = "var(--accent-glow)";
-										}}
-										onMouseLeave={(e) => {
-											e.currentTarget.style.borderColor = "var(--border-light)";
+											background: "rgba(79, 140, 255, 0.04)",
+											border: "1px solid rgba(79, 140, 255, 0.1)",
+											fontSize: "11px",
+											color: "var(--text-dim)",
+											display: "flex",
+											alignItems: "center",
+											gap: "8px",
 										}}
 									>
-										<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-											{statusIcon(run.status)}
-											<div style={{ flex: 1, minWidth: 0 }}>
-												<div
-													style={{
-														fontSize: "12px",
-														fontWeight: 600,
-														color: "var(--text-main)",
-														overflow: "hidden",
-														textOverflow: "ellipsis",
-														whiteSpace: "nowrap",
-													}}
-												>
-													{run.userText || "(sin texto)"}
-												</div>
-												<div
-													style={{
-														display: "flex",
-														gap: "12px",
-														marginTop: "4px",
-														fontSize: "10px",
-														color: "var(--text-dim)",
-														alignItems: "center",
-													}}
-												>
-													{run.created_at && (
-														<span>{new Date(run.created_at).toLocaleString()}</span>
-													)}
-													{run.model && (
-														<span
-															style={{ color: "var(--accent)", fontFamily: "monospace" }}
-														>
-															{run.model}
-														</span>
-													)}
-													{run.latencyMs != null && (
-														<span>{(run.latencyMs / 1000).toFixed(1)}s</span>
-													)}
-													{/* Origin indicator */}
-													<span title={run.origin}>
-														{ORIGIN_ICONS[run.origin] || `(${run.origin})`}
-													</span>
-												</div>
-											</div>
+										<span style={{ fontSize: "14px" }}>💡</span>
+										<span>
+											Tip: Arrastra tareas a <strong>En cola</strong> para ejecutarlas, a <strong>Backlog</strong> para guardarlas, o a <strong>Cancelado</strong> para abortar.
+										</span>
+									</div>
 
-											<span
-												style={{
-													padding: "2px 8px",
-													borderRadius: "4px",
-													fontSize: "10px",
-													fontWeight: 600,
-													textTransform: "capitalize",
-													background: statusColor(run.status),
-													color:
-														run.status === "completed"
-															? "var(--success)"
-															: run.status === "failed"
-																? "var(--error)"
-																: run.status === "running"
-																	? "var(--accent)"
-																	: run.status === "cancelled"
-																		? "var(--text-muted)"
-																		: "var(--warning)",
-												}}
-											>
-												{FILTER_LABELS[run.status as StatusFilter] || run.status}
-											</span>
-											{/* Cancel button */}
-											{(run.status === "queued" || run.status === "running") && (
-												<button
-													type="button"
-													onClick={(e) => {
-														e.stopPropagation();
-														handleCancelTask(run.id);
+									<div
+										style={{
+											display: "flex",
+											gap: "12px",
+											flex: 1,
+											overflowX: "auto",
+											minHeight: 0,
+											paddingBottom: "10px",
+										}}
+									>
+										{columns.map((col) => {
+											const isCancelCol = col.id === "cancelled";
+											const isBacklogCol = col.id === "backlog";
+											const isQueuedCol = col.id === "queued";
+
+											let isDragOver = false;
+											if (isCancelCol) isDragOver = isDraggingOverCancel;
+											if (isBacklogCol) isDragOver = isDraggingOverBacklog;
+											if (isQueuedCol) isDragOver = isDraggingOverQueued;
+
+											return (
+												<div
+													key={col.id}
+													onDragOver={(e) => {
+														if (isCancelCol || isBacklogCol || isQueuedCol) {
+															e.preventDefault();
+														}
 													}}
-													title="Cancelar tarea"
+													onDragEnter={(e) => {
+														if (isCancelCol) {
+															e.preventDefault();
+															setIsDraggingOverCancel(true);
+														} else if (isBacklogCol) {
+															e.preventDefault();
+															setIsDraggingOverBacklog(true);
+														} else if (isQueuedCol) {
+															e.preventDefault();
+															setIsDraggingOverQueued(true);
+														}
+													}}
+													onDragLeave={() => {
+														if (isCancelCol) {
+															setIsDraggingOverCancel(false);
+														} else if (isBacklogCol) {
+															setIsDraggingOverBacklog(false);
+														} else if (isQueuedCol) {
+															setIsDraggingOverQueued(false);
+														}
+													}}
+													onDrop={(e) => {
+														e.preventDefault();
+														setIsDraggingOverCancel(false);
+														setIsDraggingOverBacklog(false);
+														setIsDraggingOverQueued(false);
+														const runId = Number.parseInt(e.dataTransfer.getData("text/plain"), 10);
+														if (Number.isNaN(runId)) return;
+
+														if (isCancelCol) {
+															handleCancelTask(runId);
+														} else if (isBacklogCol) {
+															handleMoveToBacklog(runId);
+														} else if (isQueuedCol) {
+															handleStartTask(runId);
+														}
+													}}
 													style={{
-														background: "rgba(239,68,68,0.1)",
-														border: "1px solid rgba(239,68,68,0.2)",
-														borderRadius: "4px",
-														color: "var(--error)",
-														cursor: "pointer",
-														padding: "4px",
+														flex: "1 1 0px",
+														minWidth: "220px",
 														display: "flex",
-														alignItems: "center",
-														justifyContent: "center",
-														flexShrink: 0,
+														flexDirection: "column",
+														background: isDragOver
+															? (isCancelCol ? "rgba(239, 68, 68, 0.05)" : isQueuedCol ? "rgba(245, 158, 11, 0.05)" : "rgba(255, 255, 255, 0.04)")
+															: "rgba(255, 255, 255, 0.01)",
+														border: `1px solid ${
+															isDragOver
+																? (isCancelCol ? "var(--error)" : isQueuedCol ? "var(--warning)" : "var(--accent)")
+																: "var(--border-light)"
+														}`,
+														borderRadius: "10px",
+														padding: "12px",
+														minHeight: 0,
+														transition: "all 0.2s ease",
+														boxShadow: isDragOver
+															? `0 0 12px ${isCancelCol ? "rgba(239, 68, 68, 0.2)" : isQueuedCol ? "rgba(245, 158, 11, 0.2)" : "rgba(79, 140, 255, 0.2)"}`
+															: "none",
 													}}
 												>
-													<X size={12} />
-												</button>
-											)}
-										</div>
+													{/* Column Header */}
+													<div
+														style={{
+															display: "flex",
+															alignItems: "center",
+															gap: "8px",
+															marginBottom: "12px",
+															borderBottom: "1px solid var(--border-light)",
+															paddingBottom: "8px",
+														}}
+													>
+														{col.icon}
+														<span style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-main)" }}>
+															{col.label}
+														</span>
+														<span
+															style={{
+																fontSize: "10px",
+																color: "var(--text-muted)",
+																marginLeft: "auto",
+																background: "rgba(255,255,255,0.04)",
+																padding: "2px 6px",
+																borderRadius: "10px",
+																fontWeight: 600,
+															}}
+														>
+															{col.list.length}
+														</span>
+													</div>
+
+													{/* Column Task Cards */}
+													<div
+														style={{
+															display: "flex",
+															flexDirection: "column",
+															gap: "8px",
+															flex: 1,
+															overflowY: "auto",
+															paddingRight: "2px",
+														}}
+													>
+														{col.list.length === 0 ? (
+															<div
+																style={{
+																	textAlign: "center",
+																	padding: "24px 8px",
+																	fontSize: "11px",
+																	color: "var(--text-muted)",
+																	border: "1px dashed var(--border-light)",
+																	borderRadius: "6px",
+																	background: "rgba(255,255,255,0.005)",
+																}}
+															>
+																Sin tareas
+															</div>
+																												) : col.id === "completed" ? (
+															(() => {
+																// Group completed runs by day
+																const groups: Record<string, Run[]> = {};
+																for (const run of col.list) {
+																	const dateStr = run.created_at
+																		? new Date(run.created_at).toLocaleDateString(undefined, {
+																				year: "numeric",
+																				month: "short",
+																				day: "numeric",
+																			})
+																		: "Sin fecha";
+																	if (!groups[dateStr]) {
+																		groups[dateStr] = [];
+																	}
+																	groups[dateStr].push(run);
+																}
+
+																return Object.entries(groups).map(([dateStr, items]) => {
+																	const isExpanded = expandedDates[dateStr] ?? true;
+																	return (
+																		<div key={dateStr} style={{ marginBottom: "6px" }}>
+																			{/* Accordion Header */}
+																			<div
+																				onClick={() =>
+																					setExpandedDates((prev) => ({
+																						...prev,
+																						[dateStr]: !isExpanded,
+																					}))
+																				}
+																				style={{
+																					display: "flex",
+																					alignItems: "center",
+																					gap: "6px",
+																					padding: "6px 10px",
+																					background: "rgba(255, 255, 255, 0.02)",
+																					border: "1px solid var(--border-light)",
+																					borderRadius: "6px",
+																					cursor: "pointer",
+																					fontSize: "11px",
+																					fontWeight: 600,
+																					color: "var(--text-main)",
+																					transition: "background 0.2s ease",
+																				}}
+																				onMouseEnter={(e) => {
+																					e.currentTarget.style.background = "rgba(255, 255, 255, 0.04)";
+																				}}
+																				onMouseLeave={(e) => {
+																					e.currentTarget.style.background = "rgba(255, 255, 255, 0.02)";
+																				}}
+																			>
+																				{isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+																				<span>{dateStr}</span>
+																				<span
+																					style={{
+																						fontSize: "9px",
+																						color: "var(--text-muted)",
+																						marginLeft: "auto",
+																						background: "rgba(255,255,255,0.04)",
+																						padding: "1px 5px",
+																						borderRadius: "8px",
+																					}}
+																				>
+																					{items.length}
+																				</span>
+																			</div>
+
+																			{/* Accordion Body */}
+																			{isExpanded && (
+																				<div
+																					style={{
+																						display: "flex",
+																						flexDirection: "column",
+																						gap: "6px",
+																						marginTop: "6px",
+																						paddingLeft: "8px",
+																						borderLeft: "1px dashed var(--border-light)",
+																					}}
+																				>
+																					{items.map((run) => renderCard(run, false))}
+																				</div>
+																			)}
+																		</div>
+																	);
+																});
+															})()
+														) : (
+															col.list.map((run) => {
+																const canCancel = run.status === "queued" || run.status === "running";
+																return renderCard(run, canCancel);
+															})
+														)}
+													</div>
+												</div>
+											);
+										})}
 									</div>
-								))}
-								{hasMore && (
-									<div style={{ textAlign: "center", padding: "16px" }}>
-										<button
-											type="button"
-											onClick={() => {
-												setLoadingMore(true);
-												fetchRuns(true);
-											}}
-											disabled={loadingMore}
-											style={{
-												padding: "8px 20px",
-												background: "rgba(79,140,255,0.1)",
-												border: "1px solid rgba(79,140,255,0.2)",
-												borderRadius: "8px",
-												color: "var(--accent)",
-												cursor: "pointer",
-												fontSize: "11px",
-												fontWeight: 600,
-												opacity: loadingMore ? 0.6 : 1,
-											}}
-										>
-											{loadingMore ? "Cargando..." : "Cargar más"}
-										</button>
-									</div>
-								)}
-							</>
-						)}
+								</>
+							);
+						})()}
 					</div>
 				</>
 			)}
-
 			{/* Scheduled tab */}
 			{tabMode === "scheduled" && (
 				<div style={{ flex: 1, overflowY: "auto" }}>
@@ -1095,123 +1583,301 @@ export const Tareas: React.FC = () => {
 							background: "var(--bg-surface)",
 							border: "1px solid var(--border)",
 							borderRadius: "16px",
-							width: "700px",
+							width: "750px",
 							maxWidth: "90vw",
-							maxHeight: "80vh",
-							overflow: "auto",
-							padding: "24px",
+							maxHeight: "85vh",
+							overflowY: "auto",
+							padding: "28px",
+							display: "flex",
+							flexDirection: "column",
+							gap: "16px",
 						}}
 						onClick={(e) => e.stopPropagation()}
 					>
-						<h3
-							style={{ margin: "0 0 16px", fontSize: "16px", fontWeight: 700, color: "var(--text-main)" }}
-						>
-							Detalle de Tarea #{selectedRun.id}
-						</h3>
+						{/* Title input (Notion-style borderless header) */}
+						<div>
+							<div
+								style={{
+									fontSize: "9px",
+									fontWeight: 700,
+									color: "var(--text-muted)",
+									textTransform: "uppercase",
+									marginBottom: "4px",
+								}}
+							>
+								Título de la Tarea (Haz clic para editar)
+							</div>
+							<input
+								type="text"
+								value={editTitle}
+								onChange={(e) => setEditTitle(e.target.value)}
+								onBlur={() => {
+									if (editTitle.trim() && editTitle !== selectedRun.userText) {
+										sendWs("update_task_properties", { runId: selectedRun.id, userText: editTitle.trim() });
+									}
+								}}
+								style={{
+									background: "transparent",
+									border: "none",
+									borderBottom: "1px dashed rgba(255,255,255,0.15)",
+									color: "var(--text-main)",
+									fontSize: "18px",
+									fontWeight: 700,
+									width: "100%",
+									outline: "none",
+									padding: "4px 0 8px",
+									boxSizing: "border-box",
+								}}
+							/>
+						</div>
 
+						{/* Properties Grid (Notion-style) */}
 						<div
 							style={{
 								display: "grid",
 								gridTemplateColumns: "1fr 1fr",
-								gap: "12px",
-								marginBottom: "16px",
+								gap: "14px",
+								background: "rgba(255,255,255,0.01)",
+								border: "1px solid var(--border-light)",
+								borderRadius: "10px",
+								padding: "16px",
 							}}
 						>
+							{/* Estado */}
 							<div>
-								<div
+								<span
 									style={{
 										fontSize: "10px",
 										fontWeight: 600,
 										color: "var(--text-muted)",
 										textTransform: "uppercase",
+										display: "block",
+										marginBottom: "4px",
 									}}
 								>
 									Estado
-								</div>
+								</span>
 								<div
 									style={{
-										fontSize: "13px",
+										fontSize: "12px",
 										color: "var(--text-main)",
-										marginTop: "2px",
 										display: "flex",
 										alignItems: "center",
 										gap: "6px",
+										background: "rgba(255,255,255,0.03)",
+										padding: "6px 12px",
+										borderRadius: "6px",
+										border: "1px solid var(--border-light)",
 									}}
 								>
 									{statusIcon(selectedRun.status)}
-									{selectedRun.status}
+									<span style={{ textTransform: "capitalize", fontWeight: 600 }}>{selectedRun.status}</span>
 								</div>
 							</div>
+
+							{/* Prioridad */}
 							<div>
-								<div
+								<span
 									style={{
 										fontSize: "10px",
 										fontWeight: 600,
 										color: "var(--text-muted)",
 										textTransform: "uppercase",
+										display: "block",
+										marginBottom: "4px",
 									}}
 								>
-									Modelo
-								</div>
-								<div
+									Prioridad
+								</span>
+								<select
+									value={editPriority}
+									onChange={(e) => {
+										const val = e.target.value;
+										setEditPriority(val);
+										sendWs("update_task_properties", { runId: selectedRun.id, priority: val });
+									}}
 									style={{
-										fontSize: "13px",
-										color: "var(--accent)",
-										marginTop: "2px",
-										fontFamily: "monospace",
+										width: "100%",
+										background: "rgba(255,255,255,0.03)",
+										border: "1px solid var(--border-light)",
+										borderRadius: "6px",
+										padding: "6px 12px",
+										color: "var(--text-main)",
+										fontSize: "12px",
+										fontWeight: 600,
+										outline: "none",
+										cursor: "pointer",
 									}}
 								>
-									{selectedRun.model || "-"}
-								</div>
+									<option value="low">Low (Baja)</option>
+									<option value="medium">Medium (Media)</option>
+									<option value="high">High (Alta)</option>
+									<option value="urgent">Urgent (Urgente)</option>
+								</select>
 							</div>
+
+							{/* Modelo LLM */}
 							<div>
-								<div
+								<span
 									style={{
 										fontSize: "10px",
 										fontWeight: 600,
 										color: "var(--text-muted)",
 										textTransform: "uppercase",
+										display: "block",
+										marginBottom: "4px",
 									}}
 								>
-									Latencia
-								</div>
-								<div style={{ fontSize: "13px", color: "var(--text-main)", marginTop: "2px" }}>
-									{selectedRun.latencyMs ? `${(selectedRun.latencyMs / 1000).toFixed(1)}s` : "-"}
-								</div>
+									Modelo LLM Asignado
+								</span>
+								<select
+									value={editModel}
+									onChange={(e) => {
+										const val = e.target.value;
+										setEditModel(val);
+										sendWs("update_task_properties", { runId: selectedRun.id, preferredModel: val === "default" ? null : val });
+									}}
+									style={{
+										width: "100%",
+										background: "rgba(255,255,255,0.03)",
+										border: "1px solid var(--border-light)",
+										borderRadius: "6px",
+										padding: "6px 12px",
+										color: "var(--text-main)",
+										fontSize: "12px",
+										fontWeight: 600,
+										outline: "none",
+										cursor: "pointer",
+									}}
+								>
+									<option value="default">Por defecto del modo</option>
+									{availableModels.map((m) => (
+										<option key={m} value={m}>
+											{m}
+										</option>
+									))}
+								</select>
 							</div>
+
+							{/* Fecha Límite */}
 							<div>
-								<div
+								<span
 									style={{
 										fontSize: "10px",
 										fontWeight: 600,
 										color: "var(--text-muted)",
 										textTransform: "uppercase",
+										display: "block",
+										marginBottom: "4px",
 									}}
 								>
-									Creado
-								</div>
-								<div style={{ fontSize: "13px", color: "var(--text-main)", marginTop: "2px" }}>
-									{selectedRun.created_at ? new Date(selectedRun.created_at).toLocaleString() : "-"}
-								</div>
+									Fecha Límite
+								</span>
+								<input
+									type="date"
+									value={editDueDate}
+									onChange={(e) => {
+										const val = e.target.value;
+										setEditDueDate(val);
+										sendWs("update_task_properties", { runId: selectedRun.id, dueDate: val || null });
+									}}
+									style={{
+										width: "100%",
+										background: "rgba(255,255,255,0.03)",
+										border: "1px solid var(--border-light)",
+										borderRadius: "6px",
+										padding: "5px 12px",
+										color: "var(--text-main)",
+										fontSize: "12px",
+										fontWeight: 600,
+										outline: "none",
+										boxSizing: "border-box",
+									}}
+								/>
 							</div>
+
+							{/* Etiquetas */}
 							<div>
-								<div
+								<span
 									style={{
 										fontSize: "10px",
 										fontWeight: 600,
 										color: "var(--text-muted)",
 										textTransform: "uppercase",
+										display: "block",
+										marginBottom: "4px",
 									}}
 								>
-									Origen
-								</div>
-								<div style={{ fontSize: "13px", color: "var(--text-main)", marginTop: "2px" }}>
-									{ORIGIN_ICONS[selectedRun.origin] || selectedRun.origin}
+									Etiquetas (separadas por coma)
+								</span>
+								<input
+									type="text"
+									value={editTags}
+									onChange={(e) => setEditTags(e.target.value)}
+									onBlur={() => {
+										if (editTags !== (selectedRun.tags || "")) {
+											sendWs("update_task_properties", { runId: selectedRun.id, tags: editTags.trim() || null });
+										}
+									}}
+									placeholder="code, debug, docs"
+									style={{
+										width: "100%",
+										background: "rgba(255,255,255,0.03)",
+										border: "1px solid var(--border-light)",
+										borderRadius: "6px",
+										padding: "6px 12px",
+										color: "var(--text-main)",
+										fontSize: "12px",
+										outline: "none",
+										boxSizing: "border-box",
+									}}
+								/>
+							</div>
+
+							{/* Metadata */}
+							<div>
+								<span
+									style={{
+										fontSize: "10px",
+										fontWeight: 600,
+										color: "var(--text-muted)",
+										textTransform: "uppercase",
+										display: "block",
+										marginBottom: "4px",
+									}}
+								>
+									Origen / Latencia / Creado
+								</span>
+								<div
+									style={{
+										fontSize: "11px",
+										color: "var(--text-dim)",
+										display: "flex",
+										alignItems: "center",
+										gap: "10px",
+										padding: "6px 2px",
+									}}
+								>
+									<span>Origen: {ORIGIN_ICONS[selectedRun.origin] || selectedRun.origin}</span>
+									{selectedRun.latencyMs != null && (
+										<span>Latencia: {(selectedRun.latencyMs / 1000).toFixed(1)}s</span>
+									)}
+									{selectedRun.created_at && (
+										<span>
+											{new Date(selectedRun.created_at).toLocaleString(undefined, {
+												month: "short",
+												day: "numeric",
+												hour: "2-digit",
+												minute: "2-digit",
+											})}
+										</span>
+									)}
 								</div>
 							</div>
 						</div>
 
-						<div style={{ marginBottom: "16px" }}>
+						{/* Descripción detallada (Notion page body content) */}
+						<div>
 							<div
 								style={{
 									fontSize: "10px",
@@ -1219,27 +1885,44 @@ export const Tareas: React.FC = () => {
 									color: "var(--text-muted)",
 									textTransform: "uppercase",
 									marginBottom: "6px",
+									display: "flex",
+									alignItems: "center",
+									gap: "4px",
 								}}
 							>
-								Mensaje del usuario
+								<FileText size={12} />
+								Instrucciones / Notas Detalladas (Haz clic para editar)
 							</div>
-							<div
+							<textarea
+								value={editDescription}
+								onChange={(e) => setEditDescription(e.target.value)}
+								onBlur={() => {
+									if (editDescription !== (selectedRun.description || "")) {
+										sendWs("update_task_properties", { runId: selectedRun.id, description: editDescription.trim() || null });
+									}
+								}}
+								placeholder="Escribe notas adicionales o instrucciones detalladas aquí..."
+								rows={4}
 								style={{
-									padding: "10px 14px",
-									background: "rgba(255,255,255,0.03)",
-									borderRadius: "8px",
+									width: "100%",
+									background: "rgba(255,255,255,0.02)",
 									border: "1px solid var(--border-light)",
-									fontSize: "13px",
+									borderRadius: "8px",
+									padding: "10px 14px",
 									color: "var(--text-main)",
-									whiteSpace: "pre-wrap",
+									fontSize: "13px",
+									fontFamily: "inherit",
+									resize: "vertical",
+									outline: "none",
+									boxSizing: "border-box",
+									lineHeight: "1.5",
 								}}
-							>
-								{selectedRun.userText || "(sin texto)"}
-							</div>
+							/>
 						</div>
 
+						{/* Output: Result or Error */}
 						{selectedRun.resultText && (
-							<div style={{ marginBottom: "16px" }}>
+							<div>
 								<div
 									style={{
 										fontSize: "10px",
@@ -1249,19 +1932,21 @@ export const Tareas: React.FC = () => {
 										marginBottom: "6px",
 									}}
 								>
-									Respuesta
+									Resultado de la Ejecución (Modelo: {selectedRun.model || "system"})
 								</div>
 								<div
 									style={{
-										padding: "10px 14px",
+										padding: "12px 16px",
 										background: "rgba(79,140,255,0.03)",
 										borderRadius: "8px",
 										border: "1px solid rgba(79,140,255,0.1)",
 										fontSize: "12px",
 										color: "var(--text-main)",
 										whiteSpace: "pre-wrap",
-										maxHeight: "200px",
-										overflow: "auto",
+										maxHeight: "180px",
+										overflowY: "auto",
+										fontFamily: "monospace",
+										lineHeight: "1.4",
 									}}
 								>
 									{selectedRun.resultText}
@@ -1270,7 +1955,7 @@ export const Tareas: React.FC = () => {
 						)}
 
 						{selectedRun.errorText && (
-							<div style={{ marginBottom: "16px" }}>
+							<div>
 								<div
 									style={{
 										fontSize: "10px",
@@ -1280,17 +1965,20 @@ export const Tareas: React.FC = () => {
 										marginBottom: "6px",
 									}}
 								>
-									Error
+									Error de Ejecución
 								</div>
 								<div
 									style={{
-										padding: "10px 14px",
+										padding: "12px 16px",
 										background: "rgba(239,68,68,0.05)",
 										borderRadius: "8px",
 										border: "1px solid rgba(239,68,68,0.15)",
 										fontSize: "12px",
 										color: "var(--error)",
 										whiteSpace: "pre-wrap",
+										maxHeight: "150px",
+										overflowY: "auto",
+										fontFamily: "monospace",
 									}}
 								>
 									{selectedRun.errorText}
@@ -1309,7 +1997,7 @@ export const Tareas: React.FC = () => {
 									marginBottom: "8px",
 								}}
 							>
-								Eventos ({selectedEvents.length})
+								Eventos del Timeline ({selectedEvents.length})
 							</div>
 							{detailLoading ? (
 								<div style={{ textAlign: "center", padding: "12px" }}>
@@ -1320,11 +2008,11 @@ export const Tareas: React.FC = () => {
 									/>
 								</div>
 							) : selectedEvents.length === 0 ? (
-								<div style={{ fontSize: "12px", color: "var(--text-dim)", padding: "8px 0" }}>
+								<div style={{ fontSize: "12px", color: "var(--text-dim)", padding: "4px 0" }}>
 									Sin eventos registrados.
 								</div>
 							) : (
-								<div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+								<div style={{ display: "flex", flexDirection: "column", gap: "4px", maxHeight: "150px", overflowY: "auto", paddingRight: "4px" }}>
 									{selectedEvents.map((evt) => (
 										<div
 											key={evt.id}
@@ -1383,7 +2071,8 @@ export const Tareas: React.FC = () => {
 							)}
 						</div>
 
-						<div style={{ marginTop: "20px", display: "flex", justifyContent: "flex-end" }}>
+						{/* Footer Actions */}
+						<div style={{ display: "flex", justifyContent: "flex-end" }}>
 							<button
 								type="button"
 								onClick={() => setSelectedRun(null)}
@@ -1421,26 +2110,40 @@ export const Tareas: React.FC = () => {
 						justifyContent: "center",
 						zIndex: 1000,
 					}}
-					onClick={() => setShowNewTaskModal(false)}
+					onClick={() => {
+						setShowNewTaskModal(false);
+						setNewTaskText("");
+						setNewTaskPriority("medium");
+						setNewTaskPreferredModel("default");
+						setNewTaskTags("");
+						setNewTaskDueDate("");
+						setNewTaskDescription("");
+					}}
 				>
 					<div
 						style={{
 							background: "var(--bg-surface)",
 							border: "1px solid var(--border)",
 							borderRadius: "16px",
-							width: "500px",
+							width: "600px",
 							maxWidth: "90vw",
+							maxHeight: "90vh",
+							overflowY: "auto",
 							padding: "24px",
+							display: "flex",
+							flexDirection: "column",
+							gap: "16px",
 						}}
 						onClick={(e) => e.stopPropagation()}
 					>
 						<h3
-							style={{ margin: "0 0 16px", fontSize: "16px", fontWeight: 700, color: "var(--text-main)" }}
+							style={{ margin: "0", fontSize: "16px", fontWeight: 700, color: "var(--text-main)" }}
 						>
 							Nueva Tarea
 						</h3>
 
-						<div style={{ marginBottom: "16px" }}>
+						{/* Título de la tarea */}
+						<div>
 							<label
 								style={{
 									fontSize: "10px",
@@ -1451,13 +2154,47 @@ export const Tareas: React.FC = () => {
 									marginBottom: "4px",
 								}}
 							>
-								Descripción de la tarea
+								Título / Tarea
 							</label>
-							<textarea
+							<input
+								type="text"
 								value={newTaskText}
 								onChange={(e) => setNewTaskText(e.target.value)}
-								placeholder="Describe la tarea a ejecutar..."
-								rows={4}
+								placeholder="Ej: Corregir errores de compilación..."
+								style={{
+									width: "100%",
+									background: "rgba(255,255,255,0.03)",
+									border: "1px solid var(--border-light)",
+									borderRadius: "6px",
+									padding: "8px 12px",
+									color: "var(--text-main)",
+									fontSize: "13px",
+									fontFamily: "inherit",
+									outline: "none",
+									boxSizing: "border-box",
+								}}
+							/>
+						</div>
+
+						{/* Descripción */}
+						<div>
+							<label
+								style={{
+									fontSize: "10px",
+									fontWeight: 600,
+									color: "var(--text-muted)",
+									textTransform: "uppercase",
+									display: "block",
+									marginBottom: "4px",
+								}}
+							>
+								Instrucciones / Notas detalladas (opcional)
+							</label>
+							<textarea
+								value={newTaskDescription}
+								onChange={(e) => setNewTaskDescription(e.target.value)}
+								placeholder="Instrucciones adicionales para el agente..."
+								rows={3}
 								style={{
 									width: "100%",
 									background: "rgba(255,255,255,0.03)",
@@ -1474,12 +2211,183 @@ export const Tareas: React.FC = () => {
 							/>
 						</div>
 
-						<div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+						{/* Grid properties */}
+						<div
+							style={{
+								display: "grid",
+								gridTemplateColumns: "1fr 1fr",
+								gap: "12px",
+							}}
+						>
+							{/* Prioridad */}
+							<div>
+								<label
+									style={{
+										fontSize: "10px",
+										fontWeight: 600,
+										color: "var(--text-muted)",
+										textTransform: "uppercase",
+										display: "block",
+										marginBottom: "4px",
+									}}
+								>
+									Prioridad
+								</label>
+								<select
+									value={newTaskPriority}
+									onChange={(e) => setNewTaskPriority(e.target.value)}
+									style={{
+										width: "100%",
+										background: "var(--bg-surface)",
+										border: "1px solid var(--border-light)",
+										borderRadius: "6px",
+										padding: "8px 12px",
+										color: "var(--text-main)",
+										fontSize: "13px",
+										outline: "none",
+										cursor: "pointer",
+										boxSizing: "border-box",
+									}}
+								>
+									<option value="low">Low (Baja)</option>
+									<option value="medium">Medium (Media)</option>
+									<option value="high">High (Alta)</option>
+									<option value="urgent">Urgent (Urgente)</option>
+								</select>
+							</div>
+
+							{/* Modelo */}
+							<div>
+								<label
+									style={{
+										fontSize: "10px",
+										fontWeight: 600,
+										color: "var(--text-muted)",
+										textTransform: "uppercase",
+										display: "block",
+										marginBottom: "4px",
+									}}
+								>
+									Modelo LLM Asignado
+								</label>
+								<select
+									value={newTaskPreferredModel}
+									onChange={(e) => setNewTaskPreferredModel(e.target.value)}
+									style={{
+										width: "100%",
+										background: "var(--bg-surface)",
+										border: "1px solid var(--border-light)",
+										borderRadius: "6px",
+										padding: "8px 12px",
+										color: "var(--text-main)",
+										fontSize: "13px",
+										outline: "none",
+										cursor: "pointer",
+										boxSizing: "border-box",
+									}}
+								>
+									<option value="default">Por defecto del modo</option>
+									{availableModels.map((m) => (
+										<option key={m} value={m}>
+											{m}
+										</option>
+									))}
+								</select>
+							</div>
+
+							{/* Tags */}
+							<div>
+								<label
+									style={{
+										fontSize: "10px",
+										fontWeight: 600,
+										color: "var(--text-muted)",
+										textTransform: "uppercase",
+										display: "block",
+										marginBottom: "4px",
+									}}
+								>
+									Etiquetas (separadas por coma)
+								</label>
+								<input
+									type="text"
+									value={newTaskTags}
+									onChange={(e) => setNewTaskTags(e.target.value)}
+									placeholder="Ej: code, refactor, backend"
+									style={{
+										width: "100%",
+										background: "rgba(255,255,255,0.03)",
+										border: "1px solid var(--border-light)",
+										borderRadius: "6px",
+										padding: "8px 12px",
+										color: "var(--text-main)",
+										fontSize: "13px",
+										outline: "none",
+										boxSizing: "border-box",
+									}}
+								/>
+							</div>
+
+							{/* Fecha Límite */}
+							<div>
+								<label
+									style={{
+										fontSize: "10px",
+										fontWeight: 600,
+										color: "var(--text-muted)",
+										textTransform: "uppercase",
+										display: "block",
+										marginBottom: "4px",
+									}}
+								>
+									Fecha Límite
+								</label>
+								<input
+									type="date"
+									value={newTaskDueDate}
+									onChange={(e) => setNewTaskDueDate(e.target.value)}
+									style={{
+										width: "100%",
+										background: "rgba(255,255,255,0.03)",
+										border: "1px solid var(--border-light)",
+										borderRadius: "6px",
+										padding: "7px 12px",
+										color: "var(--text-main)",
+										fontSize: "13px",
+										outline: "none",
+										boxSizing: "border-box",
+									}}
+								/>
+							</div>
+						</div>
+
+						{/* Backlog option */}
+						<div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "4px" }}>
+							<label className="custom-checkbox">
+								<input
+									type="checkbox"
+									checked={newTaskInBacklog}
+									onChange={(e) => setNewTaskInBacklog(e.target.checked)}
+								/>
+								<span className="checkmark" />
+							</label>
+							<span style={{ fontSize: "12px", color: "var(--text-main)", fontWeight: 500 }}>
+								Crear en Backlog (guardar sin ejecutar)
+							</span>
+						</div>
+
+						{/* Action Buttons */}
+						<div style={{ display: "flex", gap: "8px", justifyContent: "flex-end", marginTop: "8px" }}>
 							<button
 								type="button"
 								onClick={() => {
 									setShowNewTaskModal(false);
 									setNewTaskText("");
+									setNewTaskPriority("medium");
+									setNewTaskPreferredModel("default");
+									setNewTaskTags("");
+									setNewTaskDueDate("");
+									setNewTaskDescription("");
 								}}
 								style={{
 									padding: "8px 20px",

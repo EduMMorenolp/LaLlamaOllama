@@ -3,7 +3,7 @@ import { Redis } from "ioredis";
 import { logger } from "../../utils/logger.js";
 import { runAgentCore } from "../agent/runAgentCore.js";
 import type { AgentResult } from "../agent/types.js";
-import { appendRunEvent, updateRun } from "../db/runs.js";
+import { appendRunEvent, getRun, updateRun } from "../db/runs.js";
 import { publishRunEvent } from "../orchestrator/runEvents.js";
 import { getRuntimeContext, hasRuntimeContext } from "../runtime.js";
 
@@ -16,6 +16,7 @@ export interface QueueAgentRunPayload {
 	telegramChatId?: number;
 	skipPersistUserMsg?: boolean;
 	modeId?: string;
+	preferredModel?: string;
 }
 
 const queueName = "agent-engine-runs";
@@ -56,6 +57,9 @@ async function processQueuedRun(payload: QueueAgentRunPayload): Promise<AgentRes
 	const { config, brain } = getRuntimeContext();
 	updateRun(payload.runId, { status: "running" });
 
+	const run = getRun(payload.runId);
+	const preferredModel = run?.preferred_model || payload.preferredModel;
+
 	// Broadcast task_created for ALL origins (tool, scheduler, etc.)
 	// The UI "new_task" handler also broadcasts this, frontend deduplicates by runId
 	broadcastWs("task_created", {
@@ -77,6 +81,7 @@ async function processQueuedRun(payload: QueueAgentRunPayload): Promise<AgentRes
 		telegramChatId: payload.telegramChatId,
 		skipPersistUserMsg: payload.skipPersistUserMsg,
 		modeId: payload.modeId,
+		preferredModel,
 		onStatus: (text: string) => forwardRunEvent(payload.runId, "status", { text }),
 		onTyping: (isTyping: boolean) => forwardRunEvent(payload.runId, "typing", { isTyping }),
 		onChunk: (text: string) => forwardRunEvent(payload.runId, "chunk", { text }),

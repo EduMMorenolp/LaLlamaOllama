@@ -1,4 +1,4 @@
-﻿import axios from "axios";
+import axios from "axios";
 import type { WebSocket } from "ws";
 import { createMessage } from "../gateway/protocol.js";
 import { runAgent } from "../services/agent/runAgent.js";
@@ -537,12 +537,54 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					const userId = userMap.get(clientId) ?? clientId;
 					const taskText = (payload?.text as string) || "Nueva tarea";
 					const chatId = (payload?.chatId as string) || userId;
-					const runId = createRun({ chatId, userText: taskText, origin: "web", status: "queued" });
-					ws.send(createMessage("task_created", { runId, chatId, text: taskText, status: "queued", origin: "web" }));
-					// Enqueue the task for processing in the background
-					submitAgentRun({ chatId, userText: taskText, origin: "web", runId }).catch((err: unknown) => {
-						logger.error("[Tasks] new_task failed: " + (err instanceof Error ? err.message : String(err)));
+					const isBacklog = payload?.backlog as boolean | undefined;
+					const status = isBacklog ? "backlog" : "queued";
+					const priority = (payload?.priority as string) || "medium";
+					const preferredModel = payload?.preferredModel as string | undefined;
+					const tags = payload?.tags as string | undefined;
+					const dueDate = payload?.dueDate as string | undefined;
+					const description = payload?.description as string | undefined;
+
+					const runId = createRun({
+						chatId,
+						userText: taskText,
+						origin: "web",
+						status,
+						priority,
+						preferredModel,
+						tags,
+						dueDate,
+						description,
 					});
+
+					const createdTask = {
+						runId,
+						chatId,
+						text: taskText,
+						status,
+						origin: "web",
+						priority,
+						preferredModel,
+						tags,
+						dueDate,
+						description,
+					};
+
+					wsServer.sendToAll("task_created", createdTask);
+					ws.send(createMessage("task_created", createdTask));
+
+					if (!isBacklog) {
+						// Enqueue the task for processing in the background
+						submitAgentRun({
+							chatId,
+							userText: taskText,
+							origin: "web",
+							runId,
+							preferredModel,
+						}).catch((err: unknown) => {
+							logger.error("[Tasks] new_task failed: " + (err instanceof Error ? err.message : String(err)));
+						});
+					}
 					break;
 				}
 
@@ -567,6 +609,90 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					cancelRun(runId);
 					wsServer.sendToAll("task_cancelled", { runId, chatId: run.chatId, text: run.userText });
 					ws.send(createMessage("task_cancelled", { runId, status: "cancelled" }));
+					break;
+				}
+
+				case "start_task": {
+					const runIdStr = payload?.runId as string;
+					const runId = parseInt(runIdStr, 10);
+					if (isNaN(runId)) {
+						ws.send(createMessage("error", { message: "Invalid runId", code: "INVALID_RUN_ID" }));
+						break;
+					}
+					const { getRun, updateRun } = await import("../services/db/runs.js");
+					const run = getRun(runId);
+					if (!run) {
+						ws.send(createMessage("error", { message: "Run not found", code: "RUN_NOT_FOUND" }));
+						break;
+					}
+					if (run.status !== "backlog" && run.status !== "cancelled" && run.status !== "failed") {
+						ws.send(
+							createMessage("error", {
+								message: "Cannot start task with status '" + run.status + "'",
+								code: "INVALID_STATUS",
+							})
+						);
+						break;
+					}
+					updateRun(runId, { status: "queued" });
+					wsServer.sendToAll("task_status", { runId, chatId: run.chatId, status: "queued", text: run.userText });
+					ws.send(createMessage("task_status", { runId, status: "queued" }));
+					submitAgentRun({ chatId: run.chatId, userText: run.userText, origin: run.origin, runId, preferredModel: run.preferred_model || undefined }).catch(
+						(err: unknown) => {
+							logger.error(
+								"[Tasks] start_task failed: " + (err instanceof Error ? err.message : String(err))
+							);
+						}
+					);
+					break;
+				}
+
+				case "move_to_backlog": {
+					const runIdStr = payload?.runId as string;
+					const runId = parseInt(runIdStr, 10);
+					if (isNaN(runId)) {
+						ws.send(createMessage("error", { message: "Invalid runId", code: "INVALID_RUN_ID" }));
+						break;
+					}
+					const { getRun, updateRun } = await import("../services/db/runs.js");
+					const run = getRun(runId);
+					if (!run) {
+						ws.send(createMessage("error", { message: "Run not found", code: "RUN_NOT_FOUND" }));
+						break;
+					}
+					updateRun(runId, { status: "backlog" });
+					wsServer.sendToAll("task_status", { runId, chatId: run.chatId, status: "backlog", text: run.userText });
+					ws.send(createMessage("task_status", { runId, status: "backlog" }));
+					break;
+				}
+
+				case "update_task_properties": {
+					const runIdStr = payload?.runId as string;
+					const runId = parseInt(runIdStr, 10);
+					if (isNaN(runId)) {
+						ws.send(createMessage("error", { message: "Invalid runId", code: "INVALID_RUN_ID" }));
+						break;
+					}
+					const { getRun, updateRun } = await import("../services/db/runs.js");
+					const run = getRun(runId);
+					if (!run) {
+						ws.send(createMessage("error", { message: "Run not found", code: "RUN_NOT_FOUND" }));
+						break;
+					}
+
+					const patch: Record<string, any> = {};
+					if (payload?.priority !== undefined) patch.priority = payload.priority;
+					if (payload?.preferredModel !== undefined) patch.preferredModel = payload.preferredModel;
+					if (payload?.tags !== undefined) patch.tags = payload.tags;
+					if (payload?.dueDate !== undefined) patch.dueDate = payload.dueDate;
+					if (payload?.description !== undefined) patch.description = payload.description;
+					if (payload?.userText !== undefined) patch.userText = payload.userText;
+
+					updateRun(runId, patch);
+
+					const updatedRun = getRun(runId);
+					wsServer.sendToAll("task_updated", { runId, run: updatedRun });
+					ws.send(createMessage("task_updated", { runId, run: updatedRun }));
 					break;
 				}
 

@@ -45,7 +45,7 @@ export function createModelsRouter(
     }
   });
 
-  router.post("/api/pull", authMiddleware, (req, res) => {
+  router.post("/api/pull", authMiddleware, async (req, res) => {
     const { model } = req.body;
     if (!model) {
       return res.status(400).json({
@@ -54,7 +54,8 @@ export function createModelsRouter(
     }
     log.info({ model }, "POST /api/pull");
     try {
-      res.json(pullModel.execute(model));
+      const result = await pullModel.execute(model);
+      res.json(result);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       log.error({ model, message }, "Model pull failed");

@@ -11,7 +11,10 @@ export class BrainClient {
 		this.http = axios.create({
 			baseURL: config.brainUrl,
 			timeout: 30000,
-			headers: { "Content-Type": "application/json" },
+			headers: {
+				"Content-Type": "application/json",
+				...(config.apiKey ? { "X-API-Key": config.apiKey } : {}),
+			},
 		});
 		this.project = project;
 	}
@@ -40,10 +43,10 @@ export class BrainClient {
 		}
 	}
 
-	async searchMemories(query: string, limit = 10): Promise<SearchResult[]> {
+	async searchMemories(query: string, limit = 10, typeFilter?: string): Promise<SearchResult[]> {
 		try {
 			const res = await this.http.get("/api/memory/search", {
-				params: { q: query, project: this.project, limit },
+				params: { q: query, project: this.project, limit, ...(typeFilter ? { type: typeFilter } : {}) },
 			});
 			return res.data.results || [];
 		} catch (err) {

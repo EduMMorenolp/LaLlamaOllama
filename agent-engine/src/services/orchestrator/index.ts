@@ -1,4 +1,4 @@
-﻿import { logger } from "../../utils/logger.js";
+import { logger } from "../../utils/logger.js";
 import type { AgentOptions, AgentResult } from "../agent/types.js";
 import { createRun, updateRun } from "../db/runs.js";
 import { enqueueAgentRun, ensureRunQueue } from "../queue/runQueue.js";
@@ -13,6 +13,7 @@ function serializeOptions(opts: Omit<AgentOptions, "config" | "brain">) {
 		telegramChatId: opts.telegramChatId,
 		skipPersistUserMsg: opts.skipPersistUserMsg,
 		modeId: opts.modeId,
+		preferredModel: opts.preferredModel,
 	};
 }
 
@@ -26,6 +27,7 @@ export async function submitAgentRun(opts: Omit<AgentOptions, "config" | "brain"
 		userText: opts.userText,
 		origin: opts.origin || "web",
 		status: "queued",
+		preferredModel: opts.preferredModel,
 	});
 
 	const unsubscribe = subscribeRunEvents(runId, {

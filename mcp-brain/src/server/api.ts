@@ -10,6 +10,7 @@ import { normalizeProject } from "../services/normalizeProject.js";
 import { mergeProjects } from "../services/memories/mergeProjects.js";
 import { createMcpServer } from "./mcp.js";
 import logger from "../utils/logger.js";
+import { brainAuthMiddleware } from "../middleware/auth.middleware.js";
 
 const log = logger.child({ component: "api" });
 const PORT = process.env.BRAIN_PORT || 3015;
@@ -27,6 +28,9 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 		});
 		next();
 	});
+
+	// Auth middleware for all /api/* routes (except health, exempted in middleware)
+	app.use("/api", brainAuthMiddleware);
 
 	// Health check
 	app.get("/api/health", (_req, res) => {
@@ -176,12 +180,13 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 		const mode = (req.query.mode as "lexical" | "semantic" | "hybrid") || "hybrid";
 		const limit = parseInt((req.query.limit as string) || "50", 10);
 		const offset = parseInt((req.query.offset as string) || "0", 10);
-		log.info({ project, query: q.substring(0, 80), mode, limit, offset }, "GET /api/memory/search");
+		const typeFilter = (req.query.type as string) || "";
+		log.info({ project, query: q.substring(0, 80), mode, limit, offset, type: typeFilter || undefined }, "GET /api/memory/search");
 		try {
 			const results =
 				q.trim() === ""
 					? await memories.getContext(dbService, project, limit, false, offset)
-					: await memories.searchMemories(dbService, q, project, mode, limit, offset);
+					: await memories.searchMemories(dbService, q, project, mode, limit, offset, typeFilter);
 			res.json(results);
 		} catch (e: unknown) {
 			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });

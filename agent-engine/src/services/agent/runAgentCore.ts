@@ -96,6 +96,10 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 		}
 	}
 
+	if (opts.preferredModel && opts.preferredModel !== "default") {
+		generalModel = opts.preferredModel;
+	}
+
 	if (!opts.skipPersistUserMsg) {
 		try {
 			saveMessage({

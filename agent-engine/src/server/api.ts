@@ -66,6 +66,8 @@ export function startApiServer(config: AppConfig, brain?: BrainClient, wsServer?
 	app.use("/api", authMiddleware);
 
 	// -- Brain Proxy -----------------------------------------------------
+	const brainHeaders = config.apiKey ? { "X-API-Key": config.apiKey } : undefined;
+
 	app.get("/api/memory/search", async (req: Request, res: Response) => {
 		if (!brain) {
 			res.status(503).json({ error: "Brain not available" });
@@ -80,6 +82,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient, wsServer?
 			const axiosResp = await axios.get(`${config.brainUrl}/api/memory/search`, {
 				params: { q, project, mode, limit, offset },
 				timeout: 10000,
+				headers: brainHeaders,
 			});
 			res.json(axiosResp.data);
 		} catch (err) {
@@ -95,10 +98,11 @@ export function startApiServer(config: AppConfig, brain?: BrainClient, wsServer?
 			return;
 		}
 		try {
-			const axiosResp = await axios.get(`${config.brainUrl}/api/memory/stats`, {
-				params: { project: "lallamaollama" },
-				timeout: 10000,
-			});
+		const axiosResp = await axios.get(`${config.brainUrl}/api/memory/stats`, {
+			params: { project: "lallamaollama" },
+			timeout: 10000,
+			headers: brainHeaders,
+		});
 			res.json(axiosResp.data);
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err);
@@ -111,7 +115,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient, wsServer?
 		if (!brain) { res.status(503).json({ error: "Brain not available" }); return; }
 		try {
 			const axiosResp = await axios.post(
-				`${config.brainUrl}/api/memory`, req.body, { timeout: 10000 }
+				`${config.brainUrl}/api/memory`, req.body, { timeout: 10000, headers: brainHeaders }
 			);
 			wsServer?.sendToAll("memory_changed", { action: "created" });
 			res.status(201).json(axiosResp.data);
@@ -131,6 +135,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient, wsServer?
 			const axiosResp = await axios.get(`${config.brainUrl}/api/memory/timeline`, {
 				params: { project: "lallamaollama", limit, offset, ...(type ? { type } : {}) },
 				timeout: 10000,
+				headers: brainHeaders,
 			});
 			res.json(axiosResp.data);
 		} catch (err) {
@@ -145,7 +150,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient, wsServer?
 		const id = req.params.id as string;
 		try {
 			const axiosResp = await axios.get(
-				`${config.brainUrl}/api/memory/${encodeURIComponent(id)}`, { timeout: 10000 }
+				`${config.brainUrl}/api/memory/${encodeURIComponent(id)}`, { timeout: 10000, headers: brainHeaders }
 			);
 			res.json(axiosResp.data);
 		} catch (err) {
@@ -160,7 +165,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient, wsServer?
 		const id = req.params.id as string;
 		try {
 			const axiosResp = await axios.put(
-				`${config.brainUrl}/api/memory/${encodeURIComponent(id)}`, req.body, { timeout: 10000 }
+				`${config.brainUrl}/api/memory/${encodeURIComponent(id)}`, req.body, { timeout: 10000, headers: brainHeaders }
 			);
 			wsServer?.sendToAll("memory_changed", { action: "updated", id });
 			res.json(axiosResp.data);
@@ -176,7 +181,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient, wsServer?
 		const id = req.params.id as string;
 		try {
 			const axiosResp = await axios.delete(
-				`${config.brainUrl}/api/memory/${encodeURIComponent(id)}`, { timeout: 10000 }
+				`${config.brainUrl}/api/memory/${encodeURIComponent(id)}`, { timeout: 10000, headers: brainHeaders }
 			);
 			wsServer?.sendToAll("memory_changed", { action: "deleted", id });
 			res.json(axiosResp.data);
@@ -191,7 +196,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient, wsServer?
 		if (!brain) { res.status(503).json({ error: "Brain not available" }); return; }
 		try {
 			const axiosResp = await axios.post(
-				`${config.brainUrl}/api/memory/consolidate`, req.body, { timeout: 60000 }
+				`${config.brainUrl}/api/memory/consolidate`, req.body, { timeout: 60000, headers: brainHeaders }
 			);
 			wsServer?.sendToAll("memory_changed", { action: "consolidated" });
 			res.json(axiosResp.data);

@@ -46,12 +46,7 @@ export function registerKnowledgeSearchTool() {
 			const { brain } = getRuntimeContext();
 
 			try {
-				// Construir query con filtro opcional de tipo
-				const searchQuery = typeFilter
-					? `type:${typeFilter} ${query}`
-					: query;
-
-				const results = await brain.searchMemories(searchQuery, limit);
+				const results = await brain.searchMemories(query, limit, typeFilter || undefined);
 
 				if (!results || results.length === 0) {
 					return `No se encontraron resultados en la base de conocimiento para "${query}".\n\nPuedes usar 'memorize' para guardar información nueva.`;

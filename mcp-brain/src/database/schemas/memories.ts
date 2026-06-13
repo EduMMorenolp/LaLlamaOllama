@@ -42,11 +42,11 @@ export async function createMemoriesTable(db: Database<sqlite3.Database, sqlite3
 				tags = new.tags,
 				phase = new.phase,
 				agent = new.agent
-			WHERE id = new.id;
+			WHERE rowid = new.rowid;
 		END;
 
 		CREATE TRIGGER IF NOT EXISTS memories_ad AFTER DELETE ON memories BEGIN
-			DELETE FROM memories_fts WHERE id = old.id;
+			DELETE FROM memories_fts WHERE rowid = old.rowid;
 		END;
 	`);
 
@@ -68,4 +68,10 @@ export async function createMemoriesTable(db: Database<sqlite3.Database, sqlite3
 	if (!hasAgent) {
 		await db.exec("ALTER TABLE memories ADD COLUMN agent TEXT;");
 	}
+
+	// Indexes for performance (bounded candidate queries + type filtering)
+	await db.exec(`
+		CREATE INDEX IF NOT EXISTS idx_memories_project_created ON memories(project, createdAt);
+		CREATE INDEX IF NOT EXISTS idx_memories_project_type ON memories(project, type);
+	`);
 }

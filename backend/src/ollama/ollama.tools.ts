@@ -111,7 +111,7 @@ export class OllamaTools {
 				},
 				{
 					name: "chat",
-					description: "Send a chat message to a model",
+					description: "Send a chat message to a model. Optionally pass tools for function calling support.",
 					inputSchema: {
 						type: "object",
 						properties: {
@@ -125,6 +125,11 @@ export class OllamaTools {
 										content: { type: "string" },
 									},
 								},
+							},
+							tools: {
+								type: "array",
+								description: "Optional list of tool definitions for function calling",
+								items: { type: "object" },
 							},
 							...authProps,
 							temperature: { type: "number", minimum: 0, maximum: 2 },
@@ -182,18 +187,27 @@ export class OllamaTools {
 			const ip = "MCP-Client";
 
 			if (!(MCP_TOOL_NAMES as Set<string>).has(name)) {
-				throw new Error(`Tool ${name} not found`);
+				return {
+					content: [{ type: "text", text: `Tool ${name} not found` }],
+					isError: true,
+				};
 			}
 
 			if (!authService.isMcpToolEnabled(name)) {
-				throw new Error(`Tool ${name} is disabled by administrator`);
+				return {
+					content: [{ type: "text", text: `Tool ${name} is disabled by administrator` }],
+					isError: true,
+				};
 			}
 
 			// Global Auth Check (solo cuando MCP auth esta activa)
 			if (authService.isMcpAuthEnabled() && !authService.validate(args?.apiKey as string)) {
 				ollamaService.logRequest(ip, `Tool: ${name}`, "Unauthorized");
 				ollamaService.reportFailedAuth(ip);
-				throw new Error("Invalid API Key");
+				return {
+					content: [{ type: "text", text: "Invalid API Key" }],
+					isError: true,
+				};
 			}
 
 			ollamaService.logRequest(ip, `Tool: ${name}`, "Success");
@@ -248,7 +262,8 @@ export class OllamaTools {
 							(args?.messages as ChatMessage[]) || [],
 							options,
 							args?.keep_alive as string | number,
-							args?.session_id as string
+							args?.session_id as string,
+							args?.tools as Record<string, unknown>[]
 						);
 						log.tool({ tool: name, model: args?.model }, "Tool success");
 						return {
@@ -279,7 +294,10 @@ export class OllamaTools {
 						};
 
 					default:
-						throw new Error(`Tool ${name} not found`);
+						return {
+							content: [{ type: "text", text: `Tool ${name} not found` }],
+							isError: true,
+						};
 				}
 			} catch (error: unknown) {
 				const message = error instanceof Error ? error.message : "Unknown error";

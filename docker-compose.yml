@@ -1,4 +1,3 @@
-version: "3.8"
 name: "lallamaollama"
 
 services:
@@ -28,7 +27,7 @@ services:
       - ollama_data:/root/.ollama
     networks:
       - mcp-network
-    restart: no
+    restart: unless-stopped
   
   backend:
     build:
@@ -59,7 +58,7 @@ services:
     # gpus: all
     networks:
       - mcp-network
-    restart: no
+    restart: unless-stopped
 
   ngrok:
     image: ngrok/ngrok:latest
@@ -73,7 +72,7 @@ services:
       - backend:${APP_PORT:-3016}
     networks:
       - mcp-network
-    restart: no
+    restart: unless-stopped
 
   frontend:
     build:
@@ -96,7 +95,7 @@ services:
       - mcp-network
     depends_on:
       - backend
-    restart: no
+    restart: unless-stopped
 
   agent-frontend:
     build:
@@ -115,7 +114,7 @@ services:
       - mcp-network
     depends_on:
       - agent-engine
-    restart: no
+    restart: unless-stopped
 
   mcp-brain:
     build:
@@ -127,7 +126,7 @@ services:
     environment:
       - BRAIN_PORT=${BRAIN_PORT:-3015}
       - OLLAMA_API_URL=http://ollama:11434
-      # - API_KEY=${API_KEY:-super-secret-mcp-key} # Descomenta si habilitas seguridad en el cerebro
+      - API_KEY=${API_KEY:-super-secret-mcp-key}
     volumes:
       # OPCIÓN A (Recomendada - Bind Mount al Host):
       # Conecta la carpeta local de Windows './data' con '/app/data' dentro de Docker.
@@ -142,7 +141,7 @@ services:
       - ollama
     networks:
       - mcp-network
-    restart: no
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -151,7 +150,7 @@ services:
       - "6379:6379"
     networks:
       - mcp-network
-    restart: no
+    restart: unless-stopped
 
   agent-engine:
     build:
@@ -183,7 +182,7 @@ services:
       - redis
     networks:
       - mcp-network
-    restart: no
+    restart: unless-stopped
 
 networks:
   mcp-network:

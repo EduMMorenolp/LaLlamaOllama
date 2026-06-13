@@ -557,7 +557,7 @@ const summary = `[Historial: ${cached.length - 5} mensajes anteriores resumidos.
 		const models = await this.listModels();
 		for (const model of models) {
 			await this.axiosClient
-				.post(`${this.baseUrl}/api/chat`, {
+				.post(`${this.baseUrl}/api/generate`, {
 					model: model.name,
 					keep_alive: 0,
 				})
