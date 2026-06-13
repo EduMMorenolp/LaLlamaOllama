@@ -202,6 +202,23 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 		}
 	});
 
+	// Get recent context (for agent-engine integration)
+	app.get("/api/memory/context", async (req, res) => {
+		const project = normalizeProject((req.query.project as string) || "lallamaollama");
+		const limit = parseInt((req.query.limit as string) || "15", 10);
+		try {
+			const ctx = await memories.getContext(dbService, project, limit);
+			if (Array.isArray(ctx)) {
+				const text = ctx.map((m: Record<string, unknown>) => `[${m.type}] ${m.title}: ${String(m.content || "").substring(0, 500)}`).join("\n\n");
+				res.json({ context: text });
+			} else {
+				res.json({ context: String(ctx) });
+			}
+		} catch (e: unknown) {
+			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+		}
+	});
+
 	app.get("/api/memory/:id", async (req, res) => {
 		log.info({ id: req.params.id }, "GET /api/memory/:id");
 		try {
@@ -402,23 +419,6 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 				agent || "unknown"
 			);
 			res.status(201).json(result);
-		} catch (e: unknown) {
-			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
-		}
-	});
-
-	// Get recent context (for agent-engine integration)
-	app.get("/api/memory/context", async (req, res) => {
-		const project = normalizeProject((req.query.project as string) || "lallamaollama");
-		const limit = parseInt((req.query.limit as string) || "15", 10);
-		try {
-			const ctx = await memories.getContext(dbService, project, limit);
-			if (Array.isArray(ctx)) {
-				const text = ctx.map((m: Record<string, unknown>) => `[${m.type}] ${m.title}: ${String(m.content || "").substring(0, 500)}`).join("\n\n");
-				res.json({ context: text });
-			} else {
-				res.json({ context: String(ctx) });
-			}
 		} catch (e: unknown) {
 			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
 		}
