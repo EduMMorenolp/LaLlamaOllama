@@ -217,8 +217,8 @@ GET /api/memory/search?q=...&type=feature&mode=hybrid
               ▼
 mcp-brain:
   1. Embed query via Ollama /api/embed (qwen3.5:4b-12k)
-  2. SELECT all memories WHERE project=? AND type=? AND vector IS NOT NULL
-  3. Cosine similarity in JavaScript (O(N))
+  2. SELECT bounded candidates (max 1000) WHERE project=? AND type=? AND vector IS NOT NULL, ORDER BY createdAt DESC
+  3. Cosine similarity in JavaScript (O(maxCandidates))
   4. FTS5 lexical search
   5. Merge & rank results
 ```
@@ -541,7 +541,7 @@ Variables de entorno comunes:
 | 13 | `unloadModels()` endpoint | ✅ FIXED | `/api/generate` |
 | 14 | `await` en pull model | ✅ FIXED | Respuesta engañosa |
 | 15 | `@types/*` en prod deps | ✅ FIXED | Peso extra |
-| 16 | Cosine similarity O(N) | ⏳ PENDIENTE | No escala |
+| 16 | ~~Cosine similarity O(N)~~ | ✅ FIXED | No escala |
 | 17 | MCP sync en Docker | ⏳ PENDIENTE | No llega al host |
 | 18 | Embedding model hardcodeado | ✅ PARCIAL | Fallback silencioso |
 | 19 | `sessionCache` sin límite | ⏳ PENDIENTE | Memory leak |
