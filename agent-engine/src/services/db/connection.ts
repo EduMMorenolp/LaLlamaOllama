@@ -257,6 +257,16 @@ export function getDb(dbPath?: string): Database.Database {
 		// already exists
 	}
 	try {
+		_db.exec("ALTER TABLE runs ADD COLUMN cron_expression TEXT DEFAULT NULL");
+	} catch {
+		// already exists
+	}
+	try {
+		_db.exec("ALTER TABLE runs ADD COLUMN is_recurring INTEGER DEFAULT 0");
+	} catch {
+		// already exists
+	}
+	try {
 		_db.exec(`
 			CREATE TABLE IF NOT EXISTS saved_messages (
 				id INTEGER PRIMARY KEY AUTOINCREMENT,

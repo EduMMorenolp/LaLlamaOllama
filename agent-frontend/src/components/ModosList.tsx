@@ -192,7 +192,6 @@ export const ModosList: React.FC<ModosListProps> = ({ modes, activeModeName, too
 			mode: Partial<AgentMode>;
 		}>
 	>([]);
-	const [templatesLoading, setTemplatesLoading] = useState(true);
 
 	useEffect(() => {
 		(async () => {
@@ -211,7 +210,6 @@ export const ModosList: React.FC<ModosListProps> = ({ modes, activeModeName, too
 						history_limit?: number;
 						tool_policy?: string;
 					}) => {
-						// Compose a readable preview from sections
 						const sectionPreview = t.sections?.identity || "";
 						const toolsStr = (t.tools || []).join(", ");
 						return {
@@ -231,7 +229,6 @@ export const ModosList: React.FC<ModosListProps> = ({ modes, activeModeName, too
 						};
 					}
 				);
-				// Also fetch resolved prompts to get the full composed prompt
 				const fullItems = await Promise.all(
 					items.map(async (item: { id: string; mode: Partial<AgentMode> }) => {
 						try {
@@ -252,8 +249,6 @@ export const ModosList: React.FC<ModosListProps> = ({ modes, activeModeName, too
 				setTemplates(fullItems);
 			} catch (err) {
 				console.warn("[ModosList] Failed to fetch templates from backend:", err);
-			} finally {
-				setTemplatesLoading(false);
 			}
 		})();
 	}, []);

@@ -545,6 +545,8 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					const dueDate = payload?.dueDate as string | undefined;
 					const description = payload?.description as string | undefined;
 					const scheduledAt = payload?.scheduledAt as string | undefined;
+					const cronExpression = payload?.cronExpression as string | undefined;
+					const isRecurring = Boolean(payload?.isRecurring);
 
 					const runId = createRun({
 						chatId,
@@ -557,6 +559,8 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 						dueDate,
 						description,
 						scheduledAt,
+						cronExpression,
+						isRecurring,
 					});
 
 					const createdTask = {
@@ -571,6 +575,8 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 						dueDate,
 						description,
 						scheduledAt: scheduledAt || null,
+						cronExpression: cronExpression || null,
+						isRecurring,
 					};
 
 					wsServer.sendToAll("task_created", createdTask);

@@ -34,6 +34,8 @@ interface Run {
 	due_date?: string | null;
 	description?: string | null;
 	scheduled_at?: string | null;
+	cron_expression?: string | null;
+	is_recurring?: number;
 	created_at?: string;
 	updated_at?: string;
 }
@@ -43,16 +45,6 @@ interface RunEvent {
 	runId: number;
 	type: string;
 	payload: string;
-	created_at?: string;
-}
-
-interface ScheduledTask {
-	id: number;
-	name: string;
-	task_text: string;
-	cron_expression: string;
-	mode_id?: string;
-	enabled: boolean;
 	created_at?: string;
 }
 
@@ -95,6 +87,14 @@ export const Tareas: React.FC = () => {
 	const [newTaskTags, setNewTaskTags] = useState("");
 	const [newTaskDueDate, setNewTaskDueDate] = useState("");
 	const [newTaskDescription, setNewTaskDescription] = useState("");
+	// Recurrence state
+	const [newTaskIsRecurring, setNewTaskIsRecurring] = useState(false);
+	const [recurPreset, setRecurPreset] = useState<"daily" | "weekly" | "monthly" | "custom">("daily");
+	const [recurHour, setRecurHour] = useState("09");
+	const [recurMinute, setRecurMinute] = useState("00");
+	const [recurWeekDays, setRecurWeekDays] = useState<string[]>(["1"]); // Mon by default
+	const [recurMonthDay, setRecurMonthDay] = useState("1");
+	const [recurCustomCron, setRecurCustomCron] = useState("");
 
 	// Editar Tarea properties (Notion style detail editor)
 	const [editTitle, setEditTitle] = useState("");
@@ -319,10 +319,54 @@ export const Tareas: React.FC = () => {
 		}
 	};
 
+	const buildCronExpression = (): string => {
+		const h = recurHour.padStart(2, "0");
+		const m = recurMinute.padStart(2, "0");
+		switch (recurPreset) {
+			case "daily":
+				return `${m} ${h} * * *`;
+			case "weekly": {
+				const days = recurWeekDays.length > 0 ? recurWeekDays.join(",") : "1";
+				return `${m} ${h} * * ${days}`;
+			}
+			case "monthly":
+				return `${m} ${h} ${recurMonthDay} * *`;
+			case "custom":
+				return recurCustomCron.trim();
+			default:
+				return `${m} ${h} * * *`;
+		}
+	};
+
+	const resetNewTaskModal = () => {
+		setNewTaskText("");
+		setNewTaskInBacklog(false);
+		setNewTaskIsScheduled(false);
+		setNewTaskScheduledAt("");
+		setNewTaskPriority("medium");
+		setNewTaskPreferredModel("default");
+		setNewTaskTags("");
+		setNewTaskDueDate("");
+		setNewTaskDescription("");
+		setNewTaskIsRecurring(false);
+		setRecurPreset("daily");
+		setRecurHour("09");
+		setRecurMinute("00");
+		setRecurWeekDays(["1"]);
+		setRecurMonthDay("1");
+		setRecurCustomCron("");
+	};
+
 	const handleNewTask = () => {
 		if (!newTaskText.trim()) return;
+		const isRecurring = newTaskIsScheduled && newTaskIsRecurring;
+		const cronExpression = isRecurring ? buildCronExpression() : undefined;
 		const status = newTaskIsScheduled ? "scheduled" : (newTaskInBacklog ? "backlog" : "queued");
-		const scheduledAt = newTaskIsScheduled && newTaskScheduledAt ? new Date(newTaskScheduledAt).toISOString() : null;
+		const scheduledAt = newTaskIsScheduled && newTaskScheduledAt && !isRecurring
+			? new Date(newTaskScheduledAt).toISOString()
+			: newTaskIsScheduled && newTaskScheduledAt && isRecurring
+				? new Date(newTaskScheduledAt).toISOString()
+				: null;
 		const ok = sendWs("new_task", {
 			text: newTaskText.trim(),
 			backlog: newTaskInBacklog,
@@ -333,16 +377,10 @@ export const Tareas: React.FC = () => {
 			tags: newTaskTags.trim() ? newTaskTags.trim() : null,
 			dueDate: newTaskDueDate || null,
 			description: newTaskDescription.trim() ? newTaskDescription.trim() : null,
+			isRecurring,
+			cronExpression: cronExpression || null,
 		});
-		setNewTaskText("");
-		setNewTaskInBacklog(false);
-		setNewTaskIsScheduled(false);
-		setNewTaskScheduledAt("");
-		setNewTaskPriority("medium");
-		setNewTaskPreferredModel("default");
-		setNewTaskTags("");
-		setNewTaskDueDate("");
-		setNewTaskDescription("");
+		resetNewTaskModal();
 		setShowNewTaskModal(false);
 		if (ok) {
 			showToast("Tarea enviada", "success");
@@ -492,6 +530,25 @@ export const Tareas: React.FC = () => {
 				{/* Due date & Tags */}
 				{(run.due_date || run.scheduled_at || tagList.length > 0) && (
 					<div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "2px" }}>
+						{run.is_recurring && run.cron_expression && (
+							<div
+								style={{
+									display: "flex",
+									alignItems: "center",
+									gap: "4px",
+									fontSize: "9px",
+									color: "#a78bfa",
+									fontWeight: 600,
+									background: "rgba(167, 139, 250, 0.1)",
+									padding: "2px 6px",
+									borderRadius: "4px",
+									border: "1px solid rgba(167, 139, 250, 0.2)",
+								}}
+							>
+								🔁 Recurrente
+								<span style={{ opacity: 0.7, fontFamily: "var(--font-mono)" }}>{run.cron_expression}</span>
+							</div>
+						)}
 						{run.scheduled_at && (
 							<div
 								style={{
@@ -726,8 +783,7 @@ export const Tareas: React.FC = () => {
 			</div>
 
 			{/* History tab */}
-			{tabMode === "history" && (
-				<>
+			<>
 					{/* Kanban Board */}
 					<div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
 						{loading ? (
@@ -1093,7 +1149,6 @@ export const Tareas: React.FC = () => {
 						})()}
 					</div>
 				</>
-			)}
 
 			{/* Detail Modal */}
 			{selectedRun && (
@@ -1684,13 +1739,8 @@ export const Tareas: React.FC = () => {
 						zIndex: 1000,
 					}}
 					onClick={() => {
+						resetNewTaskModal();
 						setShowNewTaskModal(false);
-						setNewTaskText("");
-						setNewTaskPriority("medium");
-						setNewTaskPreferredModel("default");
-						setNewTaskTags("");
-						setNewTaskDueDate("");
-						setNewTaskDescription("");
 					}}
 				>
 					<div
@@ -1956,7 +2006,8 @@ export const Tareas: React.FC = () => {
 						</div>
 
 						{/* Programar option */}
-						<div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "4px" }}>
+						<div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "4px" }}>
+							{/* Programar checkbox */}
 							<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
 								<label className="custom-checkbox">
 									<input
@@ -1972,6 +2023,8 @@ export const Tareas: React.FC = () => {
 												const offset = defaultDate.getTimezoneOffset();
 												const localDate = new Date(defaultDate.getTime() - offset * 60 * 1000);
 												setNewTaskScheduledAt(localDate.toISOString().slice(0, 16));
+											} else {
+												setNewTaskIsRecurring(false);
 											}
 										}}
 									/>
@@ -1983,23 +2036,278 @@ export const Tareas: React.FC = () => {
 							</div>
 
 							{newTaskIsScheduled && (
-								<div style={{ paddingLeft: "24px" }}>
-									<input
-										type="datetime-local"
-										value={newTaskScheduledAt}
-										onChange={(e) => setNewTaskScheduledAt(e.target.value)}
-										style={{
-											background: "rgba(255,255,255,0.03)",
-											border: "1px solid var(--border-light)",
-											borderRadius: "6px",
-											padding: "6px 12px",
-											color: "var(--text-main)",
-											fontSize: "13px",
-											fontFamily: "inherit",
-											outline: "none",
-											boxSizing: "border-box",
-										}}
-									/>
+								<div
+									style={{
+										paddingLeft: "24px",
+										display: "flex",
+										flexDirection: "column",
+										gap: "12px",
+										borderLeft: "2px solid rgba(79,140,255,0.2)",
+									}}
+								>
+									{/* Primera ejecución datetime */}
+									<div>
+										<label
+											style={{
+												fontSize: "10px",
+												fontWeight: 600,
+												color: "var(--text-muted)",
+												textTransform: "uppercase",
+												display: "block",
+												marginBottom: "4px",
+											}}
+										>
+											{newTaskIsRecurring ? "Primera ejecución" : "Fecha y hora de ejecución"}
+										</label>
+										<input
+											type="datetime-local"
+											value={newTaskScheduledAt}
+											onChange={(e) => setNewTaskScheduledAt(e.target.value)}
+											style={{
+												background: "rgba(255,255,255,0.03)",
+												border: "1px solid var(--border-light)",
+												borderRadius: "6px",
+												padding: "6px 12px",
+												color: "var(--text-main)",
+												fontSize: "13px",
+												fontFamily: "inherit",
+												outline: "none",
+												boxSizing: "border-box",
+											}}
+										/>
+									</div>
+
+									{/* Recurrente checkbox */}
+									<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+										<label className="custom-checkbox">
+											<input
+												type="checkbox"
+												checked={newTaskIsRecurring}
+												onChange={(e) => setNewTaskIsRecurring(e.target.checked)}
+											/>
+											<span className="checkmark" />
+										</label>
+										<span style={{ fontSize: "12px", color: "#a78bfa", fontWeight: 600 }}>
+											🔁 Tarea Recurrente (se repite según frecuencia)
+										</span>
+									</div>
+
+									{/* Recurrence configurator */}
+									{newTaskIsRecurring && (
+										<div
+											style={{
+												background: "rgba(167, 139, 250, 0.05)",
+												border: "1px solid rgba(167, 139, 250, 0.2)",
+												borderRadius: "10px",
+												padding: "14px",
+												display: "flex",
+												flexDirection: "column",
+												gap: "12px",
+											}}
+										>
+											{/* Preset selector */}
+											<div>
+												<label style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", display: "block", marginBottom: "6px" }}>
+													Frecuencia
+												</label>
+												<div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+													{(["daily", "weekly", "monthly", "custom"] as const).map((p) => (
+														<button
+															key={p}
+															type="button"
+															onClick={() => setRecurPreset(p)}
+															style={{
+																padding: "5px 12px",
+																borderRadius: "6px",
+																fontSize: "11px",
+																fontWeight: 600,
+																cursor: "pointer",
+																border: recurPreset === p ? "1px solid #a78bfa" : "1px solid var(--border-light)",
+																background: recurPreset === p ? "rgba(167, 139, 250, 0.2)" : "rgba(255,255,255,0.02)",
+																color: recurPreset === p ? "#a78bfa" : "var(--text-dim)",
+																transition: "all 0.15s ease",
+															}}
+														>
+															{p === "daily" && "📅 Diario"}
+															{p === "weekly" && "🗓️ Semanal"}
+															{p === "monthly" && "📆 Mensual"}
+															{p === "custom" && "⚙️ Personalizado"}
+														</button>
+													))}
+												</div>
+											</div>
+
+											{/* Hour/Minute selector (not for custom) */}
+											{recurPreset !== "custom" && (
+												<div>
+													<label style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", display: "block", marginBottom: "6px" }}>
+														Hora de ejecución
+													</label>
+													<div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+														<select
+															value={recurHour}
+															onChange={(e) => setRecurHour(e.target.value)}
+															style={{
+																background: "var(--bg-surface)",
+																border: "1px solid var(--border-light)",
+																borderRadius: "6px",
+																padding: "6px 10px",
+																color: "var(--text-main)",
+																fontSize: "13px",
+																outline: "none",
+															}}
+														>
+															{Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0")).map((h) => (
+																<option key={h} value={h}>{h}:00</option>
+															))}
+														</select>
+														<span style={{ color: "var(--text-muted)", fontWeight: 700 }}>:</span>
+														<select
+															value={recurMinute}
+															onChange={(e) => setRecurMinute(e.target.value)}
+															style={{
+																background: "var(--bg-surface)",
+																border: "1px solid var(--border-light)",
+																borderRadius: "6px",
+																padding: "6px 10px",
+																color: "var(--text-main)",
+																fontSize: "13px",
+																outline: "none",
+															}}
+														>
+															{["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"].map((min) => (
+																<option key={min} value={min}>{min}</option>
+															))}
+														</select>
+													</div>
+												</div>
+											)}
+
+											{/* Weekly: day selector */}
+											{recurPreset === "weekly" && (
+												<div>
+													<label style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", display: "block", marginBottom: "6px" }}>
+														Días de la semana
+													</label>
+													<div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+														{[
+															{ v: "1", l: "Lun" }, { v: "2", l: "Mar" }, { v: "3", l: "Mié" },
+															{ v: "4", l: "Jue" }, { v: "5", l: "Vie" }, { v: "6", l: "Sáb" }, { v: "0", l: "Dom" },
+														].map(({ v, l }) => {
+															const selected = recurWeekDays.includes(v);
+															return (
+																<button
+																	key={v}
+																	type="button"
+																	onClick={() => {
+																		if (selected) {
+																			if (recurWeekDays.length === 1) return; // at least one day
+																			setRecurWeekDays((prev) => prev.filter((d) => d !== v));
+																		} else {
+																			setRecurWeekDays((prev) => [...prev, v].sort());
+																		}
+																	}}
+																	style={{
+																		padding: "5px 10px",
+																		borderRadius: "6px",
+																		fontSize: "11px",
+																		fontWeight: 700,
+																		cursor: "pointer",
+																		border: selected ? "1px solid #a78bfa" : "1px solid var(--border-light)",
+																		background: selected ? "rgba(167, 139, 250, 0.25)" : "rgba(255,255,255,0.02)",
+																		color: selected ? "#a78bfa" : "var(--text-dim)",
+																		transition: "all 0.15s ease",
+																	}}
+																>
+																	{l}
+																</button>
+															);
+														})}
+													</div>
+												</div>
+											)}
+
+											{/* Monthly: day of month */}
+											{recurPreset === "monthly" && (
+												<div>
+													<label style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", display: "block", marginBottom: "6px" }}>
+														Día del mes
+													</label>
+													<select
+														value={recurMonthDay}
+														onChange={(e) => setRecurMonthDay(e.target.value)}
+														style={{
+															background: "var(--bg-surface)",
+															border: "1px solid var(--border-light)",
+															borderRadius: "6px",
+															padding: "6px 10px",
+															color: "var(--text-main)",
+															fontSize: "13px",
+															outline: "none",
+														}}
+													>
+														{Array.from({ length: 28 }, (_, i) => String(i + 1)).map((d) => (
+															<option key={d} value={d}>Día {d}</option>
+														))}
+													</select>
+												</div>
+											)}
+
+											{/* Custom cron input */}
+											{recurPreset === "custom" && (
+												<div>
+													<label style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", display: "block", marginBottom: "6px" }}>
+														Expresión Cron
+													</label>
+													<input
+														type="text"
+														value={recurCustomCron}
+														onChange={(e) => setRecurCustomCron(e.target.value)}
+														placeholder="Ej: 0 9 * * 1-5 (L-V a las 9:00)"
+														style={{
+															width: "100%",
+															background: "rgba(255,255,255,0.03)",
+															border: "1px solid var(--border-light)",
+															borderRadius: "6px",
+															padding: "6px 12px",
+															color: "var(--text-main)",
+															fontSize: "12px",
+															fontFamily: "var(--font-mono)",
+															outline: "none",
+															boxSizing: "border-box",
+														}}
+													/>
+													<span style={{ fontSize: "10px", color: "var(--text-muted)", marginTop: "4px", display: "block" }}>
+														Formato: minuto hora día-mes mes día-semana
+													</span>
+												</div>
+											)}
+
+											{/* Preview of generated cron */}
+											<div
+												style={{
+													background: "rgba(0,0,0,0.2)",
+													borderRadius: "6px",
+													padding: "8px 12px",
+													display: "flex",
+													alignItems: "center",
+													gap: "8px",
+												}}
+											>
+												<span style={{ fontSize: "10px", color: "var(--text-muted)", fontWeight: 600 }}>Cron:</span>
+												<code
+													style={{
+														fontFamily: "var(--font-mono)",
+														fontSize: "12px",
+														color: "#a78bfa",
+														fontWeight: 700,
+													}}
+												>
+													{buildCronExpression() || "—"}
+												</code>
+											</div>
+										</div>
+									)}
 								</div>
 							)}
 						</div>
@@ -2009,16 +2317,8 @@ export const Tareas: React.FC = () => {
 							<button
 								type="button"
 								onClick={() => {
+									resetNewTaskModal();
 									setShowNewTaskModal(false);
-									setNewTaskText("");
-									setNewTaskInBacklog(false);
-									setNewTaskIsScheduled(false);
-									setNewTaskScheduledAt("");
-									setNewTaskPriority("medium");
-									setNewTaskPreferredModel("default");
-									setNewTaskTags("");
-									setNewTaskDueDate("");
-									setNewTaskDescription("");
 								}}
 								style={{
 									padding: "8px 20px",

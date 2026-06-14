@@ -16,6 +16,8 @@ export interface StoredRun {
 	due_date?: string | null;
 	description?: string | null;
 	scheduled_at?: string | null;
+	cron_expression?: string | null;
+	is_recurring?: number;
 	created_at?: string;
 	updated_at?: string;
 }
@@ -39,12 +41,14 @@ export function createRun(input: {
 	dueDate?: string;
 	description?: string;
 	scheduledAt?: string;
+	cronExpression?: string;
+	isRecurring?: boolean;
 }): number {
 	const db = getDb();
 	const result = db
 		.prepare(
-			`INSERT INTO runs (chatId, userText, origin, status, priority, preferred_model, tags, due_date, description, scheduled_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+			`INSERT INTO runs (chatId, userText, origin, status, priority, preferred_model, tags, due_date, description, scheduled_at, cron_expression, is_recurring)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 		)
 		.run(
 			input.chatId,
@@ -56,7 +60,9 @@ export function createRun(input: {
 			input.tags || null,
 			input.dueDate || null,
 			input.description || null,
-			input.scheduledAt || null
+			input.scheduledAt || null,
+			input.cronExpression || null,
+			input.isRecurring ? 1 : 0
 		);
 
 	return Number(result.lastInsertRowid);
@@ -76,6 +82,8 @@ export function updateRun(
 		dueDate?: string | null;
 		description?: string | null;
 		scheduledAt?: string | null;
+		cronExpression?: string | null;
+		isRecurring?: number;
 		userText?: string;
 	}
 ): void {
@@ -130,6 +138,14 @@ export function updateRun(
 	if (patch.scheduledAt !== undefined) {
 		updates.push("scheduled_at = ?");
 		values.push(patch.scheduledAt);
+	}
+	if (patch.cronExpression !== undefined) {
+		updates.push("cron_expression = ?");
+		values.push(patch.cronExpression);
+	}
+	if (patch.isRecurring !== undefined) {
+		updates.push("is_recurring = ?");
+		values.push(patch.isRecurring);
 	}
 
 	if (updates.length === 0) {
