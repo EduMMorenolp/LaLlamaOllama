@@ -2,6 +2,7 @@ import { logger } from "../../utils/logger.js";
 import { toolRegistry } from "../tools/registry.js";
 import { getDb } from "./connection.js";
 import { getSetting, setSetting } from "./settings.js";
+import { mergeSystemPrompts } from "../prompts/utils.js";
 
 export interface AgentMode {
 	name: string;
@@ -72,6 +73,8 @@ export function getMode(name: string): AgentMode | null {
 
 /**
  * Resuelve un modo aplicando herencia si extiende otro modo.
+ * Combina system_prompt fusionando secciones XML (<tag>...</tag>).
+ * Las secciones del hijo reemplazan a las del padre con el mismo tag.
  */
 export function resolveMode(mode: AgentMode): AgentMode {
 	if (!mode.extends) return mode;
@@ -80,11 +83,16 @@ export function resolveMode(mode: AgentMode): AgentMode {
 		logger.warn(`[Modes] Parent mode '${mode.extends}' not found for '${mode.name}', ignoring extends`);
 		return mode;
 	}
-	const resolvedParent = resolveMode(parent); // resolución recursiva
+	const resolvedParent = resolveMode(parent);
+	const mergedPrompt = mergeSystemPrompts(
+		resolvedParent.system_prompt,
+		mode.system_prompt
+	);
 	return {
 		...resolvedParent,
 		...mode,
-		tools: [...new Set([...resolvedParent.tools, ...mode.tools])], // merge único
+		system_prompt: mergedPrompt,
+		tools: [...new Set([...resolvedParent.tools, ...mode.tools])],
 	};
 }
 

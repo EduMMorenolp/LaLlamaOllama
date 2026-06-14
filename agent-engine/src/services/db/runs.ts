@@ -15,6 +15,7 @@ export interface StoredRun {
 	tags?: string | null;
 	due_date?: string | null;
 	description?: string | null;
+	scheduled_at?: string | null;
 	created_at?: string;
 	updated_at?: string;
 }
@@ -37,12 +38,13 @@ export function createRun(input: {
 	tags?: string;
 	dueDate?: string;
 	description?: string;
+	scheduledAt?: string;
 }): number {
 	const db = getDb();
 	const result = db
 		.prepare(
-			`INSERT INTO runs (chatId, userText, origin, status, priority, preferred_model, tags, due_date, description)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+			`INSERT INTO runs (chatId, userText, origin, status, priority, preferred_model, tags, due_date, description, scheduled_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 		)
 		.run(
 			input.chatId,
@@ -53,7 +55,8 @@ export function createRun(input: {
 			input.preferredModel || null,
 			input.tags || null,
 			input.dueDate || null,
-			input.description || null
+			input.description || null,
+			input.scheduledAt || null
 		);
 
 	return Number(result.lastInsertRowid);
@@ -72,6 +75,7 @@ export function updateRun(
 		tags?: string | null;
 		dueDate?: string | null;
 		description?: string | null;
+		scheduledAt?: string | null;
 		userText?: string;
 	}
 ): void {
@@ -122,6 +126,10 @@ export function updateRun(
 	if (patch.description !== undefined) {
 		updates.push("description = ?");
 		values.push(patch.description);
+	}
+	if (patch.scheduledAt !== undefined) {
+		updates.push("scheduled_at = ?");
+		values.push(patch.scheduledAt);
 	}
 
 	if (updates.length === 0) {

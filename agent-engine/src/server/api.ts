@@ -30,6 +30,8 @@ import {
 	saveKnowledgeFile,
 } from "../services/knowledge/index.js";
 import { toolRegistry } from "../services/tools/registry.js";
+import { getAllModeDefinitions, getModeSeedData, resolveModePrompt } from "../services/prompts/index.js";
+import { subAgentTemplates } from "../services/prompts/sub-agents.js";
 import type { WsServer } from "./ws.js";
 import { logger } from "../utils/logger.js";
 
@@ -217,6 +219,39 @@ export function startApiServer(config: AppConfig, brain?: BrainClient, wsServer?
 			tools: toolRegistry.getToolNames().length,
 			telegramConfigured: !!config.telegramBotToken,
 		});
+	});
+
+	// Prompt templates (source of truth for frontend)
+	app.get("/api/prompts/templates", (_req: Request, res: Response) => {
+		const defs = getAllModeDefinitions();
+		const templates = Object.entries(defs)
+			.filter(([name]) => name !== "__base__")
+			.map(([name, def]) => ({
+				name,
+				label: "",
+				sections: def.sections,
+				tools: def.tools,
+				temperature: def.temperature,
+				history_limit: def.history_limit,
+				tool_policy: def.tool_policy,
+				extends: def.extends || null,
+			}));
+		res.json({ templates });
+	});
+
+	app.get("/api/prompts/sub-agent-templates", (_req: Request, res: Response) => {
+		res.json({ templates: subAgentTemplates });
+	});
+
+	app.get("/api/prompts/resolved/:name", (req: Request, res: Response) => {
+		const name = req.params.name as string;
+		try {
+			const prompt = resolveModePrompt(name);
+			const data = getModeSeedData(name);
+			res.json({ name, system_prompt: prompt, ...data });
+		} catch {
+			res.status(404).json({ error: `Prompt definition '${name}' not found` });
+		}
 	});
 
 	// Tools list

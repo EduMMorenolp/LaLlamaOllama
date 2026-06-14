@@ -538,12 +538,13 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					const taskText = (payload?.text as string) || "Nueva tarea";
 					const chatId = (payload?.chatId as string) || userId;
 					const isBacklog = payload?.backlog as boolean | undefined;
-					const status = isBacklog ? "backlog" : "queued";
+					const status = isBacklog ? "backlog" : (payload?.status as string || "queued");
 					const priority = (payload?.priority as string) || "medium";
 					const preferredModel = payload?.preferredModel as string | undefined;
 					const tags = payload?.tags as string | undefined;
 					const dueDate = payload?.dueDate as string | undefined;
 					const description = payload?.description as string | undefined;
+					const scheduledAt = payload?.scheduledAt as string | undefined;
 
 					const runId = createRun({
 						chatId,
@@ -555,6 +556,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 						tags,
 						dueDate,
 						description,
+						scheduledAt,
 					});
 
 					const createdTask = {
@@ -568,12 +570,13 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 						tags,
 						dueDate,
 						description,
+						scheduledAt: scheduledAt || null,
 					};
 
 					wsServer.sendToAll("task_created", createdTask);
 					ws.send(createMessage("task_created", createdTask));
 
-					if (!isBacklog) {
+					if (status !== "backlog" && status !== "scheduled") {
 						// Enqueue the task for processing in the background
 						submitAgentRun({
 							chatId,
@@ -687,6 +690,15 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					if (payload?.dueDate !== undefined) patch.dueDate = payload.dueDate;
 					if (payload?.description !== undefined) patch.description = payload.description;
 					if (payload?.userText !== undefined) patch.userText = payload.userText;
+					if (payload?.scheduledAt !== undefined) {
+						patch.scheduledAt = payload.scheduledAt;
+						if (payload.scheduledAt && (run.status === "backlog" || run.status === "queued" || run.status === "scheduled")) {
+							patch.status = "scheduled";
+						} else if (!payload.scheduledAt && run.status === "scheduled") {
+							patch.status = "backlog";
+						}
+					}
+					if (payload?.status !== undefined) patch.status = payload.status;
 
 					updateRun(runId, patch);
 

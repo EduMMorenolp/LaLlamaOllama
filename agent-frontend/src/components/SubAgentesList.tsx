@@ -1,6 +1,7 @@
 import { FileText, Plus, Save, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useWs } from "../contexts/WebSocketContext";
+import { config } from "../config";
 
 interface SubAgent {
 	name: string;
@@ -107,96 +108,45 @@ export const SubAgentesList: React.FC = () => {
 		sendWs("expert_update", { action: "delete", name });
 	};
 
-	// ─── Template definitions ───────────────────────────────────────────
-	const agentTemplates: Array<{
-		id: string;
-		name: string;
-		desc: string;
-		agent: Partial<SubAgent>;
-	}> = [
-		{
-			id: "sub-codigo",
-			name: "💻 Asistente de Código",
-			desc: "Revisión de código, debugging, refactoring y buenas prácticas",
-			agent: {
-				name: "codigo",
-				system_prompt: `Eres un asistente experto en desarrollo de software.
-Te especializas en:
-- Revisar código fuente y encontrar bugs, vulnerabilidades y malas prácticas
-- Sugerir refactors y mejoras de rendimiento
-- Explicar patrones de diseño y arquitectura
-- Escribir código limpio, comentado y testeable
-- Ayudar con debugging y resolución de errores
+	// ─── Template definitions (fetched from backend) ────────────────────
+	const [agentTemplates, setAgentTemplates] = useState<
+		Array<{
+			id: string;
+			name: string;
+			desc: string;
+			agent: Partial<SubAgent>;
+		}>
+	>([]);
 
-Sé preciso, concreto y siempre explica POR QUÉ sugerís un cambio.`,
-				tools: ["bash", "read_file", "write_file", "edit_file", "glob", "grep"],
-				temperature: 0.3,
-				model: "",
-			},
-		},
-		{
-			id: "sub-docs",
-			name: "📝 Asistente de Documentación",
-			desc: "Redacción técnica, documentación, READMEs y guías",
-			agent: {
-				name: "documentacion",
-				system_prompt: `Eres un asistente especializado en documentación técnica.
-Te especializas en:
-- Redactar documentación clara y bien estructurada
-- Escribir READMEs, guías de usuario y manuales técnicos
-- Documentar APIs, endpoints y schemas
-- Crear tutoriales paso a paso
-- Traducir documentación técnica entre idiomas
+	useEffect(() => {
+		(async () => {
+			try {
+				const resp = await fetch(`${config.engineUrl}/api/prompts/sub-agent-templates`, {
+					headers: config.apiKey ? { "X-API-Key": config.apiKey } : undefined,
+				});
+				const data = await resp.json();
+				const items = (data.templates || []).map(
+					(t: { name: string; label?: string; description?: string; system_prompt: string; tools?: string[]; temperature?: number }) => ({
+						id: `sub-${t.name}`,
+						name: t.label || t.name,
+						desc: t.description || "",
+						agent: {
+							name: t.name,
+							system_prompt: t.system_prompt || "",
+							tools: t.tools || [],
+							temperature: t.temperature ?? 0.7,
+							model: "",
+						},
+					})
+				);
+				setAgentTemplates(items);
+			} catch (err) {
+				console.warn("[SubAgentesList] Failed to fetch sub-agent templates:", err);
+			}
+		})();
+	}, []);
 
-Usa un tono profesional pero accesible. Incluye ejemplos prácticos.`,
-				tools: ["read_file", "glob", "grep", "read_url", "web_search", "translate"],
-				temperature: 0.7,
-				model: "",
-			},
-		},
-		{
-			id: "sub-testing",
-			name: "🧪 Asistente de Testing",
-			desc: "Pruebas unitarias, integración, E2E y calidad de software",
-			agent: {
-				name: "testing",
-				system_prompt: `Eres un asistente especializado en testing y calidad de software.
-Te especializas en:
-- Escribir tests unitarios, de integración y E2E
-- Analizar cobertura de código y sugerir mejoras
-- Identificar casos borde y escenarios de error
-- Escribir mocks, stubs y fixtures
-- Automatizar pruebas y configurar CI/CD
-
-Sé exhaustivo: cada función debería tener al menos un test feliz y uno de error.`,
-				tools: ["bash", "read_file", "write_file", "edit_file", "glob", "grep"],
-				temperature: 0.4,
-				model: "",
-			},
-		},
-		{
-			id: "sub-devops",
-			name: "🐳 Asistente DevOps",
-			desc: "Docker, infraestructura, despliegue y automatización",
-			agent: {
-				name: "devops",
-				system_prompt: `Eres un asistente experto en DevOps e infraestructura.
-Te especializas en:
-- Crear y optimizar Dockerfiles y docker-compose.yml
-- Configurar redes, volúmenes y servicios Docker
-- Automatizar despliegues y CI/CD
-- Monitorear y diagnosticar problemas de infraestructura
-- Seguridad de contenedores y buenas prácticas
-
-Prioriza soluciones simples, seguras y mantenibles. Documenta cada cambio.`,
-				tools: ["bash", "read_file", "write_file", "edit_file", "glob", "grep", "read_url"],
-				temperature: 0.5,
-				model: "",
-			},
-		},
-	];
-
-	const applyAgentTemplate = (tpl: typeof agentTemplates[0]) => {
+	const applyAgentTemplate = (tpl: (typeof agentTemplates)[0]) => {
 		const a = tpl.agent;
 		setNewAgent({
 			name: a.name || "",

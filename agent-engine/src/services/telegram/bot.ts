@@ -391,13 +391,13 @@ export async function startTelegram(): Promise<void> {
 				if (expert) {
 					logger.info(`🎯 Tag detected for expert: ${expert.name}`);
 					const cleanMessage = text.replace(tagMatch[0], "").trim();
-					finalUserText = `(OBLIGATORIO: ACTÚA COMO EL EXPERTO "${expert.name}". EL USUARIO TE HA INVOCADO DIRECTAMENTE.) Consulta: ${cleanMessage}`;
+					finalUserText = `<expert_override>\n<expert_name>${expert.name}</expert_name>\n<reason>El usuario te ha invocado directamente mediante @${tagName}.</reason>\n<instructions>Actúa como el experto designado para esta consulta. Ignora tu modo actual y adopta la personalidad y reglas del experto.</instructions>\n</expert_override>\n\n<user_query>\n${cleanMessage}\n</user_query>`;
 				}
 			} else {
 				// Orchestrator mode
 				const orquestador = experts.find((e) => e.name.toLowerCase().includes("orquestador"));
 				if (orquestador) {
-					finalUserText = `(OBLIGATORIO: ACTÚA COMO ORQUESTADOR. REGLAS: ${orquestador.system_prompt})\nConsulta: ${text}`;
+					finalUserText = `<expert_override>\n<expert_name>orquestador</expert_name>\n<reason>Modo orquestador activo por defecto en Telegram.</reason>\n<instructions>Eres el orquestador del sistema. Tus reglas:\n${orquestador.system_prompt}\n</instructions>\n</expert_override>\n\n<user_query>\n${text}\n</user_query>`;
 				}
 			}
 

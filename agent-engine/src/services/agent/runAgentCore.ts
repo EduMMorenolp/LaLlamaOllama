@@ -144,53 +144,48 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 			systemPrompt = buildSystemPrompt(config, generalModel);
 		}
 
-		session.messages.push({
-			role: "system",
-			content: systemPrompt,
-		});
+		// Consolidar toda la información de sistema en UN solo mensaje system
+		// para que el LLM tenga contexto completo sin fragmentación
+		const assembly: string[] = [systemPrompt];
 
 		if (directives) {
-			session.messages.push({
-				role: "system",
-				content: `## Directivas del proyecto\n${directives}`,
-			});
+			assembly.push(`<project_directives>\n${directives}\n</project_directives>`);
 		}
 
 		// Inform about available tools and modes
 		const toolNames = toolRegistry.getToolNames();
 		if (toolNames.length > 0) {
-			let toolsBlock = `<available_tools>\nPuedes usar estas herramientas cuando el usuario lo solicite:\n${toolNames.map((n: string) => `- ${n}`).join("\n")}\n</available_tools>`;
+			let toolsBlock = `<available_tools>\nHerramientas disponibles en tu modo actual:\n${toolNames.map((n: string) => `- ${n}`).join("\n")}\n</available_tools>`;
 
 			try {
-				const { listModes } = await import("../db/modes.js");
-				const allModes = listModes();
-				const activeModeName = (await import("../db/modes.js").then(m => m.getActiveMode())).name;
+				const { listModes: listModesFn, getActiveMode: getActiveModeFn } = await import("../db/modes.js");
+				const allModes = listModesFn();
+				const activeModeName = getActiveModeFn().name;
 				if (allModes.length > 0) {
 					const modesLines = allModes
-						.filter(m => m.name !== "__general__")
-						.map(m => {
+						.filter((m: { name: string }) => m.name !== "__general__")
+						.map((m: { name: string; tools: string[] }) => {
 							const isActive = m.name === activeModeName ? " [ACTIVO]" : "";
 							return `  - ${m.name}${isActive}: ${m.tools.join(", ")}`;
 						})
 						.join("\n");
-					toolsBlock += `\n\n<available_modes>\nModos disponibles en el sistema:\n${modesLines}\n\nSi el usuario te pide hacer algo que requiere herramientas que NO tienes en tu modo actual, indícale qué otro modo tiene esa capacidad. Si el usuario te pide explícitamente cambiar de modo, usa la herramienta switch_mode.\n</available_modes>`;
+					toolsBlock += `\n\n<available_modes>\nModos disponibles:\n${modesLines}\n\nSi necesitas herramientas que no están en tu modo actual, indica al usuario qué otro modo tiene esa capacidad. Usa switch_mode solo si el usuario lo pide explícitamente.\n</available_modes>`;
 				}
 			} catch {
 				// modes DB not available, skip
 			}
 
-			session.messages.push({
-				role: "system",
-				content: `## Herramientas y modos\n${toolsBlock}\n\nResponde siempre en español.`,
-			});
+			assembly.push(toolsBlock);
 		}
 
 		if (opts.origin === "scheduler") {
-			session.messages.push({
-				role: "system",
-				content: "## Contexto\nEsta consulta proviene de una tarea programada automáticamente. No esperes respuesta del usuario; completa la tarea y reporta los resultados sin solicitar confirmación.",
-			});
+			assembly.push(`<context>\nEsta consulta proviene de una tarea programada automáticamente. No esperes respuesta del usuario; completa la tarea y reporta los resultados sin solicitar confirmación.\n</context>`);
 		}
+
+		session.messages.push({
+			role: "system",
+			content: assembly.join("\n\n"),
+		});
 
 		try {
 			const recentMessages = getMessages(chatId, generalHistoryLimit);

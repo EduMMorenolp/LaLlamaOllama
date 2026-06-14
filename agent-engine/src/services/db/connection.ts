@@ -68,6 +68,7 @@ export function getDb(dbPath?: string): Database.Database {
 			tags TEXT,
 			due_date TEXT,
 			description TEXT,
+			scheduled_at TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		);
@@ -247,6 +248,11 @@ export function getDb(dbPath?: string): Database.Database {
 	}
 	try {
 		_db.exec("ALTER TABLE runs ADD COLUMN description TEXT");
+	} catch {
+		// already exists
+	}
+	try {
+		_db.exec("ALTER TABLE runs ADD COLUMN scheduled_at TEXT");
 	} catch {
 		// already exists
 	}

@@ -5,11 +5,7 @@ import {
 	Clock,
 	List,
 	Loader2,
-	Play,
 	Plus,
-	ToggleLeft,
-	ToggleRight,
-	Trash2,
 	X,
 	XCircle,
 	ChevronDown,
@@ -37,6 +33,7 @@ interface Run {
 	tags?: string | null;
 	due_date?: string | null;
 	description?: string | null;
+	scheduled_at?: string | null;
 	created_at?: string;
 	updated_at?: string;
 }
@@ -68,8 +65,6 @@ const ORIGIN_ICONS: Record<string, string> = {
 	tool: String.fromCodePoint(0x1f527),
 };
 
-type TabMode = "history" | "scheduled";
-
 export const Tareas: React.FC = () => {
 	const { send: sendWs, subscribe, connected } = useWs();
 	const { show: showToast } = useToast();
@@ -82,10 +77,10 @@ export const Tareas: React.FC = () => {
 	const offsetRef = useRef(0);
 	const [hasMore, setHasMore] = useState(true);
 	const [loadingMore, setLoadingMore] = useState(false);
-	const [tabMode, setTabMode] = useState<TabMode>("history");
 	const [isDraggingOverCancel, setIsDraggingOverCancel] = useState(false);
 	const [isDraggingOverBacklog, setIsDraggingOverBacklog] = useState(false);
 	const [isDraggingOverQueued, setIsDraggingOverQueued] = useState(false);
+	const [isDraggingOverScheduled, setIsDraggingOverScheduled] = useState(false);
 	const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({});
 	const [availableModels, setAvailableModels] = useState<string[]>([]);
 
@@ -93,6 +88,8 @@ export const Tareas: React.FC = () => {
 	const [showNewTaskModal, setShowNewTaskModal] = useState(false);
 	const [newTaskText, setNewTaskText] = useState("");
 	const [newTaskInBacklog, setNewTaskInBacklog] = useState(false);
+	const [newTaskIsScheduled, setNewTaskIsScheduled] = useState(false);
+	const [newTaskScheduledAt, setNewTaskScheduledAt] = useState("");
 	const [newTaskPriority, setNewTaskPriority] = useState("medium");
 	const [newTaskPreferredModel, setNewTaskPreferredModel] = useState("default");
 	const [newTaskTags, setNewTaskTags] = useState("");
@@ -106,15 +103,7 @@ export const Tareas: React.FC = () => {
 	const [editModel, setEditModel] = useState("");
 	const [editTags, setEditTags] = useState("");
 	const [editDueDate, setEditDueDate] = useState("");
-
-	// Scheduled tasks
-	const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
-	const [scheduledLoading, setScheduledLoading] = useState(false);
-	const [showScheduledForm, setShowScheduledForm] = useState(false);
-	const [schedName, setSchedName] = useState("");
-	const [schedCron, setSchedCron] = useState("");
-	const [schedTaskText, setSchedTaskText] = useState("");
-	const [schedModeId, setSchedModeId] = useState("");
+	const [editScheduledAt, setEditScheduledAt] = useState("");
 
 	// Fetch runs (history)
 	const fetchRuns = useCallback(
@@ -148,44 +137,17 @@ export const Tareas: React.FC = () => {
 	);
 
 	useEffect(() => {
-		if (tabMode === "history") {
-			setLoading(true);
-			offsetRef.current = 0;
-			setHasMore(true);
-			fetchRuns(false);
-		}
-	}, [tabMode, fetchRuns]);
+		setLoading(true);
+		offsetRef.current = 0;
+		setHasMore(true);
+		fetchRuns(false);
+	}, [fetchRuns]);
 
 	useEffect(() => {
 		if (connected) {
 			sendWs("list_ollama_models", {});
 		}
 	}, [connected, sendWs]);
-
-	// Fetch scheduled tasks
-	const fetchScheduledTasks = useCallback(async () => {
-		setScheduledLoading(true);
-		try {
-			const res = await fetch(`${config.engineUrl}/api/scheduled-tasks`, { headers: apiHeaders });
-			if (!res.ok) {
-				throw new Error(`Error HTTP ${res.status}: ${res.statusText}`);
-			}
-			const data = await res.json();
-			setScheduledTasks(data.scheduledTasks || data.tasks || []);
-		} catch (err) {
-			const msg = err instanceof Error ? err.message : String(err);
-			console.error("Failed to fetch scheduled tasks", err);
-			showToast("Error al cargar tareas programadas: " + msg, "error");
-		} finally {
-			setScheduledLoading(false);
-		}
-	}, [showToast]);
-
-	useEffect(() => {
-		if (tabMode === "scheduled") {
-			fetchScheduledTasks();
-		}
-	}, [tabMode, fetchScheduledTasks]);
 
 	// WS subscriptions
 	useEffect(() => {
@@ -209,6 +171,7 @@ export const Tareas: React.FC = () => {
 						tags: p.tags as string | null | undefined,
 						due_date: p.dueDate as string | null | undefined,
 						description: p.description as string | null | undefined,
+						scheduled_at: p.scheduledAt as string | null | undefined,
 					};
 					setRuns((prev) => {
 						if (prev.some((r) => r.id === task.id)) return prev; // dedup
@@ -236,6 +199,7 @@ export const Tareas: React.FC = () => {
 								setEditModel(updatedTask.preferred_model || "default");
 								setEditTags(updatedTask.tags || "");
 								setEditDueDate(updatedTask.due_date || "");
+								setEditScheduledAt(updatedTask.scheduled_at || "");
 								return { ...current, ...updatedTask };
 							}
 							return current;
@@ -315,6 +279,7 @@ export const Tareas: React.FC = () => {
 		setEditModel(run.preferred_model || "default");
 		setEditTags(run.tags || "");
 		setEditDueDate(run.due_date || "");
+		setEditScheduledAt(run.scheduled_at || "");
 		setDetailLoading(true);
 		try {
 			const res = await fetch(`${config.engineUrl}/api/runs/${run.id}`, { headers: apiHeaders });
@@ -356,9 +321,13 @@ export const Tareas: React.FC = () => {
 
 	const handleNewTask = () => {
 		if (!newTaskText.trim()) return;
+		const status = newTaskIsScheduled ? "scheduled" : (newTaskInBacklog ? "backlog" : "queued");
+		const scheduledAt = newTaskIsScheduled && newTaskScheduledAt ? new Date(newTaskScheduledAt).toISOString() : null;
 		const ok = sendWs("new_task", {
 			text: newTaskText.trim(),
 			backlog: newTaskInBacklog,
+			status,
+			scheduledAt,
 			priority: newTaskPriority,
 			preferredModel: newTaskPreferredModel === "default" ? null : newTaskPreferredModel,
 			tags: newTaskTags.trim() ? newTaskTags.trim() : null,
@@ -367,6 +336,8 @@ export const Tareas: React.FC = () => {
 		});
 		setNewTaskText("");
 		setNewTaskInBacklog(false);
+		setNewTaskIsScheduled(false);
+		setNewTaskScheduledAt("");
 		setNewTaskPriority("medium");
 		setNewTaskPreferredModel("default");
 		setNewTaskTags("");
@@ -407,6 +378,14 @@ export const Tareas: React.FC = () => {
 			const due = new Date(run.due_date);
 			due.setHours(0, 0, 0, 0);
 			isOverdue = due < today;
+		}
+
+		// Scheduled date evaluation
+		let isPastScheduled = false;
+		if (run.scheduled_at && run.status === "scheduled") {
+			const now = new Date();
+			const sched = new Date(run.scheduled_at);
+			isPastScheduled = sched < now;
 		}
 
 		return (
@@ -511,8 +490,23 @@ export const Tareas: React.FC = () => {
 				)}
 
 				{/* Due date & Tags */}
-				{(run.due_date || tagList.length > 0) && (
+				{(run.due_date || run.scheduled_at || tagList.length > 0) && (
 					<div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "2px" }}>
+						{run.scheduled_at && (
+							<div
+								style={{
+									display: "flex",
+									alignItems: "center",
+									gap: "4px",
+									fontSize: "9px",
+									color: isPastScheduled ? "var(--warning)" : "var(--accent)",
+									fontWeight: 600,
+								}}
+							>
+								<Clock size={10} />
+								<span>Ejecución: {new Date(run.scheduled_at).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+							</div>
+						)}
 						{run.due_date && (
 							<div
 								style={{
@@ -525,7 +519,7 @@ export const Tareas: React.FC = () => {
 								}}
 							>
 								<Calendar size={10} />
-								<span>{new Date(run.due_date).toLocaleDateString(undefined, { day: "numeric", month: "short" })}</span>
+								<span>Límite: {new Date(run.due_date).toLocaleDateString(undefined, { day: "numeric", month: "short" })}</span>
 								{isOverdue && <span style={{ fontSize: "8px", textTransform: "uppercase" }}>(Vencida)</span>}
 							</div>
 						)}
@@ -616,74 +610,7 @@ export const Tareas: React.FC = () => {
 		);
 	};
 
-	// Scheduled task CRUD
-	const handleToggleScheduled = async (id: number) => {
-		try {
-			const res = await fetch(`${config.engineUrl}/api/scheduled-tasks/${id}/toggle`, {
-				method: "POST",
-				headers: apiHeaders,
-			});
-			if (!res.ok) throw new Error(`Error HTTP ${res.status}`);
-			fetchScheduledTasks();
-			showToast("Estado cambiado", "success");
-		} catch (err) {
-			const msg = err instanceof Error ? err.message : String(err);
-			console.error("Failed to toggle scheduled task", err);
-			showToast("Error al cambiar estado: " + msg, "error");
-		}
-	};
 
-	const handleDeleteScheduled = async (id: number) => {
-		try {
-			const res = await fetch(`${config.engineUrl}/api/scheduled-tasks/${id}`, {
-				method: "DELETE",
-				headers: apiHeaders,
-			});
-			if (!res.ok) throw new Error(`Error HTTP ${res.status}`);
-			setScheduledTasks((prev) => prev.filter((t) => t.id !== id));
-			showToast("Tarea programada eliminada", "info");
-		} catch (err) {
-			const msg = err instanceof Error ? err.message : String(err);
-			console.error("Failed to delete scheduled task", err);
-			showToast("Error al eliminar: " + msg, "error");
-		}
-	};
-
-	const handleExecuteScheduled = (task: ScheduledTask) => {
-		const ok = sendWs("new_task", { text: task.task_text });
-		if (ok) {
-			showToast("Tarea ejecutada", "success");
-		} else {
-			showToast("Error: No hay conexión WebSocket.", "error");
-		}
-	};
-
-	const handleCreateScheduled = async () => {
-		if (!schedName.trim() || !schedCron.trim() || !schedTaskText.trim()) return;
-		try {
-			const res = await fetch(`${config.engineUrl}/api/scheduled-tasks`, {
-				method: "POST",
-				headers: { ...apiHeaders, "Content-Type": "application/json" },
-				body: JSON.stringify({
-					name: schedName.trim(),
-					cron_expression: schedCron.trim(),
-					task_text: schedTaskText.trim(),
-					mode_id: schedModeId.trim() || undefined,
-				}),
-			});
-			if (res.ok) {
-				setShowScheduledForm(false);
-				setSchedName("");
-				setSchedCron("");
-				setSchedTaskText("");
-				setSchedModeId("");
-				fetchScheduledTasks();
-				showToast("Tarea programada creada", "success");
-			}
-		} catch (err) {
-			console.error("Failed to create scheduled task", err);
-		}
-	};
 
 	const statusIcon = (status: string) => {
 		switch (status) {
@@ -702,53 +629,23 @@ export const Tareas: React.FC = () => {
 		}
 	};
 
-
+	const toLocalDatetimeLocal = (isoString?: string | null) => {
+		if (!isoString) return "";
+		try {
+			const date = new Date(isoString);
+			if (Number.isNaN(date.getTime())) return "";
+			const offset = date.getTimezoneOffset();
+			const localDate = new Date(date.getTime() - offset * 60 * 1000);
+			return localDate.toISOString().slice(0, 16);
+		} catch {
+			return "";
+		}
+	};
 
 	return (
 		<div style={{ height: "calc(100vh - 160px)", display: "flex", flexDirection: "column" }}>
 			{/* Tab bar + Nueva Tarea */}
 			<div style={{ display: "flex", gap: "8px", padding: "0 0 12px", flexWrap: "wrap", alignItems: "center" }}>
-				<button
-					type="button"
-					onClick={() => setTabMode("history")}
-					style={{
-						padding: "6px 14px",
-						borderRadius: "6px",
-						border: "1px solid var(--border-light)",
-						background: tabMode === "history" ? "rgba(79,140,255,0.1)" : "rgba(255,255,255,0.02)",
-						color: tabMode === "history" ? "var(--accent)" : "var(--text-muted)",
-						cursor: "pointer",
-						fontSize: "11px",
-						fontWeight: 600,
-						display: "flex",
-						alignItems: "center",
-						gap: "6px",
-					}}
-				>
-					<List size={14} />
-					Historial
-				</button>
-				<button
-					type="button"
-					onClick={() => setTabMode("scheduled")}
-					style={{
-						padding: "6px 14px",
-						borderRadius: "6px",
-						border: "1px solid var(--border-light)",
-						background: tabMode === "scheduled" ? "rgba(79,140,255,0.1)" : "rgba(255,255,255,0.02)",
-						color: tabMode === "scheduled" ? "var(--accent)" : "var(--text-muted)",
-						cursor: "pointer",
-						fontSize: "11px",
-						fontWeight: 600,
-						display: "flex",
-						alignItems: "center",
-						gap: "6px",
-					}}
-				>
-					<Calendar size={14} />
-					Programadas
-				</button>
-				<span style={{ flex: 1 }} />
 				{/* Connection indicator */}
 				<span
 					title={connected ? "Conectado" : "Desconectado"}
@@ -772,7 +669,8 @@ export const Tareas: React.FC = () => {
 					/>
 					{connected ? "Conectado" : "Desconectado"}
 				</span>
-				{tabMode === "history" && hasMore && (
+				<span style={{ flex: 1 }} />
+				{hasMore && (
 					<button
 						type="button"
 						disabled={loadingMore}
@@ -806,10 +704,7 @@ export const Tareas: React.FC = () => {
 				<button
 					type="button"
 					disabled={!connected}
-					onClick={() => {
-						if (tabMode === "history") setShowNewTaskModal(true);
-						else setShowScheduledForm(true);
-					}}
+					onClick={() => setShowNewTaskModal(true)}
 					style={{
 						padding: "6px 14px",
 						borderRadius: "6px",
@@ -826,7 +721,7 @@ export const Tareas: React.FC = () => {
 					}}
 				>
 					<Plus size={14} />
-					{tabMode === "history" ? "Nueva Tarea" : "Nueva Programada"}
+					Nueva Tarea
 				</button>
 			</div>
 
@@ -863,6 +758,7 @@ export const Tareas: React.FC = () => {
 								running: runs.filter((r) => r.status === "running"),
 								completed: runs.filter((r) => r.status === "completed"),
 								failed: runs.filter((r) => r.status === "failed"),
+								scheduled: runs.filter((r) => r.status === "scheduled"),
 								cancelled: runs.filter((r) => r.status === "cancelled"),
 							};
 
@@ -873,6 +769,13 @@ export const Tareas: React.FC = () => {
 									icon: <List size={13} style={{ color: "var(--text-muted)" }} />,
 									color: "var(--text-muted)",
 									list: runsByStatus.backlog,
+								},
+								{
+									id: "scheduled",
+									label: "Programadas",
+									icon: <Calendar size={13} style={{ color: "var(--accent)" }} />,
+									color: "var(--accent)",
+									list: runsByStatus.scheduled,
 								},
 								{
 									id: "queued",
@@ -929,11 +832,12 @@ export const Tareas: React.FC = () => {
 									>
 										<span style={{ fontSize: "14px" }}>💡</span>
 										<span>
-											Tip: Arrastra tareas a <strong>En cola</strong> para ejecutarlas, a <strong>Backlog</strong> para guardarlas, o a <strong>Cancelado</strong> para abortar.
+											Tip: Arrastra tareas a <strong>En cola</strong> para ejecutarlas, a <strong>Backlog</strong> para guardarlas, a <strong>Programadas</strong> para definir ejecución diferida, o a <strong>Cancelado</strong> para abortar.
 										</span>
 									</div>
 
 									<div
+										className="custom-scrollbar"
 										style={{
 											display: "flex",
 											gap: "12px",
@@ -947,17 +851,19 @@ export const Tareas: React.FC = () => {
 											const isCancelCol = col.id === "cancelled";
 											const isBacklogCol = col.id === "backlog";
 											const isQueuedCol = col.id === "queued";
+											const isScheduledCol = col.id === "scheduled";
 
 											let isDragOver = false;
 											if (isCancelCol) isDragOver = isDraggingOverCancel;
 											if (isBacklogCol) isDragOver = isDraggingOverBacklog;
 											if (isQueuedCol) isDragOver = isDraggingOverQueued;
+											if (isScheduledCol) isDragOver = isDraggingOverScheduled;
 
 											return (
 												<div
 													key={col.id}
 													onDragOver={(e) => {
-														if (isCancelCol || isBacklogCol || isQueuedCol) {
+														if (isCancelCol || isBacklogCol || isQueuedCol || isScheduledCol) {
 															e.preventDefault();
 														}
 													}}
@@ -971,6 +877,9 @@ export const Tareas: React.FC = () => {
 														} else if (isQueuedCol) {
 															e.preventDefault();
 															setIsDraggingOverQueued(true);
+														} else if (isScheduledCol) {
+															e.preventDefault();
+															setIsDraggingOverScheduled(true);
 														}
 													}}
 													onDragLeave={() => {
@@ -980,6 +889,8 @@ export const Tareas: React.FC = () => {
 															setIsDraggingOverBacklog(false);
 														} else if (isQueuedCol) {
 															setIsDraggingOverQueued(false);
+														} else if (isScheduledCol) {
+															setIsDraggingOverScheduled(false);
 														}
 													}}
 													onDrop={(e) => {
@@ -987,6 +898,7 @@ export const Tareas: React.FC = () => {
 														setIsDraggingOverCancel(false);
 														setIsDraggingOverBacklog(false);
 														setIsDraggingOverQueued(false);
+														setIsDraggingOverScheduled(false);
 														const runId = Number.parseInt(e.dataTransfer.getData("text/plain"), 10);
 														if (Number.isNaN(runId)) return;
 
@@ -996,6 +908,10 @@ export const Tareas: React.FC = () => {
 															handleMoveToBacklog(runId);
 														} else if (isQueuedCol) {
 															handleStartTask(runId);
+														} else if (isScheduledCol) {
+															const nowIso = new Date().toISOString();
+															sendWs("update_task_properties", { runId, status: "scheduled", scheduledAt: nowIso });
+															showToast("Tarea programada para ejecutar ahora", "info");
 														}
 													}}
 													style={{
@@ -1004,7 +920,7 @@ export const Tareas: React.FC = () => {
 														display: "flex",
 														flexDirection: "column",
 														background: isDragOver
-															? (isCancelCol ? "rgba(239, 68, 68, 0.05)" : isQueuedCol ? "rgba(245, 158, 11, 0.05)" : "rgba(255, 255, 255, 0.04)")
+															? (isCancelCol ? "rgba(239, 68, 68, 0.05)" : isQueuedCol ? "rgba(245, 158, 11, 0.05)" : "rgba(79, 140, 255, 0.05)")
 															: "rgba(255, 255, 255, 0.01)",
 														border: `1px solid ${
 															isDragOver
@@ -1177,387 +1093,6 @@ export const Tareas: React.FC = () => {
 						})()}
 					</div>
 				</>
-			)}
-			{/* Scheduled tab */}
-			{tabMode === "scheduled" && (
-				<div style={{ flex: 1, overflowY: "auto" }}>
-					{scheduledLoading ? (
-						<div style={{ textAlign: "center", padding: "40px", color: "var(--text-muted)" }}>
-							<Loader2
-								size={24}
-								className="animate-spin"
-								style={{ margin: "0 auto 12px", display: "block" }}
-							/>
-							Cargando tareas programadas...
-						</div>
-					) : (
-						<>
-							{scheduledTasks.length === 0 ? (
-								<div
-									style={{
-										textAlign: "center",
-										padding: "40px",
-										color: "var(--text-dim)",
-										fontSize: "13px",
-									}}
-								>
-									No hay tareas programadas. Crea una nueva.
-								</div>
-							) : (
-								scheduledTasks.map((task) => (
-									<div
-										key={task.id}
-										style={{
-											padding: "12px 16px",
-											marginBottom: "6px",
-											borderRadius: "8px",
-											background: "rgba(255,255,255,0.02)",
-											border: "1px solid var(--border-light)",
-										}}
-									>
-										<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-											<div style={{ flex: 1, minWidth: 0 }}>
-												<div
-													style={{
-														fontSize: "12px",
-														fontWeight: 600,
-														color: "var(--text-main)",
-													}}
-												>
-													{task.name}
-												</div>
-												<div
-													style={{
-														fontSize: "11px",
-														color: "var(--text-dim)",
-														marginTop: "2px",
-													}}
-												>
-													{task.task_text}
-												</div>
-												<div
-													style={{
-														display: "flex",
-														gap: "12px",
-														marginTop: "4px",
-														fontSize: "10px",
-														color: "var(--text-dim)",
-														fontFamily: "monospace",
-													}}
-												>
-													<span>Cron: {task.cron_expression}</span>
-													{task.mode_id && <span>Modo: {task.mode_id}</span>}
-													{task.created_at && (
-														<span>{new Date(task.created_at).toLocaleDateString()}</span>
-													)}
-												</div>
-											</div>
-											<div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-												<button
-													type="button"
-													onClick={() => handleExecuteScheduled(task)}
-													title="Ejecutar ahora"
-													style={{
-														background: "rgba(79,140,255,0.1)",
-														border: "1px solid rgba(79,140,255,0.2)",
-														borderRadius: "4px",
-														color: "var(--accent)",
-														cursor: "pointer",
-														padding: "4px",
-														display: "flex",
-													}}
-												>
-													<Play size={12} />
-												</button>
-												<button
-													type="button"
-													onClick={() => handleToggleScheduled(task.id)}
-													title={task.enabled ? "Deshabilitar" : "Habilitar"}
-													style={{
-														background: task.enabled
-															? "rgba(16,185,129,0.1)"
-															: "rgba(255,255,255,0.03)",
-														border: `1px solid ${task.enabled ? "rgba(16,185,129,0.2)" : "var(--border-light)"}`,
-														borderRadius: "4px",
-														color: task.enabled ? "var(--success)" : "var(--text-muted)",
-														cursor: "pointer",
-														padding: "4px",
-														display: "flex",
-													}}
-												>
-													{task.enabled ? (
-														<ToggleRight size={12} />
-													) : (
-														<ToggleLeft size={12} />
-													)}
-												</button>
-												<button
-													type="button"
-													onClick={() => handleDeleteScheduled(task.id)}
-													title="Eliminar"
-													style={{
-														background: "rgba(239,68,68,0.1)",
-														border: "1px solid rgba(239,68,68,0.2)",
-														borderRadius: "4px",
-														color: "var(--error)",
-														cursor: "pointer",
-														padding: "4px",
-														display: "flex",
-													}}
-												>
-													<Trash2 size={12} />
-												</button>
-											</div>
-										</div>
-									</div>
-								))
-							)}
-
-							{/* Create Scheduled Task Modal */}
-							{showScheduledForm && (
-								<div
-									style={{
-										position: "fixed",
-										top: 0,
-										left: 0,
-										right: 0,
-										bottom: 0,
-										background: "rgba(0,0,0,0.7)",
-										backdropFilter: "blur(4px)",
-										display: "flex",
-										alignItems: "center",
-										justifyContent: "center",
-										zIndex: 1000,
-									}}
-									onClick={() => setShowScheduledForm(false)}
-								>
-									<div
-										style={{
-											background: "var(--bg-surface)",
-											border: "1px solid var(--border)",
-											borderRadius: "16px",
-											width: "500px",
-											maxWidth: "90vw",
-											padding: "24px",
-										}}
-										onClick={(e) => e.stopPropagation()}
-									>
-										<h3
-											style={{
-												margin: "0 0 16px",
-												fontSize: "16px",
-												fontWeight: 700,
-												color: "var(--text-main)",
-											}}
-										>
-											Nueva Tarea Programada
-										</h3>
-
-										<div style={{ marginBottom: "12px" }}>
-											<label
-												style={{
-													fontSize: "10px",
-													fontWeight: 600,
-													color: "var(--text-muted)",
-													textTransform: "uppercase",
-													display: "block",
-													marginBottom: "4px",
-												}}
-											>
-												Nombre
-											</label>
-											<input
-												type="text"
-												value={schedName}
-												onChange={(e) => setSchedName(e.target.value)}
-												placeholder="Mi tarea"
-												style={{
-													width: "100%",
-													background: "rgba(255,255,255,0.03)",
-													border: "1px solid var(--border-light)",
-													borderRadius: "6px",
-													padding: "8px 12px",
-													color: "var(--text-main)",
-													fontSize: "13px",
-													fontFamily: "inherit",
-													outline: "none",
-													boxSizing: "border-box",
-												}}
-											/>
-										</div>
-
-										<div style={{ marginBottom: "12px" }}>
-											<label
-												style={{
-													fontSize: "10px",
-													fontWeight: 600,
-													color: "var(--text-muted)",
-													textTransform: "uppercase",
-													display: "block",
-													marginBottom: "4px",
-												}}
-											>
-												Expresión Cron
-											</label>
-											<input
-												type="text"
-												value={schedCron}
-												onChange={(e) => setSchedCron(e.target.value)}
-												placeholder="*/5 * * * *"
-												style={{
-													width: "100%",
-													background: "rgba(255,255,255,0.03)",
-													border: "1px solid var(--border-light)",
-													borderRadius: "6px",
-													padding: "8px 12px",
-													color: "var(--text-main)",
-													fontSize: "13px",
-													fontFamily: "monospace",
-													outline: "none",
-													boxSizing: "border-box",
-												}}
-											/>
-											<div
-												style={{ fontSize: "10px", color: "var(--text-dim)", marginTop: "4px" }}
-											>
-												Ejemplos:{" "}
-												<code
-													style={{
-														background: "rgba(255,255,255,0.05)",
-														padding: "1px 4px",
-														borderRadius: "3px",
-													}}
-												>
-													*/5 * * * *
-												</code>{" "}
-												(cada 5min),{" "}
-												<code
-													style={{
-														background: "rgba(255,255,255,0.05)",
-														padding: "1px 4px",
-														borderRadius: "3px",
-													}}
-												>
-													0 9 * * 1
-												</code>{" "}
-												(lun 9am)
-											</div>
-										</div>
-
-										<div style={{ marginBottom: "12px" }}>
-											<label
-												style={{
-													fontSize: "10px",
-													fontWeight: 600,
-													color: "var(--text-muted)",
-													textTransform: "uppercase",
-													display: "block",
-													marginBottom: "4px",
-												}}
-											>
-												Texto de la tarea
-											</label>
-											<textarea
-												value={schedTaskText}
-												onChange={(e) => setSchedTaskText(e.target.value)}
-												placeholder="Describe la tarea a ejecutar..."
-												rows={3}
-												style={{
-													width: "100%",
-													background: "rgba(255,255,255,0.03)",
-													border: "1px solid var(--border-light)",
-													borderRadius: "6px",
-													padding: "8px 12px",
-													color: "var(--text-main)",
-													fontSize: "13px",
-													fontFamily: "inherit",
-													resize: "vertical",
-													outline: "none",
-													boxSizing: "border-box",
-												}}
-											/>
-										</div>
-
-										<div style={{ marginBottom: "16px" }}>
-											<label
-												style={{
-													fontSize: "10px",
-													fontWeight: 600,
-													color: "var(--text-muted)",
-													textTransform: "uppercase",
-													display: "block",
-													marginBottom: "4px",
-												}}
-											>
-												Mode ID (opcional)
-											</label>
-											<input
-												type="text"
-												value={schedModeId}
-												onChange={(e) => setSchedModeId(e.target.value)}
-												placeholder="default"
-												style={{
-													width: "100%",
-													background: "rgba(255,255,255,0.03)",
-													border: "1px solid var(--border-light)",
-													borderRadius: "6px",
-													padding: "8px 12px",
-													color: "var(--text-main)",
-													fontSize: "13px",
-													fontFamily: "inherit",
-													outline: "none",
-													boxSizing: "border-box",
-												}}
-											/>
-										</div>
-
-										<div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
-											<button
-												type="button"
-												onClick={() => setShowScheduledForm(false)}
-												style={{
-													padding: "8px 20px",
-													background: "rgba(255,255,255,0.05)",
-													border: "1px solid var(--border-light)",
-													borderRadius: "8px",
-													color: "var(--text-main)",
-													cursor: "pointer",
-													fontSize: "12px",
-													fontWeight: 600,
-												}}
-											>
-												Cancelar
-											</button>
-											<button
-												type="button"
-												onClick={handleCreateScheduled}
-												disabled={
-													!schedName.trim() || !schedCron.trim() || !schedTaskText.trim()
-												}
-												style={{
-													padding: "8px 20px",
-													background: "linear-gradient(135deg, var(--accent), #7c3aed)",
-													border: "none",
-													borderRadius: "8px",
-													color: "white",
-													cursor: "pointer",
-													fontSize: "12px",
-													fontWeight: 600,
-													opacity:
-														!schedName.trim() || !schedCron.trim() || !schedTaskText.trim()
-															? 0.5
-															: 1,
-												}}
-											>
-												Crear
-											</button>
-										</div>
-									</div>
-								</div>
-							)}
-						</>
-					)}
-				</div>
 			)}
 
 			{/* Detail Modal */}
@@ -1780,6 +1315,44 @@ export const Tareas: React.FC = () => {
 										const val = e.target.value;
 										setEditDueDate(val);
 										sendWs("update_task_properties", { runId: selectedRun.id, dueDate: val || null });
+									}}
+									style={{
+										width: "100%",
+										background: "rgba(255,255,255,0.03)",
+										border: "1px solid var(--border-light)",
+										borderRadius: "6px",
+										padding: "5px 12px",
+										color: "var(--text-main)",
+										fontSize: "12px",
+										fontWeight: 600,
+										outline: "none",
+										boxSizing: "border-box",
+									}}
+								/>
+							</div>
+
+							{/* Fecha de Ejecución (Programada) */}
+							<div>
+								<span
+									style={{
+										fontSize: "10px",
+										fontWeight: 600,
+										color: "var(--text-muted)",
+										textTransform: "uppercase",
+										display: "block",
+										marginBottom: "4px",
+									}}
+								>
+									Fecha de Ejecución (Programada)
+								</span>
+								<input
+									type="datetime-local"
+									value={toLocalDatetimeLocal(editScheduledAt)}
+									onChange={(e) => {
+										const val = e.target.value;
+										const isoVal = val ? new Date(val).toISOString() : null;
+										setEditScheduledAt(isoVal || "");
+										sendWs("update_task_properties", { runId: selectedRun.id, scheduledAt: isoVal });
 									}}
 									style={{
 										width: "100%",
@@ -2367,13 +1940,68 @@ export const Tareas: React.FC = () => {
 								<input
 									type="checkbox"
 									checked={newTaskInBacklog}
-									onChange={(e) => setNewTaskInBacklog(e.target.checked)}
+									onChange={(e) => {
+										const checked = e.target.checked;
+										setNewTaskInBacklog(checked);
+										if (checked) {
+											setNewTaskIsScheduled(false);
+										}
+									}}
 								/>
 								<span className="checkmark" />
 							</label>
 							<span style={{ fontSize: "12px", color: "var(--text-main)", fontWeight: 500 }}>
 								Crear en Backlog (guardar sin ejecutar)
 							</span>
+						</div>
+
+						{/* Programar option */}
+						<div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "4px" }}>
+							<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+								<label className="custom-checkbox">
+									<input
+										type="checkbox"
+										checked={newTaskIsScheduled}
+										onChange={(e) => {
+											const checked = e.target.checked;
+											setNewTaskIsScheduled(checked);
+											if (checked) {
+												setNewTaskInBacklog(false);
+												// Set default scheduled date/time to now + 5 minutes
+												const defaultDate = new Date(Date.now() + 5 * 60 * 1000);
+												const offset = defaultDate.getTimezoneOffset();
+												const localDate = new Date(defaultDate.getTime() - offset * 60 * 1000);
+												setNewTaskScheduledAt(localDate.toISOString().slice(0, 16));
+											}
+										}}
+									/>
+									<span className="checkmark" />
+								</label>
+								<span style={{ fontSize: "12px", color: "var(--text-main)", fontWeight: 500 }}>
+									Programar ejecución (ejecutar en fecha/hora específica)
+								</span>
+							</div>
+
+							{newTaskIsScheduled && (
+								<div style={{ paddingLeft: "24px" }}>
+									<input
+										type="datetime-local"
+										value={newTaskScheduledAt}
+										onChange={(e) => setNewTaskScheduledAt(e.target.value)}
+										style={{
+											background: "rgba(255,255,255,0.03)",
+											border: "1px solid var(--border-light)",
+											borderRadius: "6px",
+											padding: "6px 12px",
+											color: "var(--text-main)",
+											fontSize: "13px",
+											fontFamily: "inherit",
+											outline: "none",
+											boxSizing: "border-box",
+										}}
+									/>
+								</div>
+							)}
 						</div>
 
 						{/* Action Buttons */}
@@ -2383,6 +2011,9 @@ export const Tareas: React.FC = () => {
 								onClick={() => {
 									setShowNewTaskModal(false);
 									setNewTaskText("");
+									setNewTaskInBacklog(false);
+									setNewTaskIsScheduled(false);
+									setNewTaskScheduledAt("");
 									setNewTaskPriority("medium");
 									setNewTaskPreferredModel("default");
 									setNewTaskTags("");

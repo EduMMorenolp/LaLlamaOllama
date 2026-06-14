@@ -1,8 +1,11 @@
-﻿import { resetAllSessions } from "../services/agent/runAgentCore.js";
+import { resetAllSessions } from "../services/agent/runAgentCore.js";
 import type { BrainClient } from "../services/brain/client.js";
 import { getDueTasks, updateScheduledTask } from "../services/db/scheduled-tasks.js";
 import { submitAgentRun } from "../services/orchestrator/index.js";
 import { logger } from "../utils/logger.js";
+import { getDb } from "../services/db/connection.js";
+import { getWsServer } from "../services/tools/tool-bridge.js";
+import type { StoredRun } from "../services/db/runs.js";
 
 // Simple cron matching function (no external dependency needed for basic support)
 function matchCron(cronExpr: string, date: Date = new Date()): boolean {
@@ -63,6 +66,7 @@ export function startCronJobs(brain: BrainClient) {
 	setInterval(
 		async () => {
 			try {
+				// 1. Check recurring scheduled tasks (from scheduled_tasks table)
 				const dueTasks = getDueTasks();
 				for (const task of dueTasks) {
 					if (!matchCron(task.cron_expression)) continue;
@@ -81,6 +85,44 @@ export function startCronJobs(brain: BrainClient) {
 						logger.info("[Cron] Scheduled task \"" + task.name + "\" completed");
 					} catch (err) {
 						logger.error("[Cron] Scheduled task \"" + task.name + "\" failed: " + err);
+					}
+				}
+
+				// 2. Check one-time scheduled runs (from runs table)
+				const db = getDb();
+				const nowIso = new Date().toISOString();
+				const scheduledRuns = db
+					.prepare("SELECT * FROM runs WHERE status = 'scheduled' AND scheduled_at IS NOT NULL AND scheduled_at <= ?")
+					.all(nowIso) as StoredRun[];
+
+				for (const run of scheduledRuns) {
+					logger.info("[Cron] Executing scheduled run ID: " + run.id + " (Scheduled at: " + run.scheduled_at + ")");
+					try {
+						db.prepare("UPDATE runs SET status = 'queued', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(run.id);
+
+						const wsServer = getWsServer();
+						if (wsServer) {
+							wsServer.sendToAll("task_status", {
+								runId: run.id,
+								chatId: run.chatId,
+								status: "queued",
+								text: run.userText,
+							});
+						}
+
+						submitAgentRun({
+							chatId: run.chatId,
+							userText: run.userText,
+							origin: run.origin || "web",
+							runId: run.id,
+							preferredModel: run.preferred_model || undefined,
+						}).catch((err: unknown) => {
+							logger.error(
+								"[Cron] Scheduled task execution failed: " + (err instanceof Error ? err.message : String(err))
+							);
+						});
+					} catch (err) {
+						logger.error("[Cron] Failed to process scheduled run ID " + run.id + ": " + err);
 					}
 				}
 			} catch (err) {
