@@ -23,12 +23,14 @@ export function createChatRouter(
     }
 
     const input = parsed.data;
+    log.agent({ model: input.model, stream: input.stream, msgCount: input.messages.length }, "Chat request");
 
     try {
       if (input.stream === true) {
         await createChatStream.execute(input, res);
       } else {
         const result = await createChat.execute(input);
+        log.agent({ model: input.model }, "Chat response complete");
         res.json(result);
       }
     } catch (error: unknown) {

@@ -16,27 +16,31 @@ permission:
 2. **Delegar** sub-tareas atómicas vía `task`, pasando contexto del brain
 3. **Consolidar** resultados
 4. **Cada sub-agente se auto-verifica** (build/lint) antes de responder
-5. **Guardar en el brain** centralizadamente + actualizar CHANGELOG
+5. **Guardar en el brain** centralizadamente + coordinar documentación vía `documentation`
 
 ## AGENTES DISPONIBLES
 
 | Agente | Especialidad |
 |--------|-------------|
-| `backend-dev` | Backend (Express) + Agent Engine (Express, Redis, BullMQ) |
-| `frontend-dev` | Dashboard (React) + Agent Frontend (React, nginx) |
-| `docker-ops` | Infraestructura Docker (7 servicios + redis) |
-| `documentation` | CHANGELOG, README, Postman |
+| `backend-dev` | Backend (Express) + API principal |
+| `frontend-dev` | Dashboard (React, glassmorphism) |
+| `docker-ops` | Infraestructura Docker (7 servicios + redis, Dockerfiles, volúmenes, redes) |
+| `documentation` | CHANGELOGs, READMEs, ARQUITECTURE, INSTALL, Postman, agent definitions |
 | `mcp-brain` | Memoria compartida SQLite FTS5 |
+| `agent-engine` | Agente autónomo (Express, Redis BullMQ, SQLite, WS, 30+ tools, Telegram) |
+| `agent-frontend` | Frontend del agente autónomo (React, WS a engine, nginx) |
 
 ## REGLAS DE RUTEO
 
 | Requerimiento | Agente |
 |---|---|---|
-| Rutas Express, auth, MCP Tools, Dockerode, SQLite, **agent-engine** | `backend-dev` |
-| Componentes React, glassmorphism, Socket.IO, **agent-frontend** | `frontend-dev` |
-| Docker Compose, Dockerfiles, GPU, ngrok, redis | `docker-ops` |
-| CHANGELOG, README, Postman | `documentation` |
+| Rutas Express, auth, MCP Tools, Dockerode, SQLite | `backend-dev` |
+| Componentes React, glassmorphism, Socket.IO | `frontend-dev` |
+| Docker Compose, Dockerfiles, GPU, ngrok | `docker-ops` |
+| CHANGELOGs, READMEs, ARQUITECTURE, INSTALL, Postman, agent definitions | `documentation` |
 | Memoria compartida, sesiones, auditoría | `mcp-brain` |
+| Agent loop, tools, Telegram bot, tareas, WS handlers | `agent-engine` |
+| Componentes React del agent-frontend, tabs, WS connection | `agent-frontend` |
 
 ## FLUJO DE TRABAJO
 
@@ -51,8 +55,9 @@ permission:
 8. **Guarda en el brain** por cada cambio significativo:
    - `mem_save(project: lallamaollama, type: feature|bug-fix|architecture, title: <resumen>, agent: "OpenCode orchestrator", content: **What**/**Why**/**Where**)`
    - Si devuelve `judgment_required` → `mem_judge` por cada `candidate`
-9. **Actualiza CHANGELOG.md** directamente
-10. Responde al usuario con resumen ejecutivo
+9. **Si hay cambios en docker-compose.yml o Dockerfiles**: `task(docker-ops, objetivo="Verificar y validar infraestructura Docker", context=<contexto>)`
+10. **Delegar documentación**: `task(documentation, objetivo="Actualizar documentación del cambio", context=<contexto + cambios realizados>)`
+11. Responde al usuario con resumen ejecutivo
 
 ## NOTAS
 

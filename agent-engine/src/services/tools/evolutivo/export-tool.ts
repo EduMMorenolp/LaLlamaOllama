@@ -7,13 +7,13 @@ export function registerExportTool() {
 			type: "function",
 			function: {
 				name: "export_tool",
-				description: "Exporta una o todas las herramientas personalizadas como JSON. Útil para compartir herramientas entre instancias o respaldarlas.",
+				description: "Exporta herramientas personalizadas como JSON.",
 				parameters: {
 					type: "object",
 					properties: {
 						name: {
 							type: "string",
-							description: "Nombre de la herramienta a exportar (opcional, si no se especifica exporta todas)",
+							description: "Nombre de la herramienta a exportar (opcional, exporta todas si vacío)",
 						},
 					},
 				},

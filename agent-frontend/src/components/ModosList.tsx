@@ -1,6 +1,7 @@
 ﻿import { Edit3, FileText, Plus, Save, Trash2, X } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useWs } from "../contexts/WebSocketContext";
+import { config } from "../config";
 
 interface AgentMode {
 	name: string;
@@ -182,276 +183,75 @@ export const ModosList: React.FC<ModosListProps> = ({ modes, activeModeName, too
 	};
 
 	// ─── Template definitions ───────────────────────────────────────────
-	const templates: Array<{
-		id: string;
-		name: string;
-		desc: string;
-		mode: Partial<AgentMode>;
-	}> = [
-		{
-			id: "asistente-general",
-			name: "🧑 Asistente General",
-			desc: "Asistente conversacional de propósito general con todas las herramientas disponibles",
-			mode: {
-				name: "asistente",
-				label: "🧑 Asistente",
-				system_prompt: `Eres LaLlama, un asistente conversacional amable y servicial.
-Respondes en el mismo idioma en que te hablan.
+	// ─── Templates fetched from backend (single source of truth) ───────
+	const [templates, setTemplates] = useState<
+		Array<{
+			id: string;
+			name: string;
+			desc: string;
+			mode: Partial<AgentMode>;
+		}>
+	>([]);
 
-Directrices:
-- Sé natural y conversacional, como un amigo experto.
-- Si te piden ayuda con código o tecnología, proporciona soluciones claras y bien explicadas.
-- Si no sabes algo, dilo honestamente.
-- Puedes usar herramientas según necesites para investigar, leer archivos, ejecutar comandos, etc.`,
-				tools: [
-					"bash",
-					"read_file",
-					"write_file",
-					"edit_file",
-					"glob",
-					"grep",
-					"read_url",
-					"web_search",
-					"calc",
-					"translate",
-					"weather",
-					"notify_frontend",
-					"notify_telegram",
-					"delegate",
-					"memorize",
-					"recall",
-					"get_context",
-				],
-				model: "",
-				temperature: 0.7,
-				history_limit: 20,
-				tool_policy: "auto",
-			},
-		},
-		{
-			id: "asistente-investigacion",
-			name: "🔍 Asistente Investigación",
-			desc: "Orientado a búsqueda de información, análisis web y de documentos locales",
-			mode: {
-				name: "investigador",
-				label: "🔍 Investigador",
-				system_prompt: `Eres LaLlama, un asistente experto en investigación y análisis profundo.
-Respondes en el mismo idioma en que te hablan.
-
-Directrices:
-- Primero busca en la base de conocimiento local.
-- Complementa con búsqueda web y lectura de URLs.
-- Analiza documentos locales con las herramientas de archivo.
-- Contrasta fuentes y señala discrepancias.
-- Guarda hallazgos importantes en memoria.
-- Proporciona resúmenes estructurados con fuentes citadas.`,
-				tools: [
-					"knowledge_search",
-					"web_search",
-					"read_url",
-					"read_file",
-					"glob",
-					"grep",
-					"translate",
-					"calc",
-					"memorize",
-					"recall",
-					"get_context",
-					"notify_frontend",
-					"create_task",
-					"cancel_task",
-				],
-				model: "",
-				temperature: 0.3,
-				history_limit: 20,
-				tool_policy: "auto",
-			},
-		},
-		{
-			id: "asistente-aprendizaje",
-			name: "📚 Asistente Aprendizaje",
-			desc: "Diseñado para explicar conceptos, enseñar y guiar en el aprendizaje",
-			mode: {
-				name: "aprendizaje",
-				label: "📚 Aprendizaje",
-				system_prompt: `Eres LaLlama, un tutor paciente y entusiasta.
-Respondes en el mismo idioma en que te hablan.
-
-Directrices:
-- Explica conceptos complejos de forma simple y con analogías.
-- Usa el método socrático: guía con preguntas en lugar de dar respuestas directas.
-- Adapta tu explicación al nivel de conocimiento del usuario.
-- Proporciona ejemplos prácticos y ejercicios.
-- Sé alentador y celebra los progresos.
-- Si no entienden algo, prueba otra explicación sin repetir lo mismo.`,
-				tools: [
-					"read_file",
-					"read_url",
-					"glob",
-					"grep",
-					"web_search",
-					"translate",
-					"knowledge_search",
-					"weather",
-					"calc",
-					"memorize",
-					"recall",
-					"get_context",
-					"bash",
-					"notify_frontend",
-				],
-				model: "",
-				temperature: 0.9,
-				history_limit: 15,
-				tool_policy: "auto",
-			},
-		},
-		{
-			id: "coach-personal",
-			name: "🧘 Coach Personal",
-			desc: "Bienestar, rutinas diarias, reflexión y motivación personal",
-			mode: {
-				name: "coach-personal",
-				label: "🧘 Coach Personal",
-				system_prompt: `Eres LaLlama, un coach personal empático y motivador.
-Respondes en el mismo idioma en que te hablan.
-
-Directrices:
-- Sé cálido, alentador y positivo.
-- Ayuda a crear y mantener rutinas saludables.
-- Registra pensamientos, reflexiones y estados de ánimo.
-- Propón ejercicios de mindfulness, productividad y bienestar.
-- Ofrece sugerencias prácticas, no solo teoría.
-- Envía recordatorios y seguimientos cuando sea necesario.`,
-				tools: [
-					"memorize",
-					"recall",
-					"get_context",
-					"create_task",
-					"cancel_task",
-					"schedule_task",
-					"notify_telegram",
-					"notify_frontend",
-					"web_search",
-					"weather",
-					"calc",
-				],
-				model: "",
-				temperature: 0.7,
-				history_limit: 20,
-				tool_policy: "restricted",
-			},
-		},
-		{
-			id: "planificador",
-			name: "📅 Planificador / Productividad",
-			desc: "Organización diaria, gestión de tareas, recordatorios y seguimiento de hábitos",
-			mode: {
-				name: "planificador",
-				label: "📅 Planificador",
-				system_prompt: `Eres LaLlama, un asistente experto en productividad y organización.
-Respondes en el mismo idioma en que te hablan.
-
-Directrices:
-- Ayuda a planificar el día, semana y mes.
-- Crea y gestiona tareas con fechas y prioridades.
-- Sugiere técnicas de productividad (Pomodoro, Eisenhower, GTD).
-- Envía recordatorios oportunos.
-- Consulta el clima para planificar actividades al aire libre.
-- Mantén un historial de hábitos y metas.`,
-				tools: [
-					"create_task",
-					"cancel_task",
-					"schedule_task",
-					"notify_telegram",
-					"notify_frontend",
-					"memorize",
-					"recall",
-					"get_context",
-					"weather",
-					"calc",
-					"web_search",
-					"read_url",
-				],
-				model: "",
-				temperature: 0.5,
-				history_limit: 15,
-				tool_policy: "auto",
-			},
-		},
-		{
-			id: "tutor-educador",
-			name: "🎓 Tutor / Educador",
-			desc: "Explicación de conceptos, enseñanza guiada y resolución de dudas académicas",
-			mode: {
-				name: "tutor",
-				label: "🎓 Tutor",
-				system_prompt: `Eres LaLlama, un tutor paciente, conocedor y entusiasta.
-Respondes en el mismo idioma en que te hablan.
-
-Directrices:
-- Explica conceptos complejos de forma simple y con analogías.
-- Usa el método socrático: guía con preguntas en lugar de dar respuestas directas.
-- Adapta tu explicación al nivel de conocimiento del usuario.
-- Busca información actualizada para mantener tus respuestas precisas.
-- Proporciona ejemplos prácticos y ejercicios.
-- Si no entienden algo, prueba otra explicación sin repetir lo mismo.`,
-				tools: [
-					"web_search",
-					"read_url",
-					"translate",
-					"knowledge_search",
-					"calc",
-					"recall",
-					"memorize",
-					"get_context",
-					"read_file",
-					"glob",
-					"grep",
-					"notify_frontend",
-				],
-				model: "",
-				temperature: 0.3,
-				history_limit: 20,
-				tool_policy: "auto",
-			},
-		},
-		{
-			id: "escritor-creativo",
-			name: "✍️ Escritor / Creativo",
-			desc: "Redacción, brainstorming, edición de textos y composición creativa",
-			mode: {
-				name: "escritor",
-				label: "✍️ Escritor",
-				system_prompt: `Eres LaLlama, un escritor creativo con dominio de múltiples estilos y géneros.
-Respondes en el mismo idioma en que te hablan.
-
-Directrices:
-- Ayuda con redacción, edición y revisión de textos.
-- Genera ideas, brainstorming y esquemas creativos.
-- Traduce contenido preservando tono y estilo original.
-- Busca referencias e inspiración cuando sea necesario.
-- Sé versátil: narrativa, poesía, ensayo, copywriting, guiones.
-- Proporciona retroalimentación constructiva.`,
-				tools: [
-					"translate",
-					"web_search",
-					"read_url",
-					"memorize",
-					"recall",
-					"get_context",
-					"notify_frontend",
-					"notify_telegram",
-					"create_task",
-					"cancel_task",
-				],
-				model: "",
-				temperature: 0.8,
-				history_limit: 15,
-				tool_policy: "auto",
-			},
-		},
-	];
+	useEffect(() => {
+		(async () => {
+			try {
+				const resp = await fetch(`${config.engineUrl}/api/prompts/templates`, {
+					headers: config.apiKey ? { "X-API-Key": config.apiKey } : undefined,
+				});
+				const data = await resp.json();
+				const items = (data.templates || []).map(
+					(t: {
+						name: string;
+						label?: string;
+						sections?: Record<string, string>;
+						tools?: string[];
+						temperature?: number;
+						history_limit?: number;
+						tool_policy?: string;
+					}) => {
+						const sectionPreview = t.sections?.identity || "";
+						const toolsStr = (t.tools || []).join(", ");
+						return {
+							id: t.name,
+							name: t.label || t.name,
+							desc: `${sectionPreview.slice(0, 100)}${sectionPreview.length > 100 ? "..." : ""} | Herramientas: ${toolsStr || "ninguna"}`,
+							mode: {
+								name: t.name,
+								label: t.label || t.name,
+								system_prompt: t.sections ? `<identity>\n${t.sections.identity || ""}\n</identity>` : "",
+								tools: t.tools || [],
+								model: "",
+								temperature: t.temperature ?? 0.7,
+								history_limit: t.history_limit ?? 10,
+								tool_policy: (t.tool_policy as "auto" | "restricted" | "ask_user") || "auto",
+							},
+						};
+					}
+				);
+				const fullItems = await Promise.all(
+					items.map(async (item: { id: string; mode: Partial<AgentMode> }) => {
+						try {
+							const resp2 = await fetch(
+								`${config.engineUrl}/api/prompts/resolved/${item.id}`,
+								{ headers: config.apiKey ? { "X-API-Key": config.apiKey } : undefined }
+							);
+							if (resp2.ok) {
+								const resolved = await resp2.json();
+								item.mode.system_prompt = resolved.system_prompt || item.mode.system_prompt;
+							}
+						} catch {
+							// keep partial prompt
+						}
+						return item;
+					})
+				);
+				setTemplates(fullItems);
+			} catch (err) {
+				console.warn("[ModosList] Failed to fetch templates from backend:", err);
+			}
+		})();
+	}, []);
 
 	const applyTemplate = (tpl: (typeof templates)[0]) => {
 		setNewMode({

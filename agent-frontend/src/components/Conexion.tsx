@@ -194,7 +194,7 @@ export const Conexion: React.FC = () => {
 									border: `1px solid ${dockerInfo.inDocker ? "rgba(79,140,255,0.3)" : "rgba(34,197,94,0.3)"}`,
 								}}
 							>
-								{dockerInfo.inDocker ? "\u{1F4E6} Docker" : "\u{1F4BB} Host"}
+								{dockerInfo.inDocker ? "📦 Docker" : "💻 Host"}
 							</span>
 							<span style={{ fontSize: "11px", color: "var(--text-dim)", fontFamily: "monospace" }}>
 								{dockerInfo.containerName}

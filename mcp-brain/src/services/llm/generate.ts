@@ -1,5 +1,8 @@
 import axios from "axios";
 import { config } from "../config.js";
+import logger from "../../utils/logger.js";
+
+const log = logger.child({ component: "llm" });
 
 export async function generate(model: string, prompt: string, options: Record<string, unknown> = {}): Promise<string> {
 	try {
@@ -11,7 +14,7 @@ export async function generate(model: string, prompt: string, options: Record<st
 		});
 		return response.data.response || "";
 	} catch (error) {
-		console.error("[LLM] Error generating text:", error);
+		log.error({ err: error, model }, "Error generating text");
 		throw error;
 	}
 }

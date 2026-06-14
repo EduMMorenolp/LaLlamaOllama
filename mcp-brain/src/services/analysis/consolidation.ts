@@ -3,6 +3,9 @@ import { generate } from "../llm/generate.js";
 import { deleteMemory } from "../memories/deleteMemory.js";
 import { saveMemory } from "../memories/saveMemory.js";
 import { getGlobalSetting } from "../settings/index.js";
+import logger from "../../utils/logger.js";
+
+const log = logger.child({ component: "consolidation" });
 
 export async function consolidateMemories(
 	dbService: DatabaseService,
@@ -77,7 +80,7 @@ Devuelve únicamente el contenido consolidado en formato Markdown, listo para se
 					consolidatedGroups++;
 				}
 			} catch (err) {
-				console.error(`[ConsolidationService] Error al consolidar memorias para el tema ${topic}:`, err);
+				log.error({ err, topic }, "Error consolidating memories");
 			}
 		}
 	}

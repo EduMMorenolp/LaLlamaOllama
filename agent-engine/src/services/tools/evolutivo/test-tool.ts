@@ -9,7 +9,7 @@ export function registerTestTool() {
 			type: "function",
 			function: {
 				name: "test_tool",
-				description: "Prueba una herramienta personalizada con parámetros de ejemplo. Ejecuta el handler y devuelve el resultado sin modificar la herramienta.",
+				description: "Prueba una herramienta personalizada con parámetros de ejemplo.",
 				parameters: {
 					type: "object",
 					properties: {

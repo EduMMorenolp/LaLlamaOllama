@@ -8,7 +8,7 @@ export function registerNotifyTelegramTool() {
 			type: "function",
 			function: {
 				name: "notify_telegram",
-				description: "Envía una notificación al usuario por Telegram. Útil para alertas, confirmaciones o información importante cuando el usuario no está en el dashboard.",
+				description: "Envía una notificación al usuario por Telegram.",
 				parameters: {
 					type: "object",
 					properties: {
@@ -23,7 +23,7 @@ export function registerNotifyTelegramTool() {
 						},
 						chat_id: {
 							type: "string",
-							description: "Chat ID específico de Telegram (opcional, si no se provee se envía a todos los chats Telegram conocidos)",
+							description: "Chat ID específico (opcional, si no se provee se envía a todos los chats conocidos)",
 						},
 					},
 					required: ["message"],
@@ -51,8 +51,10 @@ export function registerNotifyTelegramTool() {
 
 			try {
 				if (specificChatId) {
-					// Enviar a un chat específico
-					await bot.sendMessage(specificChatId, message, options);
+					// Enviar a un chat específico - convertir a número si es un ID numérico de Telegram
+					const numericChatId = parseInt(specificChatId, 10);
+					const targetChatId = isNaN(numericChatId) ? specificChatId : numericChatId;
+					await bot.sendMessage(targetChatId, message, options);
 					return `✅ Notificación enviada al chat ${specificChatId}.`;
 				}
 

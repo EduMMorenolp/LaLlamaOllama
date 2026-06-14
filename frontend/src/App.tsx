@@ -1,12 +1,10 @@
-import { Activity, Bot, Cable, Cpu, Eye, EyeOff, Layers, RefreshCw, Shield, Terminal, Zap } from "lucide-react";
+import { Activity, Cable, Cpu, Eye, EyeOff, Layers, RefreshCw, Shield, Terminal } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useState } from "react";
-import { AgentChat } from "./components/AgentChat";
-import { AiEngineTuner } from "./components/AiEngineTuner";
 import { BrainConsole } from "./components/BrainConsole";
 import { ChatPlayground } from "./components/ChatPlayground";
 import { ConnectionPanel } from "./components/ConnectionPanel";
-import { HardwareSentinel } from "./components/HardwareSentinel";
+import { GpuSentinel } from "./components/HardwareSentinel";
 import { IpLogs } from "./components/IpLogs";
 import { ModelList } from "./components/ModelList";
 import { SecurityPanel } from "./components/SecurityPanel";
@@ -159,7 +157,7 @@ const App: React.FC = () => {
 										promptTokens = data.usage.prompt_tokens || 0;
 										completionTokens = data.usage.completion_tokens || 0;
 									}
-								} catch (_e) {
+								} catch (_e : any) {
 									// ignore JSON parse errors
 								}
 							}
@@ -509,16 +507,12 @@ const App: React.FC = () => {
 				return { title: "DASHBOARD", sub: "Sistema Operando en Tiempo Real" };
 			case "playground":
 				return { title: "PLAYGROUND", sub: "Terminal de Inferencia Directa" };
-			case "agent":
-				return { title: "AGENT ENGINE", sub: "Agente de Codificación Autónomo" };
 			case "models":
 				return { title: "REPOSITORIO DE MODELOS", sub: "Gestiona tu Arsenal de LLMs Locales" };
 			case "security":
 				return { title: "CENTRO DE SEGURIDAD", sub: `${status?.recentLogs?.length || 0} Sesiones Registradas` };
 			case "hardware":
-				return { title: "HARDWARE SENTINEL", sub: "Monitor de GPU, VRAM y configuración de rendimiento" };
-			case "engine":
-				return { title: "AI ENGINE TUNER", sub: "Consumo energético, contador de tokens y ahorro vs cloud" };
+				return { title: "GPU SENTINEL", sub: "Monitor de GPU, VRAM y configuración de rendimiento" };
 			case "cerebro":
 				return { title: "CEREBRO MCP", sub: "Conocimiento, decisiones y contexto de los agentes IA" };
 			case "coneccion":
@@ -782,12 +776,8 @@ const App: React.FC = () => {
 						</div>
 					</div>
 				);
-			case "agent":
-				return <AgentChat />;
 			case "hardware":
-				return <HardwareSentinel status={status} />;
-			case "engine":
-				return <AiEngineTuner status={status} />;
+				return <GpuSentinel status={status} />;
 			case "cerebro":
 				return <BrainConsole />;
 			case "coneccion":
@@ -882,19 +872,7 @@ const App: React.FC = () => {
 								</div>
 							</button>
 
-							<button
-								type="button"
-								className={`expert-item-wrap ${activeTab === "agent" ? "active" : ""}`}
-								onClick={() => setActiveTab("agent")}
-							>
-								<div className="expert-avatar" style={{ color: "var(--accent)" }}>
-									<Bot size={16} />
-								</div>
-								<div className="expert-info">
-									<span className="expert-name">Agent Engine</span>
-									<span className="expert-model">Coding Agent Autónomo</span>
-								</div>
-							</button>
+
 						</div>
 					</div>
 
@@ -913,10 +891,7 @@ const App: React.FC = () => {
 								<Shield size={14} /> Seguridad
 							</button>
 							<button type="button" className="cmd-pill" onClick={() => setActiveTab("hardware")}>
-								<Cpu size={14} /> HW Sentinel
-							</button>
-							<button type="button" className="cmd-pill" onClick={() => setActiveTab("engine")}>
-								<Zap size={14} /> Engine Tuner
+								<Cpu size={14} /> GPU Sentinel
 							</button>
 						</div>
 					</div>
@@ -953,16 +928,17 @@ const App: React.FC = () => {
 						<div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
 							<Cpu size={12} style={{ color: "var(--accent)" }} />
 							<span style={{ fontSize: "11px", fontWeight: 600 }}>MOTOR OLLAMA</span>
+							<div
+						className="status-badge"
+						style={{ marginTop: "8px", padding: "0 4px", display: "flex", alignItems: "center" }}
+					>	
+					</div>
 						</div>
 						<div style={{ fontSize: "10px", color: "var(--text-muted)" }}>
 							{models?.length || 0} Modelos Disponibles
 						</div>
 					</div>
-					<div
-						className="status-badge"
-						style={{ marginTop: "8px", padding: "0 4px", display: "flex", alignItems: "center" }}
-					>
-						<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+					<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
 							<div className={`status-led ${status?.ollamaRunning ? "online" : "offline"}`} />
 							<span
 								style={{
@@ -973,7 +949,6 @@ const App: React.FC = () => {
 								{status?.ollamaRunning ? "Conectado" : "Sin conexión"}
 							</span>
 						</div>
-					</div>
 				</div>
 			</aside>
 

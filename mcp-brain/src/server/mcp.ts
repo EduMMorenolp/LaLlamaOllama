@@ -6,6 +6,9 @@ import { analysis, audit, memories, sessions, settings, templates } from "../ser
 import { normalizeProject } from "../services/normalizeProject.js";
 import { generate } from "../services/llm/generate.js";
 import type { AgentCompliance } from "../services/audit/getAgentCompliance.js";
+import logger from "../utils/logger.js";
+
+const log = logger.child({ component: "mcp" });
 
 const VALID_RELATIONS = [
     "related",
@@ -346,11 +349,12 @@ Provide identity in 'agent' field, format content as **What**/**Why**/**Where**/
 		return { tools };
 	});
 
-	mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
+		mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
 		const startTime = Date.now();
 		const { name, arguments: args } = request.params;
 		const agentIdentity = extractAgentIdentity(args);
 		let response: { content: Array<{ type: string; text: string }>; isError?: boolean } | undefined;
+		log.tool({ tool: name, agent: agentIdentity }, `Tool call: ${name}`);
 
 		try {
 			switch (name) {
@@ -707,13 +711,13 @@ Provide identity in 'agent' field, format content as **What**/**Why**/**Where**/
 					durationMs,
 					project: auditProject,
 				})
-				.catch((err: unknown) => console.error("[Audit] Error logging tool call:", err));
+				.catch((err: unknown) => log.error({ err }, "Audit error logging tool call"));
 			// Cleanup oportunista: 1 de cada 100 llamadas elimina registros >30 días
 			if (Math.random() < 0.01) {
 				dbService.getDb().run(
 					`DELETE FROM mcp_audit_log WHERE timestamp < ?`,
 					[Date.now() - 30 * 24 * 60 * 60 * 1000]
-				).catch((err: unknown) => console.error("[Audit] Cleanup error:", err));
+				).catch((err: unknown) => log.error({ err }, "Audit cleanup error"));
 			}
 
 			// --- CAPA 3: COMPLIANCE REMINDER — solo herramientas de solo lectura ---
@@ -725,7 +729,7 @@ Provide identity in 'agent' field, format content as **What**/**Why**/**Where**/
 						response.content[0].text += "\n\n" + reminder;
 					}
 				} catch (err) {
-					console.error("[Audit] Error checking compliance:", err);
+					log.error({ err }, "Audit error checking compliance");
 				}
 			}
 		}
@@ -787,5 +791,5 @@ export async function startMcpServer(dbService: DatabaseService, directives?: st
 	const mcpServer = createMcpServer(dbService, directives);
 	const transport = new StdioServerTransport();
 	await mcpServer.connect(transport);
-	console.error(`[Brain MCP] MCP Server running on Stdio`);
+	log.info("MCP Server running on Stdio");
 }

@@ -26,7 +26,7 @@ export const ModalLayout: React.FC<ModalLayoutProps> = ({ onClose, title, childr
     >
         <div
             style={{
-                background: "var(--bg-card)",
+                background: "#141414",
                 borderRadius: "16px",
                 width,
                 maxWidth: "90vw",
@@ -34,7 +34,7 @@ export const ModalLayout: React.FC<ModalLayoutProps> = ({ onClose, title, childr
                 overflow: "auto",
                 padding: "24px",
                 border: "1px solid var(--border)",
-                boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
             }}
             onClick={(e) => e.stopPropagation()}
         >

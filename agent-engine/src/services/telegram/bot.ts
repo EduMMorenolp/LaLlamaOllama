@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import TelegramBot from "node-telegram-bot-api";
 import { logger } from "../../utils/logger.js";
-import { runAgent } from "../agent/runAgent.js";
+import { runAgentCore } from "../agent/runAgent.js";
 import type { BrainClient } from "../brain/client.js";
 import type { AppConfig } from "../config.js";
 import { getOrCreateChannelChat } from "../db/chats.js";
@@ -12,6 +12,8 @@ import { saveMessage } from "../db/messages.js";
 import { listAllUsers } from "../db/users.js";
 import { handleCallbackQuery } from "./callbacks.js";
 import { handleTelegramCommand } from "./commands.js";
+import { transcribeWithWhisper } from "./transcriber.js";
+import { getCachedTranscription, saveTranscriptionCache } from "./cache.js";
 import type { WsServer } from "../../server/ws.js";
 
 let bot: TelegramBot | null = null;
@@ -200,6 +202,9 @@ export async function startTelegram(): Promise<void> {
 
 		logger.info(`💬 Telegram [@${username}]: ${text.slice(0, 60)}`);
 
+		// Show "processing" reaction
+		setTelegramReaction(chatId, msg.message_id, ["👀"]).catch(() => {});
+
 		// Commands
 		if (text.startsWith("/")) {
 			await handleTelegramCommand(chatId, text, effectiveUserId, bot!);
@@ -207,14 +212,72 @@ export async function startTelegram(): Promise<void> {
 		}
 
 		const startTime = Date.now();
+
+		// Persistent typing indicator — Telegram expira a los ~5s, lo refrescamos cada 4s
+		const typingInterval = setInterval(() => {
+			bot!.sendChatAction(chatId, "typing").catch(() => {});
+		}, 4000);
+		const stopTyping = () => clearInterval(typingInterval);
+
 		try {
-			// ── Download attachments ─────────────────────────────────────────────
+			// ── Download & process attachments ───────────────────────────────────
 			const attachments: Array<{ name: string; type: string; data: string }> = [];
 
 			// Audio
 			if (msg.audio) {
+				logger.info(`[TG-Audio] Processing audio: file_id=${msg.audio.file_id}, duration=${msg.audio.duration}s, mime=${msg.audio.mime_type || "unknown"}`);
 				const file = await downloadTelegramFile(msg.audio.file_id, "audio", "ogg");
-				if (file) attachments.push({ name: file.name, type: "audio/ogg", data: file.path });
+				if (file) {
+					const buf = fs.readFileSync(file.path);
+					const b64 = buf.toString("base64");
+					const mime = file.name.endsWith(".mp3") ? "audio/mpeg" : "audio/ogg";
+					attachments.push({ name: file.name, type: mime, data: `data:${mime};base64,${b64}` });
+					logger.info(`[TG-Audio] Audio saved: ${file.name} (${(buf.length / 1024).toFixed(1)} KB)`);
+				} else {
+					logger.warn(`[TG-Audio] Failed to download audio file_id=${msg.audio.file_id}`);
+				}
+			}
+
+			// Voice message → transcribe with Whisper
+			if (msg.voice) {
+				const fileId = msg.voice.file_id;
+				logger.info(`[TG-Voice] Processing voice: file_id=${fileId}, duration=${msg.voice.duration}s`);
+				const file = await downloadTelegramFile(fileId, "voice", "ogg");
+				if (file) {
+					// Check cache first
+					let transcription = getCachedTranscription(fileId);
+					if (transcription) {
+						logger.info(`[TG-Voice] Cache HIT for file_id=${fileId}`);
+					} else {
+						logger.info(`[TG-Voice] Cache MISS, transcribing with Whisper...`);
+						transcription = await transcribeWithWhisper(file.path, (status) => {
+							logger.info(`[TG-Voice][Whisper] ${status}`);
+						});
+						if (transcription) {
+							saveTranscriptionCache(fileId, transcription);
+							logger.info(`[TG-Voice] Transcription cached and saved (${transcription.length} chars)`);
+						} else {
+							logger.warn(`[TG-Voice] Whisper returned empty transcription`);
+						}
+					}
+					// Push transcription as a text attachment
+					const transcriptText = transcription || "(transcripción no disponible)";
+					logger.info(`[TG-Voice] Transcription result: "${transcriptText.slice(0, 120)}${transcriptText.length > 120 ? "..." : ""}"`);
+					const textData = Buffer.from(transcriptText, "utf-8").toString("base64");
+					attachments.push({
+						name: "transcripcion.txt",
+						type: "text/plain",
+						data: `data:text/plain;base64,${textData}`,
+					});
+					// Also push audio metadata
+					attachments.push({
+						name: file.name,
+						type: "audio/ogg",
+						data: "",
+					});
+				} else {
+					logger.warn(`[TG-Voice] Failed to download voice file_id=${fileId}`);
+				}
 			}
 
 			// Document (general file)
@@ -223,42 +286,79 @@ export async function startTelegram(): Promise<void> {
 				const ext = path.extname(origName).slice(1) || "bin";
 				const mime = msg.document.mime_type || "application/octet-stream";
 				const file = await downloadTelegramFile(msg.document.file_id, "documents", ext);
-				if (file) attachments.push({ name: file.name, type: mime, data: file.path });
-			}
-
-			// Voice message
-			if (msg.voice) {
-				const file = await downloadTelegramFile(msg.voice.file_id, "voice", "ogg");
-				if (file) attachments.push({ name: file.name, type: "audio/ogg", data: file.path });
+				if (file) {
+					// Leer archivo y convertir a base64 data URI
+					const buf = fs.readFileSync(file.path);
+					const b64 = buf.toString("base64");
+					attachments.push({
+						name: file.name,
+						type: mime,
+						data: `data:${mime};base64,${b64}`,
+					});
+				}
 			}
 
 			// Video
 			if (msg.video) {
 				const file = await downloadTelegramFile(msg.video.file_id, "videos", "mp4");
-				if (file) attachments.push({ name: file.name, type: "video/mp4", data: file.path });
+				if (file) {
+					const buf = fs.readFileSync(file.path);
+					const b64 = buf.toString("base64");
+					attachments.push({
+						name: file.name,
+						type: "video/mp4",
+						data: `data:video/mp4;base64,${b64}`,
+					});
+				}
 			}
 
 			// Photo (use highest resolution)
 			if (msg.photo && msg.photo.length > 0) {
 				const best = msg.photo[msg.photo.length - 1];
+				logger.info(`[TG-Image] Processing photo: file_id=${best.file_id}, resolution=${best.width}x${best.height}, total_sizes=${msg.photo.length}`);
 				const file = await downloadTelegramFile(best.file_id, "images", "jpg");
-				if (file) attachments.push({ name: file.name, type: "image/jpeg", data: file.path });
+				if (file) {
+					const buf = fs.readFileSync(file.path);
+					const b64 = buf.toString("base64");
+					attachments.push({
+						name: file.name,
+						type: "image/jpeg",
+						data: `data:image/jpeg;base64,${b64}`,
+					});
+					logger.info(`[TG-Image] Image saved: ${file.name} (${(buf.length / 1024).toFixed(1)} KB)`);
+				} else {
+					logger.warn(`[TG-Image] Failed to download photo file_id=${best.file_id}`);
+				}
 			}
 
 			// ── Continue processing ─────────────────────────────────────────────
 
-			// Typing indicator
-			bot!.sendChatAction(chatId, "typing").catch(() => {});
-
 			const channelChat = getOrCreateChannelChat(effectiveUserId, "telegram");
 
-			// Build message content (text + attachment summary)
+			// Build message content (text + attachment summary + inline content for persistence)
 			let contentForDb = text;
 			if (attachments.length > 0) {
 				const fileList = attachments.map((a) => `[${a.type}] ${a.name}`).join(", ");
+
+				// Extract text from text/plain attachments (e.g. transcriptions) for persistence
+				let inlineTexts = "";
+				for (const att of attachments) {
+					if (att.type === "text/plain" && att.data) {
+						try {
+							const b64content = att.data.split(",")[1] || "";
+							const decoded = Buffer.from(b64content, "base64").toString("utf-8");
+							if (decoded.trim()) {
+								inlineTexts += `\n\n--- ${att.name} ---\n${decoded}`;
+							}
+						} catch (err) {
+							logger.warn(`[TG] Failed to decode text attachment ${att.name}: ${err}`);
+						}
+					}
+				}
+
 				contentForDb = text
-					? `${text}\n\n📎 Archivos adjuntos: ${fileList}`
-					: `📎 Archivos adjuntos: ${fileList}`;
+					? `${text}\n\n📎 Archivos adjuntos: ${fileList}${inlineTexts}`
+					: `📎 Archivos adjuntos: ${fileList}${inlineTexts}`;
 			}
 
 			// Persist user message
@@ -291,18 +391,18 @@ export async function startTelegram(): Promise<void> {
 				if (expert) {
 					logger.info(`🎯 Tag detected for expert: ${expert.name}`);
 					const cleanMessage = text.replace(tagMatch[0], "").trim();
-					finalUserText = `(OBLIGATORIO: ACTÚA COMO EL EXPERTO "${expert.name}". EL USUARIO TE HA INVOCADO DIRECTAMENTE.) Consulta: ${cleanMessage}`;
+					finalUserText = `<expert_override>\n<expert_name>${expert.name}</expert_name>\n<reason>El usuario te ha invocado directamente mediante @${tagName}.</reason>\n<instructions>Actúa como el experto designado para esta consulta. Ignora tu modo actual y adopta la personalidad y reglas del experto.</instructions>\n</expert_override>\n\n<user_query>\n${cleanMessage}\n</user_query>`;
 				}
 			} else {
 				// Orchestrator mode
 				const orquestador = experts.find((e) => e.name.toLowerCase().includes("orquestador"));
 				if (orquestador) {
-					finalUserText = `(OBLIGATORIO: ACTÚA COMO ORQUESTADOR. REGLAS: ${orquestador.system_prompt})\nConsulta: ${text}`;
+					finalUserText = `<expert_override>\n<expert_name>orquestador</expert_name>\n<reason>Modo orquestador activo por defecto en Telegram.</reason>\n<instructions>Eres el orquestador del sistema. Tus reglas:\n${orquestador.system_prompt}\n</instructions>\n</expert_override>\n\n<user_query>\n${text}\n</user_query>`;
 				}
 			}
 
 			logger.info(`[TG] Running agent for chatId=${channelChat.id} text="${text.slice(0, 60)}" attachments=${attachments.length}`);
-			const result = await runAgent({
+			const result = await runAgentCore({
 				chatId: channelChat.id,
 				userText: finalUserText,
 				attachments: attachments.length > 0 ? attachments : undefined,
@@ -329,11 +429,15 @@ export async function startTelegram(): Promise<void> {
 
 			if (!result.text || result.text.trim() === "") {
 				logger.warn(`⚠️ Telegram: agent returned empty message (${elapsed}ms).`);
+				stopTyping();
 				await bot!.sendMessage(chatId, "⚠️ El asistente no generó ninguna respuesta.");
 				return;
 			}
 
 			logger.info(`[TG] Agent responded (${elapsed}ms, ${result.text.length} chars)`);
+
+			// Detener typing indicator
+			stopTyping();
 
 			// Send response con fallback de formato
 			await sendTelegramMessage(chatId, result.text);
@@ -347,9 +451,18 @@ export async function startTelegram(): Promise<void> {
 					timestamp: Date.now()
 				});
 			}
+
+			// Update reaction to show completion
+			setTelegramReaction(chatId, msg.message_id, ["👍"]);
 		} catch (err) {
 			const errMsg = err instanceof Error ? err.message : String(err);
 			logger.error(`❌ Telegram error (${Date.now() - startTime}ms): ${errMsg}`);
+
+			// Detener typing indicator
+			stopTyping();
+
+			// Show error reaction
+			setTelegramReaction(chatId, msg.message_id, ["👎"]);
 			try {
 				await bot!.sendMessage(chatId, `❌ Error: ${errMsg}`);
 			} catch {
@@ -393,6 +506,32 @@ export async function startTelegram(): Promise<void> {
 	});
 
 	logger.info("🟢 Telegram bot active");
+}
+
+/**
+ * Set a reaction emoji on a Telegram message.
+ * Uses the Bot API 7.0+ setMessageReaction method.
+ */
+async function setTelegramReaction(chatId: number, messageId: number, emojis: string[]): Promise<void> {
+	if (!bot) return;
+
+	const methodExists = typeof (bot as any).setMessageReaction === "function";
+	if (!methodExists) {
+		logger.warn(`[TG-Reaction] setMessageReaction not available on this bot instance`);
+		return;
+	}
+
+	try {
+		await (bot as any).setMessageReaction(
+			chatId,
+			messageId,
+			{ reaction: emojis.map((e: string) => ({ type: "emoji", emoji: e })) },
+		);
+		logger.info(`[TG-Reaction] Set ${emojis[0] || "?"} on message ${messageId}`);
+	} catch (err: unknown) {
+		const msg = err instanceof Error ? err.message : String(err);
+		logger.warn(`[TG-Reaction] Failed for message ${messageId}: ${msg}`);
+	}
 }
 
 /**

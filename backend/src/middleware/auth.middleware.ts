@@ -17,7 +17,7 @@ export function createAuthMiddleware(
     const action = `${req.method} ${req.path}`;
     const isPolling =
       req.method === "GET" &&
-      ["/api/status", "/api/status/fast", "/api/engine-stats", "/api/hardware"].includes(req.path);
+      ["/api/status", "/api/status/fast", "/api/hardware"].includes(req.path);
 
     if (authService.validate(apiKey as string)) {
       if (!isPolling) {

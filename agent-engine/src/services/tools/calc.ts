@@ -237,13 +237,13 @@ export function registerCalcTool() {
 			type: "function",
 			function: {
 				name: "calc",
-				description: "Calculadora científica. Evalúa expresiones matemáticas de forma segura. Soporta: + - * / ^ % () sqrt() abs() round() floor() ceil() sin() cos() tan() log() ln() pi e",
+				description: "Calculadora científica. Evalúa expresiones matemáticas.",
 				parameters: {
 					type: "object",
 					properties: {
 						expression: {
 							type: "string",
-							description: "Expresión matemática a evaluar (ej: '2 + 2', 'sqrt(144)', 'sin(pi/2)', '3.14 * 5^2')",
+							description: "Expresión matemática a evaluar (ej: '2 + 2', 'sqrt(144)')",
 						},
 						precision: {
 							type: "number",

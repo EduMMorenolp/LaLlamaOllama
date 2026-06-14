@@ -9,7 +9,7 @@ export function registerEditTool() {
 			type: "function",
 			function: {
 				name: "edit_tool",
-				description: "Modifica una herramienta personalizada existente. Solo se actualizan los campos proporcionados.",
+				description: "Modifica una herramienta personalizada existente.",
 				parameters: {
 					type: "object",
 					properties: {

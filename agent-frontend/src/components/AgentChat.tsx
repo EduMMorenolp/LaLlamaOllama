@@ -307,7 +307,7 @@ export const AgentChat: React.FC = () => {
 					...prev,
 					{
 						role: "system",
-						content: `\u274c Error: ${msg.payload?.message as string}`,
+						content: `❌ Error: ${msg.payload?.message as string}`,
 						timestamp: new Date(),
 					},
 				]);
@@ -462,7 +462,7 @@ export const AgentChat: React.FC = () => {
 					...prev,
 					{
 						role: "system",
-						content: `\u2705 Tarea creada (#${taskRunId}): **${taskText}**`,
+						content: `✅ Tarea creada (#${taskRunId}): **${taskText}**`,
 						timestamp: new Date(),
 					},
 				]);
@@ -504,11 +504,19 @@ export const AgentChat: React.FC = () => {
 						...prev,
 						{
 							role: "system" as ChatMessage["role"],
-							content: `?? Modo cambiado a ${modeLabel}. ${resetSession ? "La sesi\u00f3n se ha reiniciado." : ""}`,
+							content: `Modo cambiado a ${modeLabel}. ${resetSession ? "La sesión se ha reiniciado." : ""}`,
 							timestamp: new Date(),
 						},
 					]);
 				}
+				break;
+			}
+
+			case "notification": {
+				const title = msg.payload?.title as string;
+				const message = msg.payload?.message as string;
+				const level = msg.payload?.level as string;
+				if (message) showToast(`${title ? title + ": " : ""}${message}`, level === "error" ? "error" : level === "success" ? "success" : "info");
 				break;
 			}
 		}
@@ -1010,7 +1018,7 @@ export const AgentChat: React.FC = () => {
 							padding: "2px",
 							display: "flex",
 						}}
-						title="Cerrar b\u00fasqueda"
+						title="Cerrar búsqueda"
 					>
 						<X size={14} />
 					</button>
@@ -1296,7 +1304,7 @@ export const AgentChat: React.FC = () => {
 															marginTop: "2px",
 														}}
 													>
-														\u274c Fall\u00f3
+														❌ Falló
 													</div>
 												)}
 												{tc.status === "pending" && (
@@ -1307,7 +1315,7 @@ export const AgentChat: React.FC = () => {
 															marginTop: "2px",
 														}}
 													>
-														\u23f3 Ejecutando...
+														⏳ Ejecutando...
 													</div>
 												)}
 											</div>
@@ -1609,7 +1617,7 @@ export const AgentChat: React.FC = () => {
 									isProcessing
 										? messageQueue.length >= 3
 											? "Cola llena (3/3)"
-											: "Escribe, se encolar\u00e1 al enviar..."
+											: "Escribe, se encolará al enviar..."
 										: "Pregunta al agente..."
 								}
 								rows={2}
@@ -1677,7 +1685,7 @@ export const AgentChat: React.FC = () => {
 								disabled={!input.trim() || (isProcessing && messageQueue.length >= 3)}
 								title={
 									isProcessing && messageQueue.length >= 3
-										? "M\u00e1ximo 3 mensajes en cola"
+										? "Máximo 3 mensajes en cola"
 										: "Enviar mensaje"
 								}
 								style={{
@@ -1714,8 +1722,8 @@ export const AgentChat: React.FC = () => {
 						}}
 					>
 						<span>
-							Tokens: {totalPromptTokens + totalCompletionTokens} ({"\u25b3"} {totalPromptTokens}{" "}
-							{"\u25bd"} {totalCompletionTokens})
+							Tokens: {totalPromptTokens + totalCompletionTokens} ({"⏳"} {totalPromptTokens}{" "}
+							{"▽"} {totalCompletionTokens})
 						</span>
 						<span>{new Date().toLocaleTimeString()}</span>
 					</div>
@@ -1853,7 +1861,7 @@ export const AgentChat: React.FC = () => {
 			<ConfirmModal
 				open={!!confirmDelete}
 				title="Eliminar chat"
-				message="\u00bfEst\u00e1s seguro de eliminar este chat? Esta acci\u00f3n no se puede deshacer."
+				message="¿Estás seguro de eliminar este chat? Esta acción no se puede deshacer."
 				confirmText="Eliminar"
 				onConfirm={() => {
 					if (confirmDelete) {
@@ -1867,7 +1875,7 @@ export const AgentChat: React.FC = () => {
 			<ConfirmModal
 				open={confirmClearQueue}
 				title="Cancelar y vaciar cola"
-				message="Tienes mensajes en cola. \u00bfQuieres cancelar la respuesta actual y vaciar la cola, o cancelar solo la respuesta actual y mantener la cola?"
+				message="Tienes mensajes en cola. ¿Quieres cancelar la respuesta actual y vaciar la cola, o cancelar solo la respuesta actual y mantener la cola?"
 				confirmText="Vaciar todo"
 				cancelText="Solo cancelar respuesta"
 				onConfirm={() => {
@@ -1930,7 +1938,7 @@ export const AgentChat: React.FC = () => {
 									marginBottom: "4px",
 								}}
 							>
-								Descripci\u00F3n de la tarea
+								Descripción de la tarea
 							</label>
 							<textarea
 								value={newTaskText}
@@ -2377,7 +2385,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 				<span>{message.timestamp.toLocaleTimeString()}</span>
 				{!isUser && message.usage && (
 					<span>
-						{message.usage.promptTokens} â†‘ / {message.usage.completionTokens} â†“
+						{message.usage.promptTokens} ⇧ / {message.usage.completionTokens} ⇩
 					</span>
 				)}
 				<span style={{ flex: 1 }} />

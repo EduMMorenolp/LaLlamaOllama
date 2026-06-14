@@ -9,8 +9,10 @@ RUN npm install
 COPY src ./src
 RUN npm run build
 
-# Stage 2: Runtime (slim, only compiled artifacts)
-FROM node:20-slim
+# Stage 2: Runtime (bookworm for ffmpeg + native modules)
+FROM node:20-bookworm
+
+RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 

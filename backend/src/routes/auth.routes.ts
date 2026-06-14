@@ -6,6 +6,9 @@ import type { ToggleMcpAuthUseCase } from "../use-cases/auth/toggle-mcp-auth.js"
 import type { ListMcpToolsUseCase } from "../use-cases/auth/list-mcp-tools.js";
 import type { ToggleMcpToolUseCase } from "../use-cases/auth/toggle-mcp-tool.js";
 import { ToggleAuthSchema } from "../types/auth.js";
+import logger from "../utils/logger.js";
+
+const log = logger.child({ component: "auth-routes" });
 
 export function createAuthRouter(
   getSettings: GetAuthSettingsUseCase,
@@ -22,6 +25,7 @@ export function createAuthRouter(
   });
 
   router.post("/api/auth/ollama", authMiddleware, (req, res) => {
+    log.info({ enabled: req.body.enabled }, "POST /api/auth/ollama");
     const parsed = ToggleAuthSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -32,6 +36,7 @@ export function createAuthRouter(
   });
 
   router.post("/api/auth/mcp", authMiddleware, (req, res) => {
+    log.info({ enabled: req.body.enabled }, "POST /api/auth/mcp");
     const parsed = ToggleAuthSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -49,6 +54,7 @@ export function createAuthRouter(
   router.post("/api/auth/mcp/tools/:name", authMiddleware, (req, res) => {
     const { name } = req.params;
     const { enabled } = req.body;
+    log.info({ tool: name, enabled }, "POST /api/auth/mcp/tools/:name");
     if (typeof enabled !== "boolean") {
       return res.status(400).json({
         error: { message: "enabled debe ser boolean", type: "invalid_request_error" },

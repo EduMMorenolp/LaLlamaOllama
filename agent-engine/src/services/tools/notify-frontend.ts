@@ -7,7 +7,7 @@ export function registerNotifyFrontendTool() {
 			type: "function",
 			function: {
 				name: "notify_frontend",
-				description: "Envía una notificación emergente al frontend (dashboard web). Aparece como un toast/notificación visual en la interfaz del usuario.",
+				description: "Envía una notificación toast al dashboard web.",
 				parameters: {
 					type: "object",
 					properties: {

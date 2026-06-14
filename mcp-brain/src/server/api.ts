@@ -9,13 +9,28 @@ import { analysis, memories, sessions, settings, templates } from "../services/i
 import { normalizeProject } from "../services/normalizeProject.js";
 import { mergeProjects } from "../services/memories/mergeProjects.js";
 import { createMcpServer } from "./mcp.js";
+import logger from "../utils/logger.js";
+import { brainAuthMiddleware } from "../middleware/auth.middleware.js";
 
+const log = logger.child({ component: "api" });
 const PORT = process.env.BRAIN_PORT || 3015;
 
 export function startApiServer(dbService: DatabaseService, directives?: string) {
 	const app = express();
 	app.use(cors());
 	app.use(express.json());
+
+	// Request logging middleware
+	app.use((req, res, next) => {
+		const start = Date.now();
+		res.on("finish", () => {
+			log.info({ method: req.method, path: req.path, status: res.statusCode, durationMs: Date.now() - start }, "HTTP request");
+		});
+		next();
+	});
+
+	// Auth middleware for all /api/* routes (except health, exempted in middleware)
+	app.use("/api", brainAuthMiddleware);
 
 	// Health check
 	app.get("/api/health", (_req, res) => {
@@ -31,6 +46,7 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 	// Auto-Sync MCP (SSE / Docker-based)
 	app.post("/api/mcp/sync", async (req, res) => {
 		const { target } = req.body;
+		log.info({ target }, "POST /api/mcp/sync");
 		try {
 			const brainPort = process.env.BRAIN_PORT || "3015";
 			const hostIp = process.env.HOST_IP || "localhost";
@@ -149,6 +165,7 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 
 	app.get("/api/memory/stats", async (req, res) => {
 		const project = normalizeProject((req.query.project as string) || "lallamaollama");
+		log.info({ project }, "GET /api/memory/stats");
 		try {
 			const stats = await memories.getStats(dbService, project);
 			res.json(stats);
@@ -161,18 +178,77 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 		const q = (req.query.q as string) || "";
 		const project = normalizeProject((req.query.project as string) || "lallamaollama");
 		const mode = (req.query.mode as "lexical" | "semantic" | "hybrid") || "hybrid";
+		const limit = parseInt((req.query.limit as string) || "50", 10);
+		const offset = parseInt((req.query.offset as string) || "0", 10);
+		const typeFilter = (req.query.type as string) || "";
+		log.info({ project, query: q.substring(0, 80), mode, limit, offset, type: typeFilter || undefined }, "GET /api/memory/search");
 		try {
 			const results =
 				q.trim() === ""
-					? await memories.getContext(dbService, project, 50)
-					: await memories.searchMemories(dbService, q, project, mode, 50);
+					? await memories.getContext(dbService, project, limit, false, offset)
+					: await memories.searchMemories(dbService, q, project, mode, limit, offset, typeFilter);
 			res.json(results);
 		} catch (e: unknown) {
 			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
 		}
 	});
 
+	app.get("/api/memory/timeline", async (req, res) => {
+		const project = normalizeProject((req.query.project as string) || "lallamaollama");
+		const type = req.query.type as string | undefined;
+		const limit = parseInt((req.query.limit as string) || "100", 10);
+		const offset = parseInt((req.query.offset as string) || "0", 10);
+		log.info({ project, type, limit, offset }, "GET /api/memory/timeline");
+		try {
+			const results = await memories.getTimeline(dbService, project, limit, type, offset);
+			res.json(results);
+		} catch (e: unknown) {
+			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+		}
+	});
+
+	// Get recent context (for agent-engine integration)
+	app.get("/api/memory/context", async (req, res) => {
+		const project = normalizeProject((req.query.project as string) || "lallamaollama");
+		const limit = parseInt((req.query.limit as string) || "15", 10);
+		try {
+			const ctx = await memories.getContext(dbService, project, limit);
+			if (Array.isArray(ctx)) {
+				const text = ctx.map((m: Record<string, unknown>) => `[${m.type}] ${m.title}: ${String(m.content || "").substring(0, 500)}`).join("\n\n");
+				res.json({ context: text });
+			} else {
+				res.json({ context: String(ctx) });
+			}
+		} catch (e: unknown) {
+			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+		}
+	});
+
+	app.get("/api/memory/:id", async (req, res) => {
+		log.info({ id: req.params.id }, "GET /api/memory/:id");
+		try {
+			const memory = await memories.getMemory(dbService, req.params.id);
+			if (!memory) return res.status(404).json({ error: "Memory not found" });
+			res.json(memory);
+		} catch (e: unknown) {
+			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+		}
+	});
+
+	app.put("/api/memory/:id", async (req, res) => {
+		const { title, content, tags, phase, type } = req.body;
+		log.info({ id: req.params.id, title, type }, "PUT /api/memory/:id");
+		try {
+			const success = await memories.updateMemory(dbService, req.params.id, title, content, tags, undefined, phase, type);
+			if (success) res.json({ message: "Memory updated" });
+			else res.status(404).json({ error: "Memory not found" });
+		} catch (e: unknown) {
+			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+		}
+	});
+
 	app.delete("/api/memory/:id", async (req, res) => {
+		log.info({ id: req.params.id }, "DELETE /api/memory/:id");
 		try {
 			const success = await memories.deleteMemory(dbService, req.params.id);
 			if (success) res.json({ message: "Memory deleted" });
@@ -184,6 +260,7 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 
 	// Projects
 	app.get("/api/projects", async (_req, res) => {
+		log.info("GET /api/projects");
 		try {
 			const db = dbService.getDb();
 			const rows = await db.all(`
@@ -202,6 +279,7 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 
 	app.delete("/api/projects/:name", async (req, res) => {
 		const projectName = normalizeProject(req.params.name);
+		log.info({ project: projectName }, "DELETE /api/projects/:name");
 		if (projectName === "lallamaollama") {
 			return res.status(403).json({ error: "No se puede eliminar el proyecto principal." });
 		}
@@ -221,6 +299,7 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 	// Ensure project exists (create if not)
 	app.post("/api/projects/ensure", async (req, res) => {
 		const rawName = (req.body.name as string) || "";
+		log.info({ name: rawName }, "POST /api/projects/ensure");
 		if (!rawName.trim()) {
 			return res.status(400).json({ error: "name is required" });
 		}
@@ -327,6 +406,7 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 		// Save memory (for agent-engine integration)
 	app.post("/api/memory", async (req, res) => {
 		const { project = "lallamaollama", type, title, content, tags, agent } = req.body;
+		log.info({ project: normalizeProject(project), type, title, agent }, "POST /api/memory");
 		if (!type || !title || !content) {
 			return res.status(400).json({ error: "type, title y content son obligatorios" });
 		}
@@ -349,26 +429,10 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 		}
 	});
 
-	// Get recent context (for agent-engine integration)
-	app.get("/api/memory/context", async (req, res) => {
-		const project = normalizeProject((req.query.project as string) || "lallamaollama");
-		const limit = parseInt((req.query.limit as string) || "15", 10);
-		try {
-			const ctx = await memories.getContext(dbService, project, limit);
-			if (Array.isArray(ctx)) {
-				const text = ctx.map((m: Record<string, unknown>) => `[${m.type}] ${m.title}: ${String(m.content || "").substring(0, 500)}`).join("\n\n");
-				res.json({ context: text });
-			} else {
-				res.json({ context: String(ctx) });
-			}
-		} catch (e: unknown) {
-			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
-		}
-	});
-
 	// Session management
 	app.post("/api/sessions", async (req, res) => {
 		const { project = "lallamaollama", name } = req.body;
+		log.info({ project: normalizeProject(project), name }, "POST /api/sessions");
 		if (!name) return res.status(400).json({ error: "name is required" });
 		try {
 			const id = await sessions.startSession(dbService, normalizeProject(project), name);
@@ -379,6 +443,7 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 	});
 
 	app.put("/api/sessions/:id", async (req, res) => {
+		log.info({ id: req.params.id }, "PUT /api/sessions/:id");
 		try {
 			const success = await sessions.endSession(dbService, req.params.id, req.body.summary || "");
 			if (success) res.json({ success: true });
@@ -391,6 +456,7 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 	// Consolidation
 	app.post("/api/memory/consolidate", async (req, res) => {
 		const project = normalizeProject((req.body.project as string) || "lallamaollama");
+		log.info({ project }, "POST /api/memory/consolidate");
 		try {
 			const result = await analysis.consolidateMemories(dbService, project);
 			res.json(result);
@@ -483,6 +549,9 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 	let currentSessionId: string | null = null;
 
 	app.get("/sse", async (req, res) => {
+		const ip = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "unknown";
+		log.info({ ip }, "SSE client connecting");
+
 		// Close previous SSE transport if any (graceful reconnection)
 		if (currentSessionId) {
 			const prev = sseTransports.get(currentSessionId);
@@ -498,6 +567,7 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 		sseTransports.set(transport.sessionId, transport);
 		currentSessionId = transport.sessionId;
 		res.on("close", () => {
+			log.info({ sessionId: transport.sessionId }, "SSE client disconnected");
 			if (currentSessionId === transport.sessionId) {
 				currentSessionId = null;
 			}
@@ -517,16 +587,16 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 	});
 
 	const serverInstance = app.listen(PORT, () => {
-		console.error(`[Brain UI API] Dashboard API listening on port ${PORT}`);
-		console.error(`[Brain MCP] Accessible remotely at: http://localhost:${PORT}/mcp`);
-		console.error(`[Brain MCP SSE] SSE endpoint: http://localhost:${PORT}/sse`);
+		log.info({ port: PORT }, `Brain API listening on port ${PORT}`);
+		log.info({ url: `http://localhost:${PORT}/mcp` }, "MCP accessible remotely");
+		log.info({ url: `http://localhost:${PORT}/sse` }, "SSE endpoint");
 	});
 
 	serverInstance.on("error", (err: NodeJS.ErrnoException) => {
 		if (err.code === "EADDRINUSE") {
-			console.error(`[Brain UI API] Warning: Port ${PORT} already in use. Running in Stdio-only mode.`);
+			log.warn({ port: PORT }, "Port already in use, running in Stdio-only mode");
 		} else {
-			console.error(`[Brain UI API] Server error:`, err);
+			log.error({ err }, "Server error");
 		}
 	});
 }

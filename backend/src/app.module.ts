@@ -5,6 +5,7 @@ import { AuthService } from "./auth/auth.service.js";
 import { OllamaService } from "./ollama/ollama.service.js";
 import { MCP_TOOL_CATALOG, MCP_TOOL_NAMES, OllamaTools } from "./ollama/ollama.tools.js";
 import { SessionManager } from "./session/session.manager.js";
+import logger from "./utils/logger.js";
 
 export class AppModule {
   public readonly ollamaService: OllamaService;
@@ -36,13 +37,16 @@ export class AppModule {
       const params = request.params as { name: string; arguments?: Record<string, unknown> };
       const { name } = params;
 
-      if ((MCP_TOOL_NAMES as Set<string>).has(name)) {
-        return ollamaHandlers.callToolHandler(request);
-      }
+			if ((MCP_TOOL_NAMES as Set<string>).has(name)) {
+				return ollamaHandlers.callToolHandler(request);
+			}
 
-      throw new Error(`Tool ${name} not found`);
+			return {
+				content: [{ type: "text", text: `Tool ${name} not found` }],
+				isError: true,
+			};
     });
 
-    console.log("AppModule bootstrapped with MCP tools (Ollama)");
+		logger.child({ component: "app-module" }).info("AppModule bootstrapped with MCP tools (Ollama)");
   }
 }

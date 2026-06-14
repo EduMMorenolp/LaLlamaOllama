@@ -66,7 +66,7 @@ export function registerGlobTool() {
 			function: {
 				name: "glob",
 				description:
-					"Busca archivos que coincidan con un patr\u00f3n glob. Soporta *, ** y ?. \u00datil para encontrar archivos por patr\u00f3n de nombre.",
+					"Busca archivos por patrón glob. Soporta *, ** y ?.",
 				parameters: {
 					type: "object",
 					properties: {

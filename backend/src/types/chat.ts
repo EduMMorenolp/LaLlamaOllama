@@ -1,8 +1,33 @@
 import { z } from "zod";
 
+/**
+ * Schema for a single content part in a multi-modal message.
+ * Supports text and image_url parts (OpenAI format).
+ */
+const ContentPartImageSchema = z.object({
+  type: z.literal("image_url"),
+  image_url: z.object({
+    url: z.string(),
+    detail: z.enum(["auto", "low", "high"]).optional(),
+  }),
+});
+
+const ContentPartTextSchema = z.object({
+  type: z.literal("text"),
+  text: z.string(),
+});
+
+const ContentPartSchema = z.discriminatedUnion("type", [
+  ContentPartTextSchema,
+  ContentPartImageSchema,
+]);
+
+/**
+ * Message content can be a plain string, null, or an array of content parts (multi-modal).
+ */
 export const MessageSchema = z.object({
   role: z.enum(["system", "user", "assistant", "tool"]),
-  content: z.string().nullable(),
+  content: z.union([z.string(), z.array(ContentPartSchema), z.null()]),
   tool_calls: z.array(z.record(z.unknown())).optional(),
   tool_call_id: z.string().optional(),
   name: z.string().optional(),

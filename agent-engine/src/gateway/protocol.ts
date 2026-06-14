@@ -32,6 +32,9 @@ export type WsMessageType =
 	| "list_tasks"
 	| "new_task"
 	| "cancel_task"
+	| "start_task"
+	| "move_to_backlog"
+	| "update_task_properties"
 	// Scheduled tasks
 	| "list_scheduled_tasks"
 	| "create_scheduled_task"
@@ -73,6 +76,7 @@ export type WsMessageType =
 	| "assistant_done"
 	| "tool_call"
 	| "tool_result"
+	| "notification"
 	| "status"
 	| "telegram_status"
 	| "error"
@@ -87,6 +91,7 @@ export type WsMessageType =
 	| "task_completed"
 	| "task_failed"
 	| "task_cancelled"
+	| "task_updated"
 	| "scheduled_tasks_list";
 
 

@@ -9,7 +9,7 @@ export function registerMemoryTools(brain: BrainClient) {
 			function: {
 				name: "memorize",
 				description:
-					"Guarda informaci\u00f3n importante, hechos, decisiones o descubrimientos en la memoria persistente. \u00dasala cuando aprendas algo relevante del proyecto.",
+					"Guarda información importante en la memoria persistente.",
 				parameters: {
 					type: "object",
 					properties: {
@@ -24,8 +24,8 @@ export function registerMemoryTools(brain: BrainClient) {
 						type: {
 							type: "string",
 							description:
-								"Type of memory: 'feature', 'bug-fix', 'architecture', 'decision', 'discovery', or 'note'",
-							enum: ["feature", "bug-fix", "architecture", "decision", "discovery", "note"],
+								"Type: 'feature', 'bug-fix', 'architecture', 'decision', 'discovery', 'user_profile', or 'note'",
+							enum: ["feature", "bug-fix", "architecture", "decision", "discovery", "user_profile", "note"],
 						},
 						tags: {
 							type: "string",
@@ -56,7 +56,7 @@ export function registerMemoryTools(brain: BrainClient) {
 			function: {
 				name: "recall",
 				description:
-					"Busca en la memoria persistente informaci\u00f3n relevante de trabajos anteriores. \u00datil para recuperar contexto sobre decisiones, descubrimientos o conocimiento del proyecto.",
+					"Busca información relevante en la memoria persistente.",
 				parameters: {
 					type: "object",
 					properties: {
@@ -101,7 +101,7 @@ export function registerMemoryTools(brain: BrainClient) {
 			function: {
 				name: "get_context",
 				description:
-					"Obtiene el contexto reciente de la sesi\u00f3n desde el brain compartido. \u00dasalo al inicio de una conversaci\u00f3n para ponerte al d\u00eda.",
+					"Obtiene el contexto reciente de la sesión desde el brain compartido.",
 				parameters: {
 					type: "object",
 					properties: {
@@ -117,6 +117,63 @@ export function registerMemoryTools(brain: BrainClient) {
 			const limit = (args.limit as number) || 10;
 			const context = await brain.getContext(limit);
 			return context || "No recent context available.";
+		},
+		enabled: true,
+	});
+
+	toolRegistry.register({
+		spec: {
+			type: "function",
+			function: {
+				name: "update_memory",
+				description: "Actualiza una memoria existente (título, contenido, tipo o tags).",
+				parameters: {
+					type: "object",
+					properties: {
+						id: { type: "string", description: "ID de la memoria a actualizar" },
+						title: { type: "string", description: "Nuevo título (opcional)" },
+						content: { type: "string", description: "Nuevo contenido (opcional)" },
+						type: { type: "string", description: "Nuevo tipo (opcional): knowledge, feature, bug-fix, architecture, decision, discovery, note, learning, configuration, prompt, user_profile", enum: ["knowledge", "feature", "bug-fix", "architecture", "decision", "discovery", "note", "learning", "configuration", "prompt", "user_profile"] },
+						tags: { type: "string", description: "Nuevos tags separados por coma (opcional)" },
+					},
+					required: ["id"],
+				},
+			},
+		},
+		handler: async (args: Record<string, unknown>, _ctx: ToolContext) => {
+			const id = args.id as string;
+			if (!id) return "Error: id is required";
+			const data: Record<string, unknown> = {};
+			if (args.title) data.title = args.title;
+			if (args.content) data.content = args.content;
+			if (args.type) data.type = args.type;
+			if (args.tags) data.tags = args.tags;
+			const ok = await brain.updateMemory(id, data);
+			return ok ? `Memoria "${id}" actualizada` : "Error: no se pudo actualizar la memoria";
+		},
+		enabled: true,
+	});
+
+	toolRegistry.register({
+		spec: {
+			type: "function",
+			function: {
+				name: "delete_memory",
+				description: "Elimina una memoria del cerebro por su ID.",
+				parameters: {
+					type: "object",
+					properties: {
+						id: { type: "string", description: "ID de la memoria a eliminar" },
+					},
+					required: ["id"],
+				},
+			},
+		},
+		handler: async (args: Record<string, unknown>, _ctx: ToolContext) => {
+			const id = args.id as string;
+			if (!id) return "Error: id is required";
+			const ok = await brain.deleteMemory(id);
+			return ok ? `Memoria "${id}" eliminada` : "Error: no se pudo eliminar la memoria";
 		},
 		enabled: true,
 	});

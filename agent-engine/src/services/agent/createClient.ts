@@ -8,6 +8,7 @@ export interface ModelConfig {
 	model: string;
 	baseUrl: string;
 	apiKey: string;
+	timeout?: number;
 }
 
 export function detectProvider(modelKey: string): ModelProvider {
@@ -29,7 +30,7 @@ export function createClient(config: ModelConfig): OpenAI {
 		apiKey,
 		baseURL: baseUrl,
 		maxRetries: 2,
-		timeout: 120000,
+		timeout: config.timeout ?? 120000,
 	});
 }
 
@@ -39,6 +40,7 @@ export function getDefaultModelConfig(env: AppConfig): ModelConfig {
 		model: env.defaultModel,
 		baseUrl: `${env.backendUrl}/v1`,
 		apiKey: env.apiKey,
+		timeout: env.llmTimeout,
 	};
 }
 

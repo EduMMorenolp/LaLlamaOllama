@@ -6,13 +6,30 @@ import type { ToolContext } from "./types.js";
 const execAsync = promisify(exec);
 
 /**
+ * Sanitiza un valor de parámetro para prevenir inyección de instrucciones.
+ * - Elimina etiquetas XML/HTML que podrían romper la estructura del system prompt
+ * - Previene inyección de markdown headings que reestructurarían el prompt
+ * - Limita la longitud máxima para evitar desbordamiento de contexto
+ */
+function sanitizeParam(value: string): string {
+	const MAX_LEN = 2000;
+	let sanitized = value.slice(0, MAX_LEN);
+	// Eliminar etiquetas XML completas (incluyendo atributos)
+	sanitized = sanitized.replace(/<[\/]?(\w+)[^>]*>/g, "");
+	// Neutralizar intentos de markdown headings
+	sanitized = sanitized.replace(/^#{1,6}\s/gm, "## ");
+	return sanitized;
+}
+
+/**
  * Sustituye {{param}} en un template con valores reales.
+ * Los valores son sanitizados para prevenir inyección de instrucciones.
  */
 function substituteParams(template: string, args: Record<string, unknown>): string {
 	return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => {
 		const val = args[key];
 		if (val === undefined || val === null) return `{{${key}}}`;
-		return String(val);
+		return sanitizeParam(String(val));
 	});
 }
 

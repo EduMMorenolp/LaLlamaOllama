@@ -5,14 +5,15 @@ export async function getContext(
 	dbService: DatabaseService,
 	project: string,
 	limit: number = 10,
-	includeContent: boolean = false
+	includeContent: boolean = false,
+	offset: number = 0
 ): Promise<Partial<Memory>[]> {
 	const db = dbService.getDb();
 	const fields = includeContent
 		? "id, project, type, title, content, tags, phase, agent, createdAt, updatedAt"
 		: "id, project, type, title, tags, phase, agent, createdAt, updatedAt";
 	return await db.all(
-		`SELECT ${fields} FROM memories WHERE project = ? ORDER BY createdAt DESC LIMIT ?`,
-		[project, limit]
+		`SELECT ${fields} FROM memories WHERE project = ? ORDER BY createdAt DESC LIMIT ? OFFSET ?`,
+		[project, limit, offset]
 	);
 }

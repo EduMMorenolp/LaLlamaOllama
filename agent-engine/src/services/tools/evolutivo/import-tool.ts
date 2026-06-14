@@ -9,7 +9,7 @@ export function registerImportTool() {
 			type: "function",
 			function: {
 				name: "import_tool",
-				description: "Importa una o varias herramientas personalizadas desde un JSON (formato export_tool). Valida los datos antes de importar.",
+				description: "Importa herramientas personalizadas desde JSON (formato export_tool).",
 				parameters: {
 					type: "object",
 					properties: {
@@ -19,7 +19,7 @@ export function registerImportTool() {
 						},
 						overwrite: {
 							type: "boolean",
-							description: "Si true, sobrescribe herramientas existentes con el mismo nombre (default: false)",
+							description: "Si true, sobrescribe herramientas existentes (default: false)",
 						},
 					},
 					required: ["json_data"],

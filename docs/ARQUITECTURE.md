@@ -17,7 +17,7 @@ LaLlamaOllama es un ecosistema de microservicios que orquesta LLMs locales con u
                     │         Express 4 + TypeScript · puerto 3020    │
                     │  ┌──────────┐ ┌───────────┐ ┌───────────────┐  │
                     │  │ Chat WS  │ │ REST API  │ │ Tool Registry │  │
-                    │  │ handlers │ │ /api/*    │ │ (8 tools)     │  │
+                    │  │ handlers │ │ /api/*    │ │ (31 tools)     │  │
                     │  └──────────┘ └───────────┘ └───────────────┘  │
                     │  ┌──────────┐ ┌───────────┐ ┌───────────────┐  │
                     │  │ DB Layer │ │ Brain     │ │ Telegram Bot  │  │
@@ -90,6 +90,7 @@ Usuario → Agent Frontend (Memoria tab)
 | `mcp-brain` | 3015 | Express 4 + TS | SQLite FTS5 | Memoria persistente compartida |
 | `ollama` | 11434 | Go (Ollama) | - | Runtime de LLMs |
 | `ngrok` | - | Go (ngrok) | - | Túnel opcional |
+| `redis` | 6379 | Redis 7 Alpine | - | Cola BullMQ para agent-engine |
 
 ---
 

@@ -34,7 +34,7 @@ import { Server as SocketServer } from "socket.io";
 import { AppModule } from "./app.module.js";
 import { AgentsService } from "./services/agents.service.js";
 import logger from "./utils/logger.js";
-import { createAuthMiddleware, createMcpAuthMiddleware } from "./middleware/auth.middleware.js";
+import { createAuthMiddleware } from "./middleware/auth.middleware.js";
 import { createSecurityMiddleware } from "./middleware/security.middleware.js";
 import { createErrorHandler } from "./middleware/error-handler.js";
 import { createAllRoutes } from "./routes/index.js";
@@ -44,8 +44,8 @@ const log = logger.child({ component: "main" });
 const app = express();
 
 // 1. Body parsing
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // 2. CORS
 app.use(cors());
@@ -62,8 +62,9 @@ const limiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => {
-    const ip = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "";
-    const isLocal = ip === "::1" || ip === "127.0.0.1" || ip.includes("127.0.0.1");
+    const rawIp = (req.headers["x-forwarded-for"] as string || "").split(",")[0]?.trim() || req.socket.remoteAddress || "";
+    const ip = rawIp.replace(/^::ffff:/, "");
+    const isLocal = ip === "::1" || ip === "127.0.0.1" || ip.startsWith("127.");
     const apiKey = req.headers["x-api-key"] || req.headers.authorization?.toString().replace("Bearer ", "");
     const isValidKey = appModule.authService.validate(apiKey as string);
     return isLocal || isValidKey;
@@ -75,6 +76,14 @@ const port = process.env.APP_PORT || 3000;
 const httpServer = createServer(app);
 const io = new SocketServer(httpServer, {
   cors: { origin: "*" },
+});
+
+io.on("connection", (socket) => {
+  const ip = socket.handshake.address || "unknown";
+  log.info({ id: socket.id, ip }, "WS Client connected");
+  socket.on("disconnect", (reason) => {
+    log.info({ id: socket.id, ip, reason }, "WS Client disconnected");
+  });
 });
 
 const server = new Server(
@@ -103,9 +112,6 @@ const agentsService = new AgentsService(appModule.ollamaService);
 
   if (requested.length === 0) return;
 
-  const cyan = "\x1b[36m";
-  const yellow = "\x1b[33m";
-  const reset = "\x1b[0m";
   log.info({ models: requested }, "auto-pull: modelos configurados");
 
   await new Promise<void>((resolve) => setTimeout(resolve, 3000));
@@ -129,9 +135,22 @@ const agentsService = new AgentsService(appModule.ollamaService);
 // --- Middlewares ---
 const authMiddleware = createAuthMiddleware(appModule.authService, appModule.ollamaService);
 const securityMiddleware = createSecurityMiddleware(appModule.ollamaService);
-const mcpAuthMiddleware = createMcpAuthMiddleware(appModule.authService);
 
 app.use(securityMiddleware);
+
+// --- Request Logging Middleware ---
+app.use((req, res, next) => {
+  const ip = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "unknown";
+  const isPolling =
+    req.method === "GET" && ["/api/status", "/api/status/fast", "/api/hardware"].includes(req.path);
+  if (!isPolling) {
+    const start = Date.now();
+    res.on("finish", () => {
+      log.info({ method: req.method, path: req.path, status: res.statusCode, durationMs: Date.now() - start, ip }, "HTTP request");
+    });
+  }
+  next();
+});
 
 // --- Rutas (Use Case Architecture) ---
 const NGROK_CONTAINER = process.env.NGROK_CONTAINER_NAME || "mcp-ngrok-tunnel";
@@ -158,7 +177,7 @@ for (const router of routers) {
 }
 
 // --- Endpoints MCP (SSE) ---
-let transport: SSEServerTransport | null = null;
+const sseTransports = new Map<string, SSEServerTransport>();
 
 app.get("/sse", async (req, res) => {
   const apiKey = req.headers["x-api-key"] || req.headers.authorization?.toString().replace("Bearer ", "");
@@ -174,14 +193,19 @@ app.get("/sse", async (req, res) => {
   }
 
   log.info({ ip }, "SSE: New authenticated connection");
-  const _sessionId = appModule.sessionManager.createSession(ip, apiKey as string);
+  appModule.sessionManager.createSession(ip, apiKey as string);
 
-  transport = new SSEServerTransport("/messages", res);
+  const transport = new SSEServerTransport("/messages", res);
+  sseTransports.set(transport.sessionId, transport);
+  res.on("close", () => {
+    sseTransports.delete(transport.sessionId);
+  });
   await server.connect(transport);
 });
 
 app.post("/messages", async (req, res) => {
   const apiKey = req.headers["x-api-key"] || req.headers.authorization?.toString().replace("Bearer ", "");
+  const sessionId = req.query.sessionId as string;
 
   if (appModule.authService.isMcpAuthEnabled() && !appModule.authService.validate(apiKey as string)) {
     return res.status(401).json({
@@ -189,10 +213,11 @@ app.post("/messages", async (req, res) => {
     });
   }
 
+  const transport = sessionId ? sseTransports.get(sessionId) : null;
   if (transport) {
-    await transport.handlePostMessage(req, res);
+    await transport.handlePostMessage(req, res, req.body);
   } else {
-    res.status(400).send("No transport active");
+    res.status(400).send("No active SSE session");
   }
 });
 

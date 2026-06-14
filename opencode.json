@@ -8,28 +8,6 @@
       "options": {
         "baseURL": "http://localhost:3016/v1",
         "apiKey": "McPOllama2026-V1-Home"
-      },
-      "models": {
-        "llama3.2:3b": {
-          "name": "llama3.2:3b",
-          "reasoning": false,
-          "tool_call": true
-        },
-        "deepseek-r1:8b": {
-          "name": "deepseek-r1:8b",
-          "reasoning": true,
-          "tool_call": true
-        },
-        "qwen2.5-coder:7b": {
-          "name": "qwen2.5-coder:7b",
-          "reasoning": true,
-          "tool_call": true
-        },
-        "gemma4:e2b": {
-          "name": "gemma4:e2b",
-          "reasoning": false,
-          "tool_call": true
-        }
       }
     }
   },
@@ -47,10 +25,15 @@
       "mode": "subagent"
     },
     "documentation": {
-      "mode": "subagent",
-      "model": "gemma4:e2b"
+      "mode": "subagent"
     },
     "mcp-brain": {
+      "mode": "subagent"
+    },
+    "agent-engine": {
+      "mode": "subagent"
+    },
+    "agent-frontend": {
       "mode": "subagent"
     }
   },

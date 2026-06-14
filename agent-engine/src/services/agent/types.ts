@@ -1,4 +1,4 @@
-﻿import type OpenAI from "openai";
+import type OpenAI from "openai";
 import type { BrainClient } from "../brain/client.js";
 import type { AppConfig } from "../config.js";
 import type { ToolContext } from "../tools/types.js";
@@ -26,6 +26,10 @@ export interface AgentOptions {
 	quotedMessage?: { content: string; role: string; timestamp?: string };
 	/** Callback for auto-suggestions */
 	onSuggestions?: (suggestions: string[]) => void;
+	/** Specific mode ID to use (overrides active mode) */
+	modeId?: string;
+	/** Preferred model selected for this run */
+	preferredModel?: string;
 }
 
 export interface AgentResult {

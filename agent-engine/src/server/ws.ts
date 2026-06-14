@@ -16,7 +16,7 @@ export class WsServer {
 		logger.info(`[WS] WebSocket server listening on port ${config.enginePort + 1}`);
 	}
 
-	private setup(brain: BrainClient) {
+		private setup(brain: BrainClient) {
 		this.wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
 			const clientId = `${req.socket.remoteAddress}:${Date.now()}`;
 			this.clients.set(clientId, ws);
@@ -40,14 +40,19 @@ export class WsServer {
 				}
 			});
 
-			ws.on("close", () => {
+			const cleanup = () => {
 				this.clients.delete(clientId);
+				handlers.onDisconnect(clientId);
+			};
+
+			ws.on("close", () => {
+				cleanup();
 				logger.info(`[WS] Client disconnected: ${clientId}`);
 			});
 
 			ws.on("error", (err) => {
+				cleanup();
 				logger.error(`[WS] Error for ${clientId}: ${err.message}`);
-				this.clients.delete(clientId);
 			});
 		});
 	}

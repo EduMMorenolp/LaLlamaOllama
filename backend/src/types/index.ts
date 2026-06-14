@@ -2,7 +2,6 @@ export * from "./chat.js";
 export * from "./models.js";
 export * from "./auth.js";
 export * from "./hardware.js";
-export * from "./engine-stats.js";
 export * from "./security.js";
 export * from "./ngrok.js";
 export * from "./agents.js";

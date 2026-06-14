@@ -1,5 +1,8 @@
 import axios from "axios";
 import { config } from "../config.js";
+import logger from "../../utils/logger.js";
+
+const log = logger.child({ component: "llm" });
 
 export async function embed(input: string): Promise<number[][]> {
 	try {
@@ -9,7 +12,7 @@ export async function embed(input: string): Promise<number[][]> {
 		});
 		return response.data.embeddings || [];
 	} catch (error) {
-		console.error("[LLM] Error generating embeddings:", error);
+		log.error({ err: error }, "Error generating embeddings");
 		return [];
 	}
 }

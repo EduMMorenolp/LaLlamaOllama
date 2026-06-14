@@ -2,6 +2,9 @@ import type { DatabaseService } from "../../database/connection.js";
 import { cosineSimilarity, embed } from "../llm/index.js";
 import { getGlobalSetting } from "../settings/index.js";
 import type { Memory } from "../types.js";
+import logger from "../../utils/logger.js";
+
+const log = logger.child({ component: "memory-service" });
 
 // Embedding cache with 5-minute TTL
 interface EmbeddingCacheEntry {
@@ -44,7 +47,9 @@ export async function searchMemories(
 	query: string,
 	project: string,
 	mode: "lexical" | "semantic" | "hybrid" = "hybrid",
-	limit: number = 10
+	limit: number = 10,
+	offset: number = 0,
+	typeFilter?: string
 ): Promise<Memory[]> {
 	const db = dbService.getDb();
 	const now = Date.now();
@@ -77,14 +82,25 @@ DIRECTIVA DE DELEGACIÓN: Detén la búsqueda actual. Evalúa cambiar de fase SD
 
 	let results: Memory[] = [];
 
+	// Bounded candidate pool: never load all rows to avoid O(N) cosine similarity
+	const maxCandidatesStr = await getGlobalSetting(dbService, "max_candidates", "1000");
+	const maxCandidates = parseInt(maxCandidatesStr, 10) || 1000;
+
 	if (mode === "lexical") {
+		const lexicalParams: unknown[] = [`"${query}"*`, project];
+		let lexicalWhere = "";
+		if (typeFilter) {
+			lexicalWhere = " AND m.type = ?";
+			lexicalParams.push(typeFilter);
+		}
+		lexicalParams.push(limit, offset);
 		const rows = await db.all(
 			`SELECT m.id, m.project, m.type, m.title, m.content, m.tags, m.phase, m.agent, m.createdAt, m.updatedAt 
              FROM memories_fts f 
              JOIN memories m ON f.id = m.id 
-             WHERE f.memories_fts MATCH ? AND m.project = ? 
-             ORDER BY rank LIMIT ?`,
-			[`"${query}"*`, project, limit]
+             WHERE f.memories_fts MATCH ? AND m.project = ?${lexicalWhere}
+             ORDER BY rank LIMIT ? OFFSET ?`,
+			lexicalParams
 		);
 		results = rows as Memory[];
 	} else if (mode === "semantic" || mode === "hybrid") {
@@ -92,19 +108,28 @@ DIRECTIVA DE DELEGACIÓN: Detén la búsqueda actual. Evalúa cambiar de fase SD
 		try {
 			queryVector = await getEmbeddingWithCache(query);
 		} catch (err) {
-			console.error("[MemoryService] Semantic search failed. Falling back to lexical.", err);
+			log.error({ err, query: query.substring(0, 80) }, "Semantic search failed, falling back to lexical");
 			if (mode === "hybrid") return searchMemories(dbService, query, project, "lexical", limit);
 			return [];
 		}
 
 		if (queryVector.length > 0) {
-			const allRows = await db.all(
+			const semanticLimit = maxCandidates;
+			const semanticParams: unknown[] = [project];
+			let semanticWhere = "";
+			if (typeFilter) {
+				semanticWhere = " AND type = ?";
+				semanticParams.push(typeFilter);
+			}
+			semanticParams.push(semanticLimit);
+			const candidateRows = await db.all(
 				`SELECT id, project, type, title, content, tags, vector, phase, agent, createdAt, updatedAt 
-                 FROM memories WHERE project = ? AND vector IS NOT NULL`,
-				[project]
+                 FROM memories WHERE project = ? AND vector IS NOT NULL${semanticWhere}
+                 ORDER BY createdAt DESC LIMIT ?`,
+				semanticParams
 			);
 
-			const semanticResults = allRows.map(
+			const semanticResults = candidateRows.map(
 				(row: {
 					id: string;
 					project: string;
@@ -125,7 +150,7 @@ DIRECTIVA DE DELEGACIÓN: Detén la búsqueda actual. Evalúa cambiar de fase SD
 			);
 
 			semanticResults.sort((a, b) => (b.score || 0) - (a.score || 0));
-			results = semanticResults.slice(0, limit);
+			results = semanticResults.slice(offset, offset + limit);
 		}
 	}
 

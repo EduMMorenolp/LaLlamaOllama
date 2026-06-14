@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import type { OllamaService } from "../ollama/ollama.service.js";
+import logger from "../utils/logger.js";
 
 export interface FileNode {
 	name: string;
@@ -169,9 +170,7 @@ REGLAS PARA EL CONTENIDO DE CADA ARCHIVO:
 				workflows: parsed.workflows || [],
 			};
 		} catch (parseError) {
-			// Si falla el parseo, devolvemos la respuesta cruda para depuración
-			console.error("[AgentsService] Error parsing LLM response:", parseError);
-			console.error("[AgentsService] Raw response:", rawContent);
+			logger.child({ component: "agents" }).error({ err: parseError, rawContent: rawContent.substring(0, 500) }, "Error parsing LLM response");
 			throw new Error(
 				`El modelo no generó una respuesta JSON válida. Respuesta cruda:\n${rawContent.substring(0, 500)}`
 			);

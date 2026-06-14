@@ -1,4 +1,7 @@
 import { createServer } from "node:http";
+import { existsSync } from "node:fs";
+import { join, basename } from "node:path";
+import axios from "axios";
 import cors from "cors";
 import express, { type NextFunction, type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
@@ -19,21 +22,27 @@ import {
 import { listAllUsers } from "../services/db/users.js";
 import {
 	chunkAndIndexFile,
+	deleteBrainChunksByFile,
 	deleteKnowledgeFile,
+	listAllKnowledgeFiles,
 	listKnowledgeFiles,
+	readKnowledgeFile,
 	saveKnowledgeFile,
 } from "../services/knowledge/index.js";
 import { toolRegistry } from "../services/tools/registry.js";
+import { getAllModeDefinitions, getModeSeedData, resolveModePrompt } from "../services/prompts/index.js";
+import { subAgentTemplates } from "../services/prompts/sub-agents.js";
+import type { WsServer } from "./ws.js";
 import { logger } from "../utils/logger.js";
 
 const apiLimiter = rateLimit({
 	windowMs: 60 * 1000,
-	max: 100,
+	max: 500,
 	standardHeaders: true,
 	legacyHeaders: false,
 });
 
-export function startApiServer(config: AppConfig, brain?: BrainClient) {
+export function startApiServer(config: AppConfig, brain?: BrainClient, wsServer?: WsServer) {
 	const app = express();
 	app.use(
 		cors({
@@ -47,7 +56,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient) {
 	app.use("/api", apiLimiter);
 
 	function authMiddleware(req: Request, res: Response, next: NextFunction) {
-		if (req.path === "/health" || req.path.startsWith("/memory/") || req.path.startsWith("/knowledge/"))
+		if (req.path === "/health" || req.path === "/memory" || req.path.startsWith("/memory/") || req.path === "/knowledge" || req.path.startsWith("/knowledge/"))
 			return next();
 		const apiKey = req.headers["x-api-key"] as string;
 		if (!apiKey || apiKey !== config.apiKey) {
@@ -59,6 +68,8 @@ export function startApiServer(config: AppConfig, brain?: BrainClient) {
 	app.use("/api", authMiddleware);
 
 	// -- Brain Proxy -----------------------------------------------------
+	const brainHeaders = config.apiKey ? { "X-API-Key": config.apiKey } : undefined;
+
 	app.get("/api/memory/search", async (req: Request, res: Response) => {
 		if (!brain) {
 			res.status(503).json({ error: "Brain not available" });
@@ -68,10 +79,12 @@ export function startApiServer(config: AppConfig, brain?: BrainClient) {
 			const q = req.query.q as string;
 			const mode = (req.query.mode as string) || "semantic";
 			const limit = parseInt(req.query.limit as string, 10) || 10;
+			const offset = parseInt(req.query.offset as string, 10) || 0;
 			const project = (req.query.project as string) || "lallamaollama";
-			const axiosResp = await (await import("axios")).default.get(`${config.brainUrl}/api/memory/search`, {
-				params: { q, project, mode, limit },
+			const axiosResp = await axios.get(`${config.brainUrl}/api/memory/search`, {
+				params: { q, project, mode, limit, offset },
 				timeout: 10000,
+				headers: brainHeaders,
 			});
 			res.json(axiosResp.data);
 		} catch (err) {
@@ -87,10 +100,11 @@ export function startApiServer(config: AppConfig, brain?: BrainClient) {
 			return;
 		}
 		try {
-			const axiosResp = await (await import("axios")).default.get(`${config.brainUrl}/api/memory/stats`, {
-				params: { project: "lallamaollama" },
-				timeout: 10000,
-			});
+		const axiosResp = await axios.get(`${config.brainUrl}/api/memory/stats`, {
+			params: { project: "lallamaollama" },
+			timeout: 10000,
+			headers: brainHeaders,
+		});
 			res.json(axiosResp.data);
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err);
@@ -98,6 +112,103 @@ export function startApiServer(config: AppConfig, brain?: BrainClient) {
 			res.status(502).json({ error: "Brain stats failed", detail: msg });
 		}
 	});
+	// -- Brain Proxy: Memory CRUD ------------------------------------------
+	app.post("/api/memory", async (req: Request, res: Response) => {
+		if (!brain) { res.status(503).json({ error: "Brain not available" }); return; }
+		try {
+			const axiosResp = await axios.post(
+				`${config.brainUrl}/api/memory`, req.body, { timeout: 10000, headers: brainHeaders }
+			);
+			wsServer?.sendToAll("memory_changed", { action: "created" });
+			res.status(201).json(axiosResp.data);
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			logger.error(`[Brain Proxy] Save memory failed: ${msg}`);
+			res.status(502).json({ error: "Brain save memory failed", detail: msg });
+		}
+	});
+
+	app.get("/api/memory/timeline", async (req: Request, res: Response) => {
+		if (!brain) { res.status(503).json({ error: "Brain not available" }); return; }
+		try {
+			const type = req.query.type as string | undefined;
+			const limit = parseInt(req.query.limit as string, 10) || 100;
+			const offset = parseInt(req.query.offset as string, 10) || 0;
+			const axiosResp = await axios.get(`${config.brainUrl}/api/memory/timeline`, {
+				params: { project: "lallamaollama", limit, offset, ...(type ? { type } : {}) },
+				timeout: 10000,
+				headers: brainHeaders,
+			});
+			res.json(axiosResp.data);
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			logger.error(`[Brain Proxy] Timeline failed: ${msg}`);
+			res.status(502).json({ error: "Brain timeline failed", detail: msg });
+		}
+	});
+
+	app.get("/api/memory/:id", async (req: Request, res: Response) => {
+		if (!brain) { res.status(503).json({ error: "Brain not available" }); return; }
+		const id = req.params.id as string;
+		try {
+			const axiosResp = await axios.get(
+				`${config.brainUrl}/api/memory/${encodeURIComponent(id)}`, { timeout: 10000, headers: brainHeaders }
+			);
+			res.json(axiosResp.data);
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			logger.error(`[Brain Proxy] Get memory failed: ${msg}`);
+			res.status(502).json({ error: "Brain get memory failed", detail: msg });
+		}
+	});
+
+	app.put("/api/memory/:id", async (req: Request, res: Response) => {
+		if (!brain) { res.status(503).json({ error: "Brain not available" }); return; }
+		const id = req.params.id as string;
+		try {
+			const axiosResp = await axios.put(
+				`${config.brainUrl}/api/memory/${encodeURIComponent(id)}`, req.body, { timeout: 10000, headers: brainHeaders }
+			);
+			wsServer?.sendToAll("memory_changed", { action: "updated", id });
+			res.json(axiosResp.data);
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			logger.error(`[Brain Proxy] Update memory failed: ${msg}`);
+			res.status(502).json({ error: "Brain update memory failed", detail: msg });
+		}
+	});
+
+	app.delete("/api/memory/:id", async (req: Request, res: Response) => {
+		if (!brain) { res.status(503).json({ error: "Brain not available" }); return; }
+		const id = req.params.id as string;
+		try {
+			const axiosResp = await axios.delete(
+				`${config.brainUrl}/api/memory/${encodeURIComponent(id)}`, { timeout: 10000, headers: brainHeaders }
+			);
+			wsServer?.sendToAll("memory_changed", { action: "deleted", id });
+			res.json(axiosResp.data);
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			logger.error(`[Brain Proxy] Delete memory failed: ${msg}`);
+			res.status(502).json({ error: "Brain delete memory failed", detail: msg });
+		}
+	});
+
+	app.post("/api/memory/consolidate", async (req: Request, res: Response) => {
+		if (!brain) { res.status(503).json({ error: "Brain not available" }); return; }
+		try {
+			const axiosResp = await axios.post(
+				`${config.brainUrl}/api/memory/consolidate`, req.body, { timeout: 60000, headers: brainHeaders }
+			);
+			wsServer?.sendToAll("memory_changed", { action: "consolidated" });
+			res.json(axiosResp.data);
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			logger.error(`[Brain Proxy] Consolidate failed: ${msg}`);
+			res.status(502).json({ error: "Brain consolidate failed", detail: msg });
+		}
+	});
+
 	// Health endpoint
 	app.get("/health", (_req: Request, res: Response) => {
 		res.json({
@@ -108,6 +219,39 @@ export function startApiServer(config: AppConfig, brain?: BrainClient) {
 			tools: toolRegistry.getToolNames().length,
 			telegramConfigured: !!config.telegramBotToken,
 		});
+	});
+
+	// Prompt templates (source of truth for frontend)
+	app.get("/api/prompts/templates", (_req: Request, res: Response) => {
+		const defs = getAllModeDefinitions();
+		const templates = Object.entries(defs)
+			.filter(([name]) => name !== "__base__")
+			.map(([name, def]) => ({
+				name,
+				label: "",
+				sections: def.sections,
+				tools: def.tools,
+				temperature: def.temperature,
+				history_limit: def.history_limit,
+				tool_policy: def.tool_policy,
+				extends: def.extends || null,
+			}));
+		res.json({ templates });
+	});
+
+	app.get("/api/prompts/sub-agent-templates", (_req: Request, res: Response) => {
+		res.json({ templates: subAgentTemplates });
+	});
+
+	app.get("/api/prompts/resolved/:name", (req: Request, res: Response) => {
+		const name = req.params.name as string;
+		try {
+			const prompt = resolveModePrompt(name);
+			const data = getModeSeedData(name);
+			res.json({ name, system_prompt: prompt, ...data });
+		} catch {
+			res.status(404).json({ error: `Prompt definition '${name}' not found` });
+		}
 	});
 
 	// Tools list
@@ -156,7 +300,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient) {
 	});
 
 	app.get("/api/runs/:id", (req: Request, res: Response) => {
-		const id = parseInt(req.params.id, 10);
+		const id = parseInt(req.params.id as string, 10);
 		if (Number.isNaN(id)) {
 			res.status(400).json({ error: "Invalid run ID" });
 			return;
@@ -177,7 +321,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient) {
 	});
 
 	app.get("/api/scheduled-tasks/:id", (req: Request, res: Response) => {
-		const id = parseInt(req.params.id, 10);
+		const id = parseInt(req.params.id as string, 10);
 		if (Number.isNaN(id)) {
 			res.status(400).json({ error: "Invalid id" });
 			return;
@@ -202,7 +346,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient) {
 	});
 
 	app.put("/api/scheduled-tasks/:id", (req: Request, res: Response) => {
-		const id = parseInt(req.params.id, 10);
+		const id = parseInt(req.params.id as string, 10);
 		if (Number.isNaN(id)) {
 			res.status(400).json({ error: "Invalid id" });
 			return;
@@ -212,7 +356,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient) {
 	});
 
 	app.delete("/api/scheduled-tasks/:id", (req: Request, res: Response) => {
-		const id = parseInt(req.params.id, 10);
+		const id = parseInt(req.params.id as string, 10);
 		if (Number.isNaN(id)) {
 			res.status(400).json({ error: "Invalid id" });
 			return;
@@ -222,7 +366,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient) {
 	});
 
 	app.post("/api/scheduled-tasks/:id/toggle", (req: Request, res: Response) => {
-		const id = parseInt(req.params.id, 10);
+		const id = parseInt(req.params.id as string, 10);
 		if (Number.isNaN(id)) {
 			res.status(400).json({ error: "Invalid id" });
 			return;
@@ -260,9 +404,85 @@ export function startApiServer(config: AppConfig, brain?: BrainClient) {
 		res.json({ success: true, path: filePath, chunks });
 	});
 
-	app.delete("/api/knowledge/:name", (req: Request, res: Response) => {
-		const name = req.params.name;
+	app.delete("/api/knowledge/:name", async (req: Request, res: Response) => {
+		const name = req.params.name as string;
+		if (brain) {
+			try {
+				await deleteBrainChunksByFile(brain, name);
+			} catch (err) {
+				logger.warn(`[Knowledge] Brain cleanup failed for ${name}: ${err}`);
+			}
+		}
 		const deleted = deleteKnowledgeFile(config.workspaceDir, name);
+		if (!deleted) {
+			res.status(404).json({ error: "File not found" });
+			return;
+		}
+		res.json({ success: true });
+	});
+
+	// Documents (knowledge con subdirectorios)
+	app.get("/api/knowledge/all", (_req: Request, res: Response) => {
+		const files = listAllKnowledgeFiles(config.workspaceDir);
+		res.json({ files });
+	});
+
+	app.get("/api/knowledge/read", (req: Request, res: Response) => {
+		const filePath = req.query.path as string;
+		if (!filePath) {
+			res.status(400).json({ error: "Missing 'path' query parameter" });
+			return;
+		}
+		const content = readKnowledgeFile(config.workspaceDir, filePath);
+		if (content === null) {
+			res.status(404).json({ error: "File not found" });
+			return;
+		}
+		res.json({ content });
+	});
+
+	app.put("/api/knowledge/update", async (req: Request, res: Response) => {
+		const { path: filePath, content } = req.body as { path: string; content: string };
+		if (!filePath || content === undefined) {
+			res.status(400).json({ error: "Missing 'path' or 'content'" });
+			return;
+		}
+		saveKnowledgeFile(config.workspaceDir, filePath, content);
+		logger.info(`[Knowledge] File updated: ${filePath}`);
+
+		let chunks = 0;
+		if (brain) {
+			try {
+				const fileName = basename(filePath);
+				await deleteBrainChunksByFile(brain, fileName);
+				const fullPath = join(config.workspaceDir, "knowledge", filePath);
+				if (existsSync(fullPath)) {
+					chunks = await chunkAndIndexFile(fullPath, fileName, brain);
+				}
+				logger.info(`[Knowledge] Re-indexed ${chunks} chunks for: ${filePath}`);
+			} catch (err) {
+				logger.error(`[Knowledge] Re-indexing failed for ${filePath}: ${err}`);
+			}
+		}
+
+		res.json({ success: true, chunks });
+	});
+
+	app.delete("/api/knowledge/delete", async (req: Request, res: Response) => {
+		const filePath = req.query.path as string;
+		if (!filePath) {
+			res.status(400).json({ error: "Missing 'path' query parameter" });
+			return;
+		}
+		if (brain) {
+			try {
+				const fileName = basename(filePath);
+				await deleteBrainChunksByFile(brain, fileName);
+			} catch (err) {
+				logger.warn(`[Knowledge] Brain cleanup failed for ${filePath}: ${err}`);
+			}
+		}
+		const deleted = deleteKnowledgeFile(config.workspaceDir, filePath);
 		if (!deleted) {
 			res.status(404).json({ error: "File not found" });
 			return;

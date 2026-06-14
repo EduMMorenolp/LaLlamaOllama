@@ -10,7 +10,7 @@ export function registerCreateTool() {
 			type: "function",
 			function: {
 				name: "create_tool",
-				description: "Crea una nueva herramienta personalizada. Se almacena en DB y queda disponible para todos los modos. Tipos: 'bash' (comando shell), 'http' (request API), 'prompt' (plantilla de prompt para el agente).",
+				description: "Crea una herramienta personalizada (bash/http/prompt).",
 				parameters: {
 					type: "object",
 					properties: {
@@ -20,16 +20,16 @@ export function registerCreateTool() {
 						},
 						description: {
 							type: "string",
-							description: "Descripción clara de qué hace la herramienta (el agente la usará para decidir cuándo llamarla)",
+							description: "Descripción de qué hace la herramienta para el LLM",
 						},
 						handler_type: {
 							type: "string",
-							description: "Tipo de handler: 'bash' (ejecuta comando), 'http' (llamada API), 'prompt' (genera prompt para el agente)",
+							description: "Tipo de handler: 'bash' (comando), 'http' (API), 'prompt' (genera prompt)",
 							enum: ["bash", "http", "prompt"],
 						},
 						handler_config: {
 							type: "object",
-							description: "Config del handler según tipo. bash: {command, timeout?, workdir?}. http: {url, method?, headers?, body?}. prompt: {prompt}",
+							description: "Config del handler: bash={command, timeout?, workdir?}. http={url, method?, headers?, body?}. prompt={prompt}",
 							properties: {
 								command: { type: "string", description: "[bash] Comando a ejecutar. Usa {{param}} para parámetros" },
 								url: { type: "string", description: "[http] URL de la API. Usa {{param}} para parámetros" },

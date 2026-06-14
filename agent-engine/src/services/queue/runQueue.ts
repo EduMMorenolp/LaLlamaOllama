@@ -3,7 +3,7 @@ import { Redis } from "ioredis";
 import { logger } from "../../utils/logger.js";
 import { runAgentCore } from "../agent/runAgentCore.js";
 import type { AgentResult } from "../agent/types.js";
-import { appendRunEvent, updateRun } from "../db/runs.js";
+import { appendRunEvent, getRun, updateRun } from "../db/runs.js";
 import { publishRunEvent } from "../orchestrator/runEvents.js";
 import { getRuntimeContext, hasRuntimeContext } from "../runtime.js";
 
@@ -15,6 +15,8 @@ export interface QueueAgentRunPayload {
 	origin?: string;
 	telegramChatId?: number;
 	skipPersistUserMsg?: boolean;
+	modeId?: string;
+	preferredModel?: string;
 }
 
 const queueName = "agent-engine-runs";
@@ -39,12 +41,12 @@ function forwardRunEvent(
 	publishRunEvent(runId, type, payload as never);
 }
 
-async function broadcastTaskStatus(runId: number, status: string, extra: Record<string, unknown> = {}) {
+async function broadcastWs(type: string, payload: Record<string, unknown>) {
 	try {
 		const { getWsServer } = await import("../tools/tool-bridge.js");
 		const wsServer = getWsServer();
 		if (wsServer) {
-			wsServer.sendToAll("task_status" as any, { runId, status, ...extra });
+			wsServer.sendToAll(type, payload);
 		}
 	} catch {
 		// ignore - WS server may not be available
@@ -54,7 +56,20 @@ async function broadcastTaskStatus(runId: number, status: string, extra: Record<
 async function processQueuedRun(payload: QueueAgentRunPayload): Promise<AgentResult> {
 	const { config, brain } = getRuntimeContext();
 	updateRun(payload.runId, { status: "running" });
-	broadcastTaskStatus(payload.runId, "running");
+
+	const run = getRun(payload.runId);
+	const preferredModel = run?.preferred_model || payload.preferredModel;
+
+	// Broadcast task_created for ALL origins (tool, scheduler, etc.)
+	// The UI "new_task" handler also broadcasts this, frontend deduplicates by runId
+	broadcastWs("task_created", {
+		runId: payload.runId,
+		chatId: payload.chatId,
+		text: payload.userText,
+		status: "running",
+		origin: payload.origin || "web",
+	});
+	broadcastWs("task_status", { runId: payload.runId, status: "running" });
 
 	const result = await runAgentCore({
 		chatId: payload.chatId,
@@ -65,6 +80,8 @@ async function processQueuedRun(payload: QueueAgentRunPayload): Promise<AgentRes
 		origin: payload.origin,
 		telegramChatId: payload.telegramChatId,
 		skipPersistUserMsg: payload.skipPersistUserMsg,
+		modeId: payload.modeId,
+		preferredModel,
 		onStatus: (text: string) => forwardRunEvent(payload.runId, "status", { text }),
 		onTyping: (isTyping: boolean) => forwardRunEvent(payload.runId, "typing", { isTyping }),
 		onChunk: (text: string) => forwardRunEvent(payload.runId, "chunk", { text }),
@@ -74,14 +91,22 @@ async function processQueuedRun(payload: QueueAgentRunPayload): Promise<AgentRes
 			forwardRunEvent(payload.runId, "tool_result", { toolName, result: resultText }),
 	});
 
+	const completePayload = {
+		runId: payload.runId,
+		status: "completed",
+		resultText: result.text,
+		model: result.model,
+		latencyMs: result.latencyMs,
+	};
+
 	updateRun(payload.runId, {
 		status: "completed",
 		model: result.model,
 		resultText: result.text,
 		latencyMs: result.latencyMs,
 	});
-	broadcastTaskStatus(payload.runId, "completed");
-	forwardRunEvent(payload.runId, "status", { text: "Run completado" });
+	broadcastWs("task_status", completePayload);
+	broadcastWs("task_completed", completePayload);
 	return result;
 }
 
@@ -113,7 +138,9 @@ export function ensureRunQueue(): boolean {
 		runWorker.on("failed", (job, err) => {
 			if (job?.data && typeof job.data === "object") {
 				const payload = job.data as QueueAgentRunPayload;
-				broadcastTaskStatus(payload.runId, "failed", { error: err.message });
+				const failPayload = { runId: payload.runId, status: "failed" as const, error: err.message };
+				broadcastWs("task_status", failPayload);
+				broadcastWs("task_failed", failPayload);
 				updateRun(payload.runId, { status: "failed", errorText: err.message });
 				forwardRunEvent(payload.runId, "error", { message: err.message });
 			}

@@ -5,6 +5,9 @@ import { startApiServer } from "./server/api.js";
 import { startCronJobs } from "./server/cron.js";
 import { startMcpServer } from "./server/mcp.js";
 import { settings } from "./services/index.js";
+import logger from "./utils/logger.js";
+
+const log = logger.child({ component: "bootstrap" });
 
 async function bootstrap() {
 	// 1. Validar Entorno
@@ -19,7 +22,7 @@ async function bootstrap() {
 	try {
 		directives = await settings.getCoreDirectives(dbService, "lallamaollama");
 	} catch (err) {
-		console.error("[Bootstrap] Could not load core directives:", err);
+		log.warn({ err }, "Could not load core directives");
 	}
 
 	// 4. Iniciar Servidores
@@ -29,6 +32,6 @@ async function bootstrap() {
 }
 
 bootstrap().catch((err) => {
-	console.error("[Fatal]", err);
+	log.error({ err }, "Fatal bootstrap error");
 	process.exit(1);
 });

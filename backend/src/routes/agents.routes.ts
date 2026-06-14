@@ -1,6 +1,9 @@
 import { Router } from "express";
 import type { RequestHandler } from "express";
 import type { AnalyzeProjectUseCase } from "../use-cases/agents/analyze-project.js";
+import logger from "../utils/logger.js";
+
+const log = logger.child({ component: "agents-routes" });
 
 export function createAgentsRouter(
   analyzeProject: AnalyzeProjectUseCase,
@@ -9,6 +12,8 @@ export function createAgentsRouter(
   const router = Router();
 
   router.post("/api/agents/analyze-project", authMiddleware, async (req, res) => {
+    const { model, projectName } = req.body;
+    log.info({ model, projectName }, "POST /api/agents/analyze-project");
     try {
       const { model, projectName, structure, configFiles } = req.body;
       if (!model || !projectName || !structure) {
@@ -17,9 +22,11 @@ export function createAgentsRouter(
         });
       }
       const result = await analyzeProject.execute(model, projectName, structure, configFiles || {});
+      log.info({ projectName, agentCount: result.agents.length }, "Project analysis complete");
       res.json(result);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
+      log.error({ model, projectName, message }, "Project analysis failed");
       res.status(500).json({ error: { message, type: "server_error" } });
     }
   });

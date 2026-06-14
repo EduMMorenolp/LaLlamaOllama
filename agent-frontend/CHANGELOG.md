@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+### 🧠 Cerebro: Gestor visual de memorias con CRUD, timeline y consolidación
+
+#### Añadido
+- **➕ `Knowledge.tsx` reescrito** — Nuevo diseño con 3 sub-tabs: `🧠 Cerebro`, `📅 Línea de Tiempo`, `📄 Archivos RAG`
+- **➕ Cerebro tab** — Browser de memorias con barra de estadísticas (total + counts por tipo), filtro por tipo, buscador textual
+- **➕ Creación de memorias** — Formulario inline con campos: título, contenido, tipo (select), tags
+- **➕ Edición y eliminación** — Modal de edición con todos los campos editables; confirmación de eliminación con opción de borrado múltiple (checkboxes + bulk delete)
+- **➕ Consolidación manual** — Botón "Consolidar" que dispara `POST /api/memory/consolidate` con feedback visual
+- **➕ Timeline view** — Vista cronológica agrupada por día con filtro por tipo
+- **➕ Quick‑memo** — Botón flotante "+" para crear memoria rápida sin cambiar de tab
+- **➕ Paginación (scroll infinito)** — `IntersectionObserver` con sentinel, carga batches de 50
+- **➕ Filtro por tags** — Input que filtra memorias por tags (client-side, múltiples tags separados por coma)
+- **➕ Ordenamiento** — Dropdown "Fecha ↓", "Fecha ↑", "Tipo" client-side
+- **➕ Toast feedback** — `useToast()` en crear, editar, eliminar, bulk delete y consolidar
+- **➕ WS sync** — Suscripción a `memory_changed` vía `useWs()`; refresca lista y stats
+- **➕ Notification toast** — Suscripción al evento WS `"notification"` en `AgentChat.tsx`
+- **🔧 `App.tsx`** — Descripciones de tabs actualizadas; removido tab "Memoria", import y render condicional
+- **🗑️ `Memoria.tsx` eliminado** — Redundante con el nuevo Cerebro tab en Knowledge.tsx
+
 ### 🐛 Corrección de bugs y encoding
 
 #### Corregido

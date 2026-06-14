@@ -10,7 +10,7 @@ export function registerWriteFileTool() {
 			function: {
 				name: "write_file",
 				description:
-					"Crea un archivo nuevo o sobrescribe uno existente con contenido nuevo. Para ediciones usa edit_file.",
+					"Crea o sobrescribe un archivo con contenido nuevo. Para editar usa edit_file.",
 				parameters: {
 					type: "object",
 					properties: {

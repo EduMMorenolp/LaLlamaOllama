@@ -1,4 +1,4 @@
-﻿import { getDb } from "./connection.js";
+import { getDb } from "./connection.js";
 
 export interface StoredRun {
 	id: number;
@@ -10,6 +10,14 @@ export interface StoredRun {
 	resultText?: string | null;
 	errorText?: string | null;
 	latencyMs?: number | null;
+	priority?: string;
+	preferred_model?: string | null;
+	tags?: string | null;
+	due_date?: string | null;
+	description?: string | null;
+	scheduled_at?: string | null;
+	cron_expression?: string | null;
+	is_recurring?: number;
 	created_at?: string;
 	updated_at?: string;
 }
@@ -22,14 +30,40 @@ export interface RunEventRecord {
 	created_at?: string;
 }
 
-export function createRun(input: { chatId: string; userText: string; origin?: string; status?: string }): number {
+export function createRun(input: {
+	chatId: string;
+	userText: string;
+	origin?: string;
+	status?: string;
+	priority?: string;
+	preferredModel?: string;
+	tags?: string;
+	dueDate?: string;
+	description?: string;
+	scheduledAt?: string;
+	cronExpression?: string;
+	isRecurring?: boolean;
+}): number {
 	const db = getDb();
 	const result = db
 		.prepare(
-			`INSERT INTO runs (chatId, userText, origin, status)
-			 VALUES (?, ?, ?, ?)`
+			`INSERT INTO runs (chatId, userText, origin, status, priority, preferred_model, tags, due_date, description, scheduled_at, cron_expression, is_recurring)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 		)
-		.run(input.chatId, input.userText, input.origin || "web", input.status || "queued");
+		.run(
+			input.chatId,
+			input.userText,
+			input.origin || "web",
+			input.status || "queued",
+			input.priority || "medium",
+			input.preferredModel || null,
+			input.tags || null,
+			input.dueDate || null,
+			input.description || null,
+			input.scheduledAt || null,
+			input.cronExpression || null,
+			input.isRecurring ? 1 : 0
+		);
 
 	return Number(result.lastInsertRowid);
 }
@@ -42,12 +76,25 @@ export function updateRun(
 		resultText?: string | null;
 		errorText?: string | null;
 		latencyMs?: number | null;
+		priority?: string;
+		preferredModel?: string | null;
+		tags?: string | null;
+		dueDate?: string | null;
+		description?: string | null;
+		scheduledAt?: string | null;
+		cronExpression?: string | null;
+		isRecurring?: number;
+		userText?: string;
 	}
 ): void {
 	const db = getDb();
 	const updates: string[] = [];
 	const values: Array<string | number | null> = [];
 
+	if (patch.userText !== undefined) {
+		updates.push("userText = ?");
+		values.push(patch.userText);
+	}
 	if (patch.status !== undefined) {
 		updates.push("status = ?");
 		values.push(patch.status);
@@ -67,6 +114,38 @@ export function updateRun(
 	if (patch.latencyMs !== undefined) {
 		updates.push("latencyMs = ?");
 		values.push(patch.latencyMs);
+	}
+	if (patch.priority !== undefined) {
+		updates.push("priority = ?");
+		values.push(patch.priority);
+	}
+	if (patch.preferredModel !== undefined) {
+		updates.push("preferred_model = ?");
+		values.push(patch.preferredModel);
+	}
+	if (patch.tags !== undefined) {
+		updates.push("tags = ?");
+		values.push(patch.tags);
+	}
+	if (patch.dueDate !== undefined) {
+		updates.push("due_date = ?");
+		values.push(patch.dueDate);
+	}
+	if (patch.description !== undefined) {
+		updates.push("description = ?");
+		values.push(patch.description);
+	}
+	if (patch.scheduledAt !== undefined) {
+		updates.push("scheduled_at = ?");
+		values.push(patch.scheduledAt);
+	}
+	if (patch.cronExpression !== undefined) {
+		updates.push("cron_expression = ?");
+		values.push(patch.cronExpression);
+	}
+	if (patch.isRecurring !== undefined) {
+		updates.push("is_recurring = ?");
+		values.push(patch.isRecurring);
 	}
 
 	if (updates.length === 0) {

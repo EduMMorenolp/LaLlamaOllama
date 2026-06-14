@@ -1,5 +1,8 @@
 import type { DatabaseService } from "../database/connection.js";
 import { consolidateMemories } from "../services/analysis/consolidation.js";
+import logger from "../utils/logger.js";
+
+const log = logger.child({ component: "cron" });
 
 let _cronTimer: NodeJS.Timeout | null = null;
 
@@ -12,14 +15,14 @@ export async function startCronJobs(dbService: DatabaseService) {
 		try {
 			// In a real multi-project setup, we'd iterate active projects.
 			// Here we run for the default project.
-			console.error("[Cron] Running scheduled memory consolidation...");
-			const res = await consolidateMemories(dbService, "lallamasollama");
+			log.agent("Running scheduled memory consolidation...");
+			const res = await consolidateMemories(dbService, "lallamaollama");
 			if (res.consolidatedGroups > 0) {
-				console.error(`[Cron] Consolidated ${res.consolidatedGroups} topic groups.`);
+				log.agent({ consolidated: res.consolidatedGroups }, "Consolidation complete");
 			}
 		} catch (e: unknown) {
 			const message = e instanceof Error ? e.message : String(e);
-			console.error("[Cron] Error running consolidation:", message);
+			log.error({ message }, "Consolidation error");
 		}
 	}, checkInterval);
 }

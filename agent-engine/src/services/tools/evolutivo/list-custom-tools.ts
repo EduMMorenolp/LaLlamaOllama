@@ -7,13 +7,13 @@ export function registerListCustomTools() {
 			type: "function",
 			function: {
 				name: "list_custom_tools",
-				description: "Lista todas las herramientas personalizadas creadas por el usuario con sus tipos y configuraciones.",
+				description: "Lista todas las herramientas personalizadas.",
 				parameters: {
 					type: "object",
 					properties: {
 						detailed: {
 							type: "boolean",
-							description: "Si es true, muestra la configuración completa de cada herramienta (default: false)",
+							description: "Muestra configuración completa (default: false)",
 						},
 					},
 				},

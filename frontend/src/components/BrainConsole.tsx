@@ -1,12 +1,10 @@
-import { Activity, BookOpen, Brain, Database, GitMerge, HeartPulse, Layers, RefreshCw, Search, Settings, Trash2 } from "lucide-react";
+import { Activity, BookOpen, Brain, Database, GitMerge, HeartPulse, RefreshCw, Settings, Trash2 } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { brainApi } from "../services/api.service";
 import { BrainAuditor } from "./BrainAuditor";
 import { BrainDirectives } from "./BrainDirectives";
-import { BrainScaffold } from "./BrainScaffold";
 import { BrainSettings } from "./BrainSettings";
-import { MemoryExplorer } from "./MemoryExplorer";
 import { ProjectMerger } from "./ProjectMerger";
 import { TabButton } from "./TabButton";
 
@@ -34,7 +32,7 @@ export const BrainConsole: React.FC = () => {
 	const [stats, setStats] = useState<BrainStats>({ total: 0, types: [] });
 	const [project, setProject] = useState("lallamaollama");
 	const [projectsList, setProjectsList] = useState<string[]>(["lallamaollama"]);
-	const [activeTab, setActiveTab] = useState<"auditor" | "directives" | "settings" | "scaffold" | "explorer" | "merge">("auditor");
+	const [activeTab, setActiveTab] = useState<"auditor" | "directives" | "settings" | "merge">("auditor");
 	const [toasts, setToasts] = useState<Toast[]>([]);
 	const [deletingProject, setDeletingProject] = useState(false);
 	const [health, setHealth] = useState<HealthStatus | null>(null);
@@ -230,18 +228,15 @@ export const BrainConsole: React.FC = () => {
 				style={{ display: "flex", gap: "12px", borderBottom: "1px solid var(--border)", paddingBottom: "12px" }}
 			>
 				<TabButton active={activeTab === "auditor"} onClick={() => setActiveTab("auditor")} icon={<Brain size={16} />} label="Auditor de Memoria" />
-				<TabButton active={activeTab === "explorer"} onClick={() => setActiveTab("explorer")} icon={<Search size={16} />} label="Explorador de Memorias" />
 				<TabButton active={activeTab === "directives"} onClick={() => setActiveTab("directives")} icon={<BookOpen size={16} />} label="Directivas Centrales" />
 				<TabButton active={activeTab === "merge"} onClick={() => setActiveTab("merge")} icon={<GitMerge size={16} />} label="Fusionar Proyectos" />
 				<TabButton active={activeTab === "settings"} onClick={() => setActiveTab("settings")} icon={<Settings size={16} />} label="Ajustes Cognitivos" />
-				<TabButton active={activeTab === "scaffold"} onClick={() => setActiveTab("scaffold")} icon={<Layers size={16} />} label="Scaffold" />
 			</div>
 
 			<div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: "24px", alignItems: "start" }}>
 				{/* Panel Principal dinámico */}
 				<div style={{ minWidth: 0 }}>
 					{activeTab === "auditor" && <BrainAuditor project={project} />}
-					{activeTab === "explorer" && <MemoryExplorer project={project} onToast={addToast} />}
 					{activeTab === "directives" && <BrainDirectives project={project} />}
 					{activeTab === "merge" && (
 						<ProjectMerger
@@ -254,7 +249,6 @@ export const BrainConsole: React.FC = () => {
 						/>
 					)}
 					{activeTab === "settings" && <BrainSettings project={project} />}
-					{activeTab === "scaffold" && <BrainScaffold project={project} onToast={addToast} />}
 				</div>
 
 				{/* Panel Lateral: KPIs y Estadísticas */}

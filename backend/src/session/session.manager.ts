@@ -4,6 +4,10 @@
  * Prevents global state interference between concurrent users
  */
 
+import logger from "../utils/logger.js";
+
+const log = logger.child({ component: "sessions" });
+
 export interface Session {
 	id: string;
 	ip: string;
@@ -34,7 +38,7 @@ export class SessionManager {
 			lastActivity: Date.now(),
 		};
 		this.sessions.set(sessionId, session);
-		console.log(`[session] Created session ${sessionId.substring(0, 20)}... for IP ${ip}`);
+		log.agent({ ip, sessionId: sessionId.substring(0, 20) + "..." }, "Session created");
 		return sessionId;
 	}
 
@@ -65,7 +69,7 @@ export class SessionManager {
 
 	endSession(sessionId: string): void {
 		this.sessions.delete(sessionId);
-		console.log(`[session] Ended session ${sessionId.substring(0, 20)}...`);
+		log.agent({ sessionId: sessionId.substring(0, 20) + "..." }, "Session ended");
 	}
 
 	getSessions(): Session[] {
@@ -89,7 +93,7 @@ export class SessionManager {
 			}
 
 			if (expired > 0) {
-				console.log(`[session-cleanup] Removed ${expired} stale session(s)`);
+				log.agent({ expired }, "Stale sessions cleaned up");
 			}
 		}, this.cleanupInterval);
 	}

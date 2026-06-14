@@ -1,29 +1,27 @@
-﻿import { BookOpen, Bot, Cable, ClipboardList, Menu, MessageSquare, Settings, X } from "lucide-react";
+﻿import { BookOpen, Cable, ClipboardList, Menu, MessageSquare, Settings, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { AgentChat } from "./components/AgentChat";
 import { Agentes } from "./components/Agentes";
 import { Conexion } from "./components/Conexion";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Knowledge } from "./components/Knowledge";
-import { Memoria } from "./components/Memoria";
 import { Tareas } from "./components/Tareas";
 
-type Tab = "chat" | "agentes" | "tareas" | "knowledge" | "conexion" | "memoria";
+type Tab = "chat" | "agentes" | "tareas" | "knowledge" | "conexion";
 
 interface TabDef {
 	id: Tab;
 	label: string;
 	sub: string;
-	icon: typeof Bot;
+	icon: typeof MessageSquare;
 }
 
 const tabs: TabDef[] = [
-	{ id: "chat", label: "Chat", sub: "Asistente de Codificaci\u00f3n Aut\u00f3nomo", icon: MessageSquare },
-	{ id: "agentes", label: "Agentes", sub: "Configuraci\u00f3n del Agent Engine y Sub-Agents", icon: Settings },
+	{ id: "chat", label: "Chat", sub: "Asistente de Codificación Autónomo", icon: MessageSquare },
+	{ id: "agentes", label: "Agentes", sub: "Configuración del Agent Engine y Sub-Agents", icon: Settings },
 	{ id: "tareas", label: "Tareas", sub: "Historial de ejecuciones", icon: ClipboardList },
-	{ id: "knowledge", label: "Conocimiento", sub: "RAG - Base de conocimiento vectorial", icon: BookOpen },
-	{ id: "conexion", label: "Conexi\u00f3n", sub: "Telegram, Modelos, Herramientas", icon: Cable },
-	{ id: "memoria", label: "Memoria", sub: "MCP Brain - B\u00fasqueda sem\u00e1ntica", icon: Bot },
+	{ id: "knowledge", label: "Cerebro", sub: "Memorias, timeline y archivos RAG", icon: BookOpen },
+	{ id: "conexion", label: "Conexión", sub: "Telegram, Modelos, Herramientas", icon: Cable },
 ];
 
 export default function App() {
@@ -140,7 +138,6 @@ export default function App() {
 					<ErrorBoundary name="Tareas">{activeTab === "tareas" && <Tareas />}</ErrorBoundary>
 					<ErrorBoundary name="Knowledge">{activeTab === "knowledge" && <Knowledge />}</ErrorBoundary>
 					<ErrorBoundary name="Conexion">{activeTab === "conexion" && <Conexion />}</ErrorBoundary>
-					<ErrorBoundary name="Memoria">{activeTab === "memoria" && <Memoria />}</ErrorBoundary>
 				</div>
 			</div>
 		</div>

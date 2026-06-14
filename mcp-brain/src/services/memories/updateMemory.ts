@@ -9,7 +9,8 @@ export async function updateMemory(
 	content?: string,
 	tags?: string,
 	topicKey?: string,
-	phase?: string
+	phase?: string,
+	type?: string
 ): Promise<boolean> {
 	const db = dbService.getDb();
 	const memory = await getMemory(dbService, id);
@@ -17,9 +18,10 @@ export async function updateMemory(
 
 	const newTitle = title || memory.title;
 	const newContent = content || memory.content;
-	const newTags = tags || memory.tags;
+	const newTags = tags !== undefined ? tags : memory.tags;
 	const newTopicKey = topicKey !== undefined ? topicKey : (memory as { topic_key?: string }).topic_key;
 	const newPhase = phase !== undefined ? phase : memory.phase;
+	const newType = type !== undefined ? type : memory.type;
 	const now = Date.now();
 
 	let vectorJson: string | null = null;
@@ -35,13 +37,13 @@ export async function updateMemory(
 	await dbService.enqueueWrite(async () => {
 		if (vectorJson) {
 			await db.run(
-				`UPDATE memories SET title = ?, content = ?, tags = ?, vector = ?, topic_key = ?, phase = ?, updatedAt = ? WHERE id = ?`,
-				[newTitle, newContent, newTags, vectorJson, newTopicKey, newPhase, now, id]
+				`UPDATE memories SET type = ?, title = ?, content = ?, tags = ?, vector = ?, topic_key = ?, phase = ?, updatedAt = ? WHERE id = ?`,
+				[newType, newTitle, newContent, newTags, vectorJson, newTopicKey, newPhase, now, id]
 			);
 		} else {
 			await db.run(
-				`UPDATE memories SET title = ?, content = ?, tags = ?, topic_key = ?, phase = ?, updatedAt = ? WHERE id = ?`,
-				[newTitle, newContent, newTags, newTopicKey, newPhase, now, id]
+				`UPDATE memories SET type = ?, title = ?, content = ?, tags = ?, topic_key = ?, phase = ?, updatedAt = ? WHERE id = ?`,
+				[newType, newTitle, newContent, newTags, newTopicKey, newPhase, now, id]
 			);
 		}
 	});

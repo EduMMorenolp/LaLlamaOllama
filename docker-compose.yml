@@ -1,15 +1,24 @@
-version: "3.8"
 name: "lallamaollama"
 
 services:
   ollama:
     image: ollama/ollama:latest
     container_name: mcp-ollama-motor
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        ollama serve &
+        sleep 3
+        echo "=== Ollama ready ==="
+        wait
     ports:
       - "11434:11434"
     environment:
       - OLLAMA_CONTEXT_LENGTH=16384
       - OLLAMA_NUM_PARALLEL=1
+      - OLLAMA_LLM_LIBRARY=cuda_v13
+      - OLLAMA_KEEP_ALIVE=30m
+      - OLLAMA_LOAD_TIMEOUT=10m
     deploy:
       resources:
         reservations:
@@ -21,7 +30,7 @@ services:
       - ollama_data:/root/.ollama
     networks:
       - mcp-network
-    restart: no
+    restart: unless-stopped
   
   backend:
     build:
@@ -52,7 +61,7 @@ services:
     # gpus: all
     networks:
       - mcp-network
-    restart: no
+    restart: unless-stopped
 
   ngrok:
     image: ngrok/ngrok:latest
@@ -66,7 +75,7 @@ services:
       - backend:${APP_PORT:-3016}
     networks:
       - mcp-network
-    restart: no
+    restart: unless-stopped
 
   frontend:
     build:
@@ -89,7 +98,7 @@ services:
       - mcp-network
     depends_on:
       - backend
-    restart: no
+    restart: unless-stopped
 
   agent-frontend:
     build:
@@ -97,16 +106,18 @@ services:
       dockerfile: Dockerfile
       args:
         - VITE_ENGINE_URL=http://localhost:${ENGINE_PORT:-3020}
+        - VITE_API_KEY=${API_KEY:-super-secret-mcp-key}
     container_name: agent-frontend
     ports:
       - "8081:80"
     environment:
       - VITE_ENGINE_URL=http://agent-engine:${ENGINE_PORT:-3020}
+      - VITE_API_KEY=${API_KEY:-super-secret-mcp-key}
     networks:
       - mcp-network
     depends_on:
       - agent-engine
-    restart: no
+    restart: unless-stopped
 
   mcp-brain:
     build:
@@ -118,7 +129,7 @@ services:
     environment:
       - BRAIN_PORT=${BRAIN_PORT:-3015}
       - OLLAMA_API_URL=http://ollama:11434
-      # - API_KEY=${API_KEY:-super-secret-mcp-key} # Descomenta si habilitas seguridad en el cerebro
+      - API_KEY=${API_KEY:-super-secret-mcp-key}
     volumes:
       # OPCIÓN A (Recomendada - Bind Mount al Host):
       # Conecta la carpeta local de Windows './data' con '/app/data' dentro de Docker.
@@ -133,7 +144,7 @@ services:
       - ollama
     networks:
       - mcp-network
-    restart: no
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -142,7 +153,7 @@ services:
       - "6379:6379"
     networks:
       - mcp-network
-    restart: no
+    restart: unless-stopped
 
   agent-engine:
     build:
@@ -159,10 +170,12 @@ services:
       - REDIS_URL=redis://redis:6379
       - API_KEY=${API_KEY:-super-secret-mcp-key}
       - DEFAULT_MODEL=${DEFAULT_MODEL:-llama3.2:3b}
+      - LLM_TIMEOUT=${LLM_TIMEOUT:-600000}
       - WORKSPACE_DIR=/workspace
       - DB_PATH=/data/agent-engine.db
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_ALLOWED_USERS=${TELEGRAM_ALLOWED_USERS}
+      - TRANSFORMERS_CACHE=/data/transformers
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./:/workspace
@@ -173,7 +186,7 @@ services:
       - redis
     networks:
       - mcp-network
-    restart: no
+    restart: unless-stopped
 
 networks:
   mcp-network:

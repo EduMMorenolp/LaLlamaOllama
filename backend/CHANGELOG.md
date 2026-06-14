@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+### 🧹 Eliminado módulo engine-stats
+
+#### Eliminado
+- **🗑️ `routes/engine-stats.routes.ts`** — 3 endpoints `/api/engine-stats`, `/api/engine-stats/electricity-rate`, `/api/engine-stats/cloud-price`
+- **🗑️ `types/engine-stats.ts`** — Schemas `ElectricityRateSchema`, `CloudPriceSchema` y sus tipos
+- **🗑️ 3 use-cases** — `get-engine-stats.ts`, `update-electricity-rate.ts`, `update-cloud-price.ts`
+
+#### Cambiado
+- **🔧 `routes/index.ts`** — Removidas importaciones, instanciación y registro del router engine-stats
+- **🔧 `types/index.ts`** — Removido `export * from "./engine-stats.js"`
+- **🔧 `auth.middleware.ts`** — Removido `"/api/engine-stats"` de la whitelist de polling público
+
+### 🖼️ Soporte multi-modal en proxy /v1/chat/completions
+
+#### Añadido
+- **➕ Zod schema acepta `ContentPart[]`** — `MessageSchema.content` ahora acepta `string | ContentPart[] | null` (text + image_url)
+- **➕ Conversión a formato Ollama `images[]`** — `convertToOllamaMessages()` extrae imágenes de `image_url` parts y las envía como array `images` en el mensaje Ollama
+
+#### Cambiado
+- **🔧 `types/chat.ts`** — Nuevos schemas `ContentPartTextSchema`, `ContentPartImageSchema`, `ContentPartSchema` con `discriminatedUnion`
+- **🔧 `ollama.service.ts`** — Handler para `Array.isArray(msg.content)` que construye `text` + `images` para Ollama
+
 ## [1.0.0] — 2026-06-07
 
 ### 🚀 Versión estable 1.0.0

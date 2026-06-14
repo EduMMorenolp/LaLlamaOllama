@@ -18,7 +18,7 @@ export function registerWebSearchTool() {
 			type: "function",
 			function: {
 				name: "web_search",
-				description: "Busca información en internet. Devuelve resultados con título, enlace y fragmento relevante. Útil para consultar noticias, documentación, precios, etc.",
+				description: "Busca información actualizada en internet.",
 				parameters: {
 					type: "object",
 					properties: {

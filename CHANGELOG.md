@@ -7,6 +7,144 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 
 ## [Unreleased]
 
+### 🐛 Corrección 429 + 401 + Mejoras en Tareas y contexto programado (2026-06-12)
+
+#### Agent Engine
+- **🐛 Fix: 429 Too Many Requests** — Rate limit subido de 100 → 500 req/min en `api.ts`
+- **🐛 Fix: 401 en `/api/knowledge`** — Agregado `req.path === "/knowledge"` a la lista de exenciones del `authMiddleware`
+- **➕ Contexto "tarea programada" para el LLM** — Cuando `origin === "scheduler"`, se inyecta mensaje `system` en `runAgentCore.ts` informando al modelo que es una tarea automática
+- **🔧 `import("axios")` dinámico → import estático** — Reemplazadas 8 ocurrencias de lazy import por `import axios from "axios"` al tope del archivo, eliminando riesgo de conexiones truncadas
+
+#### Agent Frontend
+- **🐛 Fix: 429 por bucle de re-render** — `apiHeaders` movido a nivel de módulo en `Tareas.tsx` (estable); eliminado `showToast` del catch del fetch inicial que realimentaba el ciclo
+- **👆 Botón "Nueva Tarea" unificado** — Único botón que abre modal de tarea normal o programada según la sección activa; eliminado botón duplicado "Nueva Programada"
+- **⚡ Timeline `limit: 500` → `100`** — Reducida carga en brain SQLite para respuestas más rápidas
+
+#### Configuración
+- **➕ `agent-frontend/.env`** — Creado con `VITE_API_KEY=McPOllama2026-V1-Home` para desarrollo local
+- **➕ `docker-compose.yml`** — Agregado `VITE_API_KEY` a build args y environment de `agent-frontend`
+
+### 🤖 Sistema de Agentes: Cobertura completa con 7 agentes (2026-06-12)
+
+#### OpenCode Agents
+- **➕ `agent-engine.md`** — Nuevo subagente para el agente autónomo (Express, BullMQ, SQLite, WS, 31 tools, Telegram)
+- **➕ `agent-frontend.md`** — Nuevo subagente para el frontend del agente (React 19, WS puro, 5 tabs, nginx)
+- **➕ Registro en `opencode.json`** — `agent-engine` y `agent-frontend` añadidos como subagentes (7 agentes total)
+- **🔧 `orchestrator.md`** — Flujo de trabajo corregido: ahora delega a `docker-ops` (paso 9) y `documentation` (paso 10) en vez de hacerlo directamente; PROPÓSITO actualizado; routing table sincronizada
+- **🔧 `documentation.md`** — Reescribito completo: estructura con ~25 archivos, 8 triggers por tipo de cambio, auto-verificación, flujo guiado por contexto
+- **🔧 `docker-ops.md`** — Stack corregido de 4 a 7 servicios + redis; estructura con Dockerfiles faltantes; reglas nuevas para redis, agent-engine y agent-frontend
+- **➕ Script `lint`** — `tsc --noEmit` añadido a `agent-engine/package.json`; auto-verificación del agente actualizada
+
+#### Antigravity Rules & Workflows
+- **🔧 `.agents/rules/lallamaollama.md`** — Tabla de servicios ampliada (8 contenedores); estructura del proyecto con agent-engine, agent-frontend y docs/
+- **🔧 `postman.md` y `backend-feature.md`** — Ruta de Postman Collection corregida: `postman-collection/` → `docs/postman-collection/`
+
+#### Documentación General
+- **🔧 `docs/ARQUITECTURE.md`** — Tool Registry corregido (8 → 31 tools); redis añadido a tabla de servicios
+- **🔧 `audit-agents.md`** — Score actualizado 78 → 95/100; tabla con 7 agentes; debilidades corregidas
+
+### 🧠 MCP Brain: Logging completo estilo agent-engine (2026-06-12)
+
+#### MCP Brain
+- **➕ Logger centralizado con Pino** — Creado `src/utils/logger.ts` con customLevels `agent` (magenta) y `tool` (green), pino-pretty en dev, JSON en prod
+- **➕ Request logging middleware** — Log automático de method, path, status, durationMs en cada request HTTP
+- **➕ SSE connection logs** — `log.info()` en conexión y desconexión de clientes SSE (`/sse`)
+- **➕ Tool call logs** — `log.tool()` en cada handler MCP con tool name y agent identity
+- **➕ Cron job logs** — `log.agent()` en consolidación programada
+- **➕ Route entry/exit logs** — Logger añadido a todos los endpoints: memory CRUD, search, timeline, consolidate, sync, sessions, templates, directives, settings, projects
+- **🔧 22 console.error + 1 console.warn reemplazados** — En `api.ts`, `mcp.ts`, `cron.ts`, `searchMemories.ts`, `saveMemory.ts`, `generate.ts`, `embed.ts`, `consolidation.ts`, `index.ts`
+- **➕ Dependencias** — `pino@^9.0.0`, `pino-pretty@^11.0.0`
+
+### 📝 Backend: Logging completo estilo agent-engine (2026-06-12)
+
+#### Backend
+- **➕ Niveles custom `agent` y `tool`** — Añadidos via Pino customLevels (magenta/green con pino-pretty)
+- **➕ Request logging middleware** — Log automático de method, path, status, durationMs e IP en cada request (excluye polling)
+- **➕ WS connection logs** — `io.on("connection")` y `socket.on("disconnect")` con id, ip y razón
+- **➕ Session manager logs** — `console.log` reemplazado por `log.agent()` en creación/cierre/limpieza de sesiones
+- **➕ Tool call logs** — `log.tool()` en cada handler MCP (list_models, pull, chat, generate, etc.)
+- **➕ Chat/LLM call logs** — `log.agent()` antes de llamadas a Ollama en `chat()` y `chatStream()`
+- **➕ Route entry/exit logs** — Logger añadido a agents, auth, chat, docker, hardware, models, ngrok, search, security y status routes
+- **➕ Error handler logging** — `log.error()` en el middleware global de errores
+- **🔧 console.log/error eliminados** — `session.manager.ts`, `app.module.ts`, `agents.service.ts` ahora usan Pino
+
+### 🧠 Cerebro: Gestor visual de memorias con CRUD, timeline y consolidación (2026-06-11)
+
+#### MCP Brain
+- **➕ `GET/POST /api/memory/consolidate`** — Endpoint de consolidación ahora accesible vía agent-engine proxy
+- **➕ `offset` parameter** — Añadido soporte de offset en `/api/memory/timeline`, `/api/memory/search` y servicios subyacentes (getTimeline, searchMemories, getContext)
+- **🐛 Fix: typo en cron** — `"lallamasollama"` → `"lallamaollama"` en `cron.ts`
+
+#### Agent Engine
+- **➕ Consolidate proxy** — Nuevo `POST /api/memory/consolidate` que proxea a mcp-brain
+- **➕ `offset` en proxies** — `GET /api/memory/search` y `GET /api/memory/timeline` ahora reenvían `offset`
+- **➕ WS broadcast** — `WsServer` pasado a `startApiServer()`; emite `memory_changed` tras cada POST/PUT/DELETE /api/memory
+- **➕ Tools `update_memory` y `delete_memory`** — Nuevas tools del agente para editar y eliminar memorias por ID
+- **🔧 Orden de arranque** — `WsServer` se crea antes de `startApiServer` para poder inyectarlo
+
+#### Agent Frontend
+- **➕ Paginación (scroll infinito)** — `IntersectionObserver` con sentinel, carga batches de 50, concatenación automática
+- **➕ Filtro por tags** — Input que filtra memorias por tags (client-side, múltiples tags separados por coma)
+- **➕ Ordenamiento** — Dropdown con "Fecha ↓", "Fecha ↑", "Tipo" (sort client-side)
+- **➕ Toast feedback** — `useToast()` en todas las operaciones: crear, editar, eliminar, bulk delete y consolidar (success/error)
+- **➕ WS sync** — Suscripción a `memory_changed` vía `useWs()`; refresca automáticamente la lista y stats
+- **➕ Notification toast** — Suscripción al evento WS `"notification"` en `AgentChat.tsx`; muestra el mensaje via toast según nivel (error/success/info)
+- **🗑️ Eliminada sección "Memoria"** — `Memoria.tsx` eliminado (redundante con Cerebro); actualizado `App.tsx` (import, type, tab, render, icon import)
+- **🗑️ Eliminados Scaffold + Explorador de Memorias** — `BrainScaffold.tsx`, `MemoryExplorer.tsx` y `AIAgentWizard.tsx` eliminados del frontend clásico; actualizado `BrainConsole.tsx` (imports, type union, tab buttons y renders condicionales)
+- **➕ `GET /api/memory/:id`** — Endpoint para obtener una memoria individual por ID
+- **➕ `PUT /api/memory/:id`** — Endpoint para actualizar título, contenido, tipo y tags de una memoria existente
+- **➕ `GET /api/memory/timeline`** — Endpoint que agrupa memorias por día para vista cronológica (soporta filtro opcional `?type=`)
+- **🔧 `updateMemory.ts`** — Ahora acepta `type` como parámetro opcional para cambiar el tipo de memoria al editarla
+- **🔧 `getTimeline.ts`** — Ahora acepta `type` filter opcional para filtrar timeline por tipo
+
+#### Agent Engine
+- **➕ 4 nuevos métodos en `BrainClient`** — `getMemory(id)`, `updateMemory(id, data)`, `deleteMemory(id)`, `getTimeline(type?)`
+- **➕ 5 nuevos endpoints REST proxy** — `POST /api/memory` (crear), `GET /api/memory/:id` (obtener), `PUT /api/memory/:id` (actualizar), `DELETE /api/memory/:id` (eliminar), `GET /api/memory/timeline` (timeline)
+- **🔧 `authMiddleware`** — Añadido `req.path === "/memory"` a la whitelist para que POST /api/memory funcione sin API key
+
+#### Agent Frontend
+- **➕ `Knowledge.tsx` reescrito** — Nuevo diseño con 3 sub-tabs: `🧠 Cerebro`, `📅 Línea de Tiempo`, `📄 Archivos RAG`
+- **➕ Cerebro tab** — Browser de memorias con barra de estadísticas (total + counts por tipo), filtro por tipo, buscador textual
+- **➕ Creación de memorias** — Formulario inline con campos: título, contenido, tipo (select), tags
+- **➕ Edición y eliminación** — Modal de edición con todos los campos editables; confirmación de eliminación con opción de borrado múltiple (checkboxes + bulk delete)
+- **➕ Consolidación manual** — Botón "Consolidar" que dispara `POST /api/memory/consolidate` con feedback visual
+- **➕ Timeline view** — Vista cronológica agrupada por día con filtro por tipo
+- **➕ Quick‑memo** — Botón flotante "+" para crear memoria rápida sin cambiar de tab
+- **🔧 `App.tsx`** — Descripciones de tabs actualizadas: "Cerebro → Memorias, timeline y archivos RAG", "Memoria → Búsqueda avanzada en MCP Brain"
+
+### 🧹 Consolidación UI: Eliminados AI Engine Tuner y Agent Engine, GPU Sentinel unificado (2026-06-11)
+
+#### Frontend
+- **🗑️ Eliminado `AiEngineTuner.tsx`** — Componente completo eliminado (GPU gauges, token counter, cloud savings, thermal stress, pricing config)
+- **🗑️ Eliminado `AgentChat.tsx`** — Componente completo eliminado (el Agent Engine corre como servicio aparte)
+- **➕ `HardwareSentinel.tsx` → `GpuSentinel`** — Componente renombrado; integrado el card "GPU en Tiempo Real" con 5 gauges SVG (Consumo W, Temperatura °C, Fan Speed %, GPU Util %, VRAM Uso MB) + alerta térmica
+- **🔧 `App.tsx`** — Removidas importaciones, tabs `"agent"` y `"engine"`, sidebar entries "Agent Engine" y "Engine Tuner"; renombrado "HW Sentinel" → "GPU Sentinel"
+
+#### Backend
+- **🗑️ Eliminado módulo engine-stats** — `routes/engine-stats.routes.ts`, `types/engine-stats.ts`, 3 use-cases (`get-engine-stats`, `update-electricity-rate`, `update-cloud-price`)
+- **🔧 `routes/index.ts`** — Removidas referencias a engine-stats
+- **🔧 `types/index.ts`** — Removido `export * from "./engine-stats.js"`
+- **🔧 `auth.middleware.ts`** — Removido `"/api/engine-stats"` de la whitelist pública
+
+### 📱 Telegram: Adjuntos multi-modal, Whisper transcripción, reacciones y persistencia (2026-06-11)
+
+#### Agent Engine
+- **➕ Transcripción de audio con Whisper** — Nuevo `transcriber.ts` y `cache.ts`. Transcribe audios vía Ollama `whisper-small` con auto-pull si no está descargado. Cachea por `file_id`
+- **➕ Tool `transcribe_audio(file_path)`** — Tool pública que cualquier agente puede invocar
+- **➕ Adjuntos como base64 data URI** — Todos los archivos se convierten a `data:...;base64,...` en vez de pasar rutas
+- **➕ Reacciones en Telegram** — 🕐 → ✅ / ❌ con logging `[TG-Reaction]`
+- **➕ Typing indicator persistente** — `setInterval` cada 4s mantiene "escribiendo..." visible
+- **🐛 Fix: Imágenes fallaban con 400** — Ahora se envían como `image_url` multi-modal a través del proxy
+- **🐛 Fix: Whisper model not found** — Auto-pull con reintento
+
+#### Backend
+- **➕ Soporte multi-modal en proxy `/v1/chat/completions`** — Zod ahora acepta `content: string | ContentPart[]`. `convertToOllamaMessages()` extrae imágenes y las envía como `images[]` en formato Ollama
+- **🔧 `types/chat.ts`** — Nuevos schemas para `text` e `image_url` parts
+- **🔧 `ollama.service.ts`** — Conversión de `image_url` array a `images[]` de Ollama
+
+#### Docker
+- **➕ Auto-pull de whisper-small** — El contenedor `ollama` ahora ejecuta `ollama pull whisper-small` al arrancar
+
 ### 🐛 Corrección de bugs y encoding (2026-06-09)
 
 #### Agent Engine

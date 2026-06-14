@@ -22,9 +22,16 @@ interface RequestLogEntry {
 	timestamp: string;
 }
 
+/** Represents a content part in a multi-modal message (OpenAI format) */
+interface ContentPart {
+	type: "text" | "image_url";
+	text?: string;
+	image_url?: { url: string; detail?: string };
+}
+
 interface SessionMessage {
 	role: string;
-	content: string | null;
+	content: string | ContentPart[] | null;
 	tool_calls?: Array<Record<string, unknown>>;
 	tool_call_id?: string;
 	[key: string]: unknown;
@@ -64,7 +71,7 @@ export class OllamaService {
 	private totalRequests: number = 0;
 	private lastChatTime: number = Date.now();
 	private autoUnloadMinutes: number = 0;
-	private globalNumCtx: number = 4096;
+	private globalNumCtx: number = 8192;
 
 	// --- GPU Metrics Cache (async, non-blocking) ---
 	private cachedGpuMetrics: GpuMetrics = {
@@ -327,6 +334,16 @@ export class OllamaService {
 		});
 	}
 
+	async showModel(model: string): Promise<Record<string, unknown>> {
+		try {
+			const response = await this.axiosClient.post(`${this.baseUrl}/api/show`, { name: model });
+			return response.data;
+		} catch (error) {
+			log.error({ err: error, model }, "Failed to show model details");
+			throw error;
+		}
+	}
+
 	async listModels(): Promise<OllamaModel[]> {
 		try {
 			const response = await this.axiosClient.get(`${this.baseUrl}/api/tags`, { timeout: 2000 });
@@ -399,9 +416,37 @@ export class OllamaService {
 				result.push(ollamaMsg as SessionMessage);
 			} else {
 				const ollamaMsg: SessionMessage = { role: msg.role, content: "" };
-				if (msg.content && typeof msg.content === "string") {
+
+				if (Array.isArray(msg.content)) {
+					// ── Multi-modal content (OpenAI format) ──
+					// Extract text parts and image_url parts
+					const textParts: string[] = [];
+					const images: string[] = [];
+
+					for (const part of msg.content) {
+						if (part.type === "text") {
+							textParts.push(part.text || "");
+						} else if (part.type === "image_url") {
+							// Extract base64 data from data URI
+							const url = part.image_url?.url || "";
+							if (url.startsWith("data:")) {
+								const base64Data = url.split(",")[1] || url;
+								images.push(base64Data);
+							} else {
+								// Remote URL (rare for local models, but supported)
+								images.push(url);
+							}
+						}
+					}
+
+					ollamaMsg.content = textParts.join("\n") || "";
+					if (images.length > 0) {
+						(ollamaMsg as Record<string, unknown>).images = images;
+					}
+				} else if (msg.content && typeof msg.content === "string") {
 					ollamaMsg.content = msg.content;
 				}
+
 				result.push(ollamaMsg);
 			}
 		}
@@ -418,7 +463,9 @@ export class OllamaService {
 		if (cached.length > 6) {
 			// Resumir mensajes antiguos en un system message
 			const keep = cached.slice(-5);
-			const summary = `[Historial: ${cached.length - 5} mensajes anteriores resumidos. Último tema: "${cached[cached.length - 1]?.content?.substring(0, 80)}"]`;
+			const lastContent = cached[cached.length - 1]?.content;
+const lastTopic = typeof lastContent === "string" ? lastContent.substring(0, 80) : "";
+const summary = `[Historial: ${cached.length - 5} mensajes anteriores resumidos. Último tema: "${lastTopic}"]`;
 			finalMessages = [{ role: "system", content: summary }, ...keep, ...messages];
 		} else {
 			finalMessages = [...cached, ...messages];
@@ -463,6 +510,7 @@ export class OllamaService {
 			const finalMessages = this.buildSessionMessages(messages, sessionId);
 			this.lastChatTime = Date.now();
 			const startMs = Date.now();
+			log.agent({ model, msgCount: messages.length, sessionId }, "LLM call");
 
 			const response = await this.axiosClient.post(
 				`${this.baseUrl}/api/chat`,
@@ -495,6 +543,7 @@ export class OllamaService {
 		return this.enqueueRequest(async () => {
 			const finalMessages = this.buildSessionMessages(messages, sessionId);
 			this.lastChatTime = Date.now();
+			log.agent({ model, msgCount: messages.length, sessionId }, "LLM stream call");
 
 			return this.axiosClient.post(
 				`${this.baseUrl}/api/chat`,
@@ -508,7 +557,7 @@ export class OllamaService {
 		const models = await this.listModels();
 		for (const model of models) {
 			await this.axiosClient
-				.post(`${this.baseUrl}/api/chat`, {
+				.post(`${this.baseUrl}/api/generate`, {
 					model: model.name,
 					keep_alive: 0,
 				})
