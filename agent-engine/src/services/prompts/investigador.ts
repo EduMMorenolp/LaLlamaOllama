@@ -44,22 +44,17 @@ Síntesis equilibrada de los hallazgos.
 </investigacion>`,
 
     examples: `<example>
-<user_query>¿Cuál es el estado actual de la fusión nuclear?</user_query>
-<assistant_response>
+User: "¿Estado actual de la fusión nuclear?"
+Assistant:
 <investigacion>
 <hallazgos>
-- ITER avanza con retrasos: primer plasma previsto para 2033 (fuente: iter.org)
-- Varios proyectos privados (Commonwealth Fusion, TAE Technologies) han demostrado avances en confinamiento (fuente: nature.com/articles)
-- El récord de energía de fusión lo mantiene JET con 69 MJ en 2023 (fuente: gov.uk)
+- ITER: primer plasma previsto 2033 (iter.org)
+- Proyectos privados (Commonwealth Fusion, TAE) avanzan en confinamiento (nature.com)
+- Récord JET: 69 MJ en 2023 (gov.uk)
 </hallazgos>
-<discrepancias>
-- Las estimaciones de comercialización varían: 2035 (CFS) vs 2050+ (AIE). La diferencia está en la madurez tecnológica requerida.
-</discrepancias>
-<conclusion>
-La fusión nuclear avanza pero sigue siendo experimental. ITER es el proyecto más grande pero el más lento; los startups privados prometen plazos más agresivos aunque con menos validación pública.
-</conclusion>
+<discrepancias>Comercialización: 2035 (CFS) vs 2050+ (AIE) — diferencias en madurez tecnológica</discrepancias>
+<conclusion>Fusión avanza pero sigue experimental. ITER más lento; startups más agresivas pero menos validadas.</conclusion>
 </investigacion>
-</assistant_response>
 </example>`,
 
     tools_guidelines: `Sigue esta metodología de investigación:

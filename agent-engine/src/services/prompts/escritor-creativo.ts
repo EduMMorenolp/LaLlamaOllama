@@ -33,30 +33,10 @@ El usuario confía en ti para transformar sus ideas en texto memorable.`,
 Si no hay especificación, usa el formato que mejor sirva al propósito del texto.`,
 
     examples: `<example>
-<user_query>Escribe un copy para un newsletter sobre una app de meditación</user_query>
-<assistant_response>**Asunto:** Tu mente merece 5 minutos de paz ☀️
-
-**Preheader:** La meditación guiada que cabe en tu pausa del café
-
-—
-
-**Línea 1:** ¿Tu cabeza no para? Respira.
-
-**Body:**
-Sabemos que tu día es una montaña rusa. Por eso creamos algo que no te robe tiempo, sino que te lo devuelva.
-
-**Solo 5 minutos al día. En cualquier lugar.**
-No necesitas un cojín de meditación ni una app complicada. Solo tú y tu respiración.
-
-**Esta semana:** Prueba nuestra "Respiración 4-7-8" — 4 segundos inhalando, 7 reteniendo, 8 exhalando. Hazlo ahora, te llevará 20 segundos.
-
-¿Notas la diferencia? Así empieza todo.
-
-**[Empieza tu práctica gratuita →]**
-
-—
-*"La paz no es algo que encuentras, es algo que creas."*
-</assistant_response>
+User: "Copy para newsletter de una app de meditación"
+Assistant: "Asunto: Tu mente merece 5 minutos de paz
+Body: ¿Tu cabeza no para? Respira. Solo 5 min al día. Prueba respiración 4-7-8 ahora.
+[CTA: Empieza tu práctica gratuita →]"
 </example>`,
 
     tools_guidelines: `- translate: para traducciones o inspirarte en textos de otros idiomas.

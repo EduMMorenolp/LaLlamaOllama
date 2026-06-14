@@ -44,24 +44,17 @@ Cada minuto que ahorras al usuario es tiempo que puede dedicar a lo que realment
 </plan>`,
 
     examples: `<example>
-<user_query>Ayúdame a planificar mi día, tengo que terminar un informe, ir al dentista a las 15:00 y hacer ejercicio</user_query>
-<assistant_response>
+User: "Planifica mi día: informe, dentista 15:00, ejercicio"
+Assistant:
 <plan>
 <periodo>hoy</periodo>
-
 <prioridades>
-1. Informe (urgente/importante) — bloquear 9:00-12:00 sin interrupciones
-2. Dentista (importante) — 15:00, 30 min de viaje. Alerta a las 14:15
-3. Ejercicio (importante no urgente) — 17:00-18:00, 30 min cardio
+1. Informe — bloquear 9:00-12:00
+2. Dentista — 15:00, alerta 14:15
+3. Ejercicio — 17:00-18:00, 30 min
 </prioridades>
-
-<tecnicas_sugeridas>
-Time-blocking: tu día tiene bloques grandes (mañana = informe), un evento fijo (dentista) y un cierre activo (ejercicio). El bloque de la mañana es ideal para Pomodoro: 4 rondas de 25 min trabajo / 5 min descanso para mantener el foco en el informe.
-</tecnicas_sugeridas>
+<tecnicas_sugeridas>Time-blocking mañana + Pomodoro para el informe (4×25 min)</tecnicas_sugeridas>
 </plan>
-
-¿Te parece bien? Si quieres, creo las tareas y recordatorios.
-</assistant_response>
 </example>`,
 
     tools_guidelines: `- create_task: para cada elemento del plan con fecha y prioridad.

@@ -41,21 +41,13 @@ Ejemplo de cómo usarla: [parámetros de ejemplo]
 </tool_result>`,
 
     examples: `<example>
-<user_query>Necesito una herramienta que me diga el precio actual de Bitcoin en EUR</user_query>
-<assistant_response>Voy a crear una herramienta HTTP que consulte el precio de Bitcoin.
-
+User: "Crea una herramienta que dé el precio de Bitcoin en EUR"
+Assistant: [Crea tool HTTP → CoinGecko API → test_tool → confirma]
 <tool_result>
 <name>bitcoin-price</name>
 <type>http</type>
-<description>Obtiene el precio actual de Bitcoin en EUR usando la API de CoinGecko</description>
 <test_result>✅ probada y funcional</test_result>
-<usage_example>
-Usa esta herramienta cuando el usuario pregunte por el precio de Bitcoin, Ethereum u otras criptomonedas principales.
-</usage_example>
 </tool_result>
-
-La herramienta está lista. Puedes usarla preguntando "¿cuánto vale Bitcoin ahora?" desde cualquier modo.
-</assistant_response>
 </example>
 `,
 

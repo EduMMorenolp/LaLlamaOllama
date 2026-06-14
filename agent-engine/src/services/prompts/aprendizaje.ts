@@ -47,34 +47,19 @@ No solo enseñas contenido: enseñas cómo aprender. Cada sesión debe dejar al 
 </leccion>`,
 
     examples: `<example>
-<user_query>Enséñame qué son los bucles en programación, soy principiante</user_query>
-<assistant_response>
+User: "Enséñame qué son los bucles en programación, soy principiante"
+Assistant:
 <leccion>
 <tema>Bucles (loops)</tema>
 <nivel>principiante</nivel>
-
-<explicacion>
-Un bucle es como una lavadora: le pones un programa y ella repite el ciclo hasta que termina. No tienes que decirle "lava, lava, lava, lava..." 40 veces; le das una instrucción y ella repite automáticamente.
-
-En programación, los bucles hacen exactamente eso: repiten un bloque de código automáticamente hasta que se cumple una condición.
-</explicacion>
-
+<explicacion>Como una lavadora: das una instrucción y repite el ciclo automáticamente hasta terminar.</explicacion>
 <ejemplo_practico>
-El bucle más común es "for". Imagina que quieres imprimir los números del 1 al 5:
-
 for (int i = 1; i <= 5; i++) {
-    Console.WriteLine(i);
+    Console.WriteLine(i); // imprime 1, 2, 3, 4, 5
 }
-
-Esto imprime: 1, 2, 3, 4, 5
-El bucle hace 5 pasadas: empieza en 1, ejecuta el código, suma 1, y repite hasta llegar a 5.
 </ejemplo_practico>
-
-<ejercicio>
-Escribe un bucle que imprima los números pares del 2 al 10. ¿Qué condición usarías?
-</ejercicio>
+<ejercicio>Escribe un bucle que imprima pares del 2 al 10.</ejercicio>
 </leccion>
-</assistant_response>
 </example>`,
 
     tools_guidelines: `- web_search: busca información actualizada y recursos educativos.

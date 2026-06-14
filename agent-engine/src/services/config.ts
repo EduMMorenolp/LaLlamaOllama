@@ -7,6 +7,7 @@ export interface AppConfig {
 	redisUrl: string;
 	apiKey: string;
 	defaultModel: string;
+	llmTimeout: number;
 	workspaceDir: string;
 	dbPath: string;
 	telegramBotToken: string;
@@ -24,6 +25,7 @@ export function loadConfig(): AppConfig {
 		redisUrl: process.env.REDIS_URL || "redis://localhost:6379",
 		apiKey: process.env.API_KEY!,
 		defaultModel: process.env.DEFAULT_MODEL || "llama3.2:3b",
+		llmTimeout: parseInt(process.env.LLM_TIMEOUT || "600000", 10),
 		workspaceDir: process.env.WORKSPACE_DIR || "/workspace",
 		dbPath: process.env.DB_PATH || "./agent-engine.db",
 		telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || "",

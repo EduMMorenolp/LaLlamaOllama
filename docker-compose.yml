@@ -167,6 +167,7 @@ services:
       - REDIS_URL=redis://redis:6379
       - API_KEY=${API_KEY:-super-secret-mcp-key}
       - DEFAULT_MODEL=${DEFAULT_MODEL:-llama3.2:3b}
+      - LLM_TIMEOUT=${LLM_TIMEOUT:-600000}
       - WORKSPACE_DIR=/workspace
       - DB_PATH=/data/agent-engine.db
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
