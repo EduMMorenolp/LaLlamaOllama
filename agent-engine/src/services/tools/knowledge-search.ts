@@ -7,13 +7,13 @@ export function registerKnowledgeSearchTool() {
 			type: "function",
 			function: {
 				name: "knowledge_search",
-				description: "Busca en la base de conocimiento del proyecto usando búsqueda semántica (RAG). Útil para recuperar información guardada previamente, documentación indexada, lecciones aprendidas, o cualquier dato almacenado en la memoria del sistema.",
+				description: "Busca en la base de conocimiento del proyecto usando búsqueda semántica (RAG).",
 				parameters: {
 					type: "object",
 					properties: {
 						query: {
 							type: "string",
-							description: "Texto de búsqueda semántica. Usa frases completas o palabras clave relevantes a lo que necesitas encontrar.",
+							description: "Texto de búsqueda semántica (frases completas o palabras clave).",
 						},
 						limit: {
 							type: "number",
@@ -21,7 +21,7 @@ export function registerKnowledgeSearchTool() {
 						},
 						type: {
 							type: "string",
-							description: "Filtrar por tipo de memoria: 'knowledge' (conocimiento indexado), 'feature', 'bug-fix', 'architecture', 'decision' (dejar vacío para todos)",
+							description: "Filtrar por tipo: 'knowledge', 'feature', 'bug-fix', 'architecture', 'decision' (vacío = todos)",
 						},
 					},
 					required: ["query"],

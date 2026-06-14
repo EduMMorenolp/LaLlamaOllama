@@ -7,25 +7,25 @@ export function registerScheduleTaskTool(): void {
 			type: "function",
 			function: {
 				name: "schedule_task",
-				description: "Programa una tarea para ejecución automática y recurrente usando una expresión cron. Úsala cuando el usuario pida recordatorios programados, tareas diarias/semanales/mensuales, o notificaciones periódicas. Para tareas de una sola ejecución usa create_task.",
+				description: "Programa una tarea recurrente con cron.",
 				parameters: {
 					type: "object",
 					properties: {
 						name: {
 							type: "string",
-							description: "Nombre descriptivo corto de la tarea programada (ej: 'recordatorio diario', 'notificacion operativa')",
+							description: "Nombre descriptivo corto (ej: 'recordatorio diario')",
 						},
 						cron_expression: {
 							type: "string",
-							description: "Expresión cron de 5 campos: minuto hora día-del-mes mes día-de-la-semana. Ej: '0 9 * * 1' (lunes 9am), '*/30 * * * *' (cada 30 min), '0 */2 * * *' (cada 2 horas), '0 8 * * 1-5' (lunes a viernes 8am). Pregunta al usuario la frecuencia si no la especifica.",
+							description: "Expresión cron de 5 campos: minuto hora día-del-mes mes día-de-la-semana. Pregunta al usuario la frecuencia.",
 						},
 						task_text: {
 							type: "string",
-							description: "Texto de la tarea a ejecutar cuando se active el cron. Describe QUÉ debe hacer el agente en esa ejecución.",
+							description: "Texto de la tarea a ejecutar cuando se active el cron.",
 						},
 						mode_id: {
 							type: "string",
-							description: "ID del modo a usar para ejecutar la tarea (opcional, usa el modo activo por defecto)",
+							description: "ID del modo para ejecutar la tarea (opcional, usa el activo por defecto)",
 						},
 					},
 					required: ["name", "cron_expression", "task_text"],

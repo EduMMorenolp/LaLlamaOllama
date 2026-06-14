@@ -18,16 +18,14 @@ export function registerTranscribeAudioTool(): void {
 			function: {
 				name: "transcribe_audio",
 				description:
-					"Transcribe un archivo de audio a texto usando Whisper (modelo local). " +
-					"Soporta formatos: ogg, mp3, wav, m4a, flac, webm. " +
-					"Útil para procesar notas de voz, reuniones grabadas, o cualquier contenido de audio.",
+					"Transcribe audio a texto usando Whisper.",
 				parameters: {
 					type: "object",
 					properties: {
 						file_path: {
 							type: "string",
 							description:
-								"Ruta absoluta al archivo de audio. Ej: /workspace/knowledge/telegram/audio/1234-audioname.ogg, o cualquier ruta dentro del workspace.",
+								"Ruta absoluta al archivo de audio en el workspace.",
 						},
 					},
 					required: ["file_path"],

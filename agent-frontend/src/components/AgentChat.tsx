@@ -2385,7 +2385,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 				<span>{message.timestamp.toLocaleTimeString()}</span>
 				{!isUser && message.usage && (
 					<span>
-						{message.usage.promptTokens} â†‘ / {message.usage.completionTokens} â†“
+						{message.usage.promptTokens} ⇧ / {message.usage.completionTokens} ⇩
 					</span>
 				)}
 				<span style={{ flex: 1 }} />

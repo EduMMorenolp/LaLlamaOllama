@@ -9,7 +9,7 @@ export function registerCreateTaskTool(): void {
 			type: "function",
 			function: {
 				name: "create_task",
-				description: "Crea y ejecuta una nueva tarea. El agente procesará el texto de la tarea y devolverá un resultado.",
+				description: "Crea y ejecuta una nueva tarea.",
 				parameters: {
 					type: "object",
 					properties: {

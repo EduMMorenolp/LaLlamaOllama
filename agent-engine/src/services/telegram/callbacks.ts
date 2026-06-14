@@ -1,6 +1,6 @@
 ﻿import type TelegramBot from "node-telegram-bot-api";
 import { logger } from "../../utils/logger.js";
-import { runAgent } from "../agent/runAgent.js";
+import { runAgentCore } from "../agent/runAgent.js";
 import { loadConfig } from "../config.js";
 import { getOrCreateChannelChat } from "../db/chats.js";
 import type { BrainClient } from "../brain/client.js";
@@ -37,7 +37,7 @@ export async function handleCallbackQuery(
 		const channelChat = getOrCreateChannelChat(effectiveUserId, "telegram");
 		const simulatedText = `(Botón presionado: ${callbackData})`;
 
-		const result = await runAgent({
+		const result = await runAgentCore({
 			chatId: channelChat.id,
 			userText: simulatedText,
 			config,

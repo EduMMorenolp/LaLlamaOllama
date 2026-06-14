@@ -7,7 +7,7 @@ export function registerDeleteTool() {
 			type: "function",
 			function: {
 				name: "delete_tool",
-				description: "Elimina permanentemente una herramienta personalizada. La remueve de la DB y del registro activo.",
+				description: "Elimina permanentemente una herramienta personalizada.",
 				parameters: {
 					type: "object",
 					properties: {

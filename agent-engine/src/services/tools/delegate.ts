@@ -8,14 +8,14 @@ export function registerDelegateTool() {
 			function: {
 				name: "delegate",
 				description:
-					"Recomienda delegar una sub-tarea a un agente especializado. Úsala cuando una tarea requiera un dominio específico o una perspectiva diferente.",
+					"Delega una sub-tarea a un agente especializado.",
 				parameters: {
 					type: "object",
 					properties: {
 						agent: {
 							type: "string",
 							description:
-								"The recommended agent type: 'backend-dev', 'frontend-dev', 'docker-ops', 'documentation', 'qa-verification', 'mcp-brain', 'explore', or 'general'",
+								"Agent type: 'backend-dev', 'frontend-dev', 'docker-ops', 'documentation', 'qa-verification', 'mcp-brain', 'explore', or 'general'",
 							enum: [
 								"backend-dev",
 								"frontend-dev",

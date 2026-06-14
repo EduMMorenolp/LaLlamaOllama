@@ -64,7 +64,7 @@ export function registerTranslateTool() {
 			type: "function",
 			function: {
 				name: "translate",
-				description: "Traduce texto entre idiomas usando LibreTranslate (gratuito, sin API key para uso moderado). Soporta 30+ idiomas.",
+				description: "Traduce texto entre idiomas usando LibreTranslate. Soporta 30+ idiomas.",
 				parameters: {
 					type: "object",
 					properties: {
@@ -74,11 +74,11 @@ export function registerTranslateTool() {
 						},
 						to: {
 							type: "string",
-							description: "Idioma destino (código ISO o nombre, ej: 'en', 'inglés', 'es', 'español', 'pt', 'francés')",
+							description: "Idioma destino (código ISO o nombre, ej: 'en', 'es', 'pt', 'fr')",
 						},
 						from: {
 							type: "string",
-							description: "Idioma origen (opcional, se auto-detecta si no se especifica). Código ISO o nombre.",
+							description: "Idioma origen (opcional, se auto-detecta). Código ISO o nombre.",
 						},
 					},
 					required: ["text", "to"],

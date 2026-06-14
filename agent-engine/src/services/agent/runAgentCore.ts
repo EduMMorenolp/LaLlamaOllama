@@ -116,7 +116,10 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 
 	if (session.messages.length === 0) {
 		logger.agent(`[${chatId}] New session, loading brain context...`);
-		const directives = await brain.getDirectives().catch(() => "");
+		const [directives, userProfile] = await Promise.all([
+			brain.getDirectives().catch(() => ""),
+			brain.getUserProfile().catch(() => "")
+		]);
 
 		let systemPrompt: string;
 		try {
@@ -152,30 +155,15 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 			assembly.push(`<project_directives>\n${directives}\n</project_directives>`);
 		}
 
-		// Inform about available tools and modes
-		const toolNames = toolRegistry.getToolNames();
-		if (toolNames.length > 0) {
-			let toolsBlock = `<available_tools>\nHerramientas disponibles en tu modo actual:\n${toolNames.map((n: string) => `- ${n}`).join("\n")}\n</available_tools>`;
+		if (userProfile) {
+			assembly.push(`<user_profile>\nLo que sabes sobre este usuario/proyecto:\n${userProfile}\n</user_profile>`);
+		}
 
-			try {
-				const { listModes: listModesFn, getActiveMode: getActiveModeFn } = await import("../db/modes.js");
-				const allModes = listModesFn();
-				const activeModeName = getActiveModeFn().name;
-				if (allModes.length > 0) {
-					const modesLines = allModes
-						.filter((m: { name: string }) => m.name !== "__general__")
-						.map((m: { name: string; tools: string[] }) => {
-							const isActive = m.name === activeModeName ? " [ACTIVO]" : "";
-							return `  - ${m.name}${isActive}: ${m.tools.join(", ")}`;
-						})
-						.join("\n");
-					toolsBlock += `\n\n<available_modes>\nModos disponibles:\n${modesLines}\n\nSi necesitas herramientas que no están en tu modo actual, indica al usuario qué otro modo tiene esa capacidad. Usa switch_mode solo si el usuario lo pide explícitamente.\n</available_modes>`;
-				}
-			} catch {
-				// modes DB not available, skip
-			}
-
-			assembly.push(toolsBlock);
+		// Inform about available tools (only active/enabled ones)
+		const enabledTools = toolRegistry.getSpecs();
+		if (enabledTools.length > 0) {
+			const toolList = enabledTools.map((t) => `- ${t.function.name}`).join("\n");
+			assembly.push(`<available_tools>\nHerramientas disponibles:\n${toolList}\n</available_tools>`);
 		}
 
 		if (opts.origin === "scheduler") {

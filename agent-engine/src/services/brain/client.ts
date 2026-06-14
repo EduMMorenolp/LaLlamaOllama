@@ -118,6 +118,22 @@ export class BrainClient {
 		}
 	}
 
+	async getUserProfile(limit = 50): Promise<string> {
+		try {
+			const res = await this.http.get("/api/memory/timeline", {
+				params: { project: this.project, limit, type: "user_profile" },
+				timeout: 10000,
+			});
+			const memories = res.data || [];
+			if (memories.length === 0) return "";
+			return memories
+				.map((m: any) => `- ${m.title}: ${m.content}`)
+				.join("\n");
+		} catch {
+			return "";
+		}
+	}
+
 	async getStats(): Promise<Record<string, unknown>> {
 		try {
 			const res = await this.http.get("/api/memory/stats", {

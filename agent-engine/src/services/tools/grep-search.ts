@@ -10,7 +10,7 @@ export function registerGrepTool() {
 			function: {
 				name: "grep",
 				description:
-					"Busca en el contenido de archivos usando una expresión regular. Devuelve rutas, números de línea y contenido coincidente.",
+					"Busca texto en archivos usando expresiones regulares.",
 				parameters: {
 					type: "object",
 					properties: {

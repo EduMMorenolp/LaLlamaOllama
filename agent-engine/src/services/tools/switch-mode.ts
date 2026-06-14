@@ -7,13 +7,13 @@ export function registerSwitchModeTool(): void {
 			type: "function",
 			function: {
 				name: "switch_mode",
-				description: "Cambia el modo activo del agente. Úsala SOLO cuando el usuario te lo pida explícitamente. Ej: 'cambia al modo coach-personal', 'ponte en modo investigador'.",
+				description: "Cambia el modo activo. Úsala SOLO si el usuario lo pide explícitamente.",
 				parameters: {
 					type: "object",
 					properties: {
 						mode: {
 							type: "string",
-							description: "Nombre del modo al cual cambiar. Opciones disponibles según modos registrados en el sistema.",
+							description: "Nombre del modo al cual cambiar.",
 						},
 					},
 					required: ["mode"],

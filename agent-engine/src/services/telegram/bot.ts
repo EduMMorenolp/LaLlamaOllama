@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import TelegramBot from "node-telegram-bot-api";
 import { logger } from "../../utils/logger.js";
-import { runAgent } from "../agent/runAgent.js";
+import { runAgentCore } from "../agent/runAgent.js";
 import type { BrainClient } from "../brain/client.js";
 import type { AppConfig } from "../config.js";
 import { getOrCreateChannelChat } from "../db/chats.js";
@@ -402,7 +402,7 @@ export async function startTelegram(): Promise<void> {
 			}
 
 			logger.info(`[TG] Running agent for chatId=${channelChat.id} text="${text.slice(0, 60)}" attachments=${attachments.length}`);
-			const result = await runAgent({
+			const result = await runAgentCore({
 				chatId: channelChat.id,
 				userText: finalUserText,
 				attachments: attachments.length > 0 ? attachments : undefined,

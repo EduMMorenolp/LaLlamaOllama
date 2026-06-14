@@ -7,7 +7,7 @@ export function registerCancelTaskTool(): void {
 			type: "function",
 			function: {
 				name: "cancel_task",
-				description: "Cancela una tarea en cola o en ejecución por su ID.",
+				description: "Cancela una tarea en cola o en ejecución.",
 				parameters: {
 					type: "object",
 					properties: {

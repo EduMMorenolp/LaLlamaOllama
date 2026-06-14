@@ -9,7 +9,7 @@ export function registerMemoryTools(brain: BrainClient) {
 			function: {
 				name: "memorize",
 				description:
-					"Guarda información importante, hechos, decisiones o descubrimientos en la memoria persistente. Úsala cuando aprendas algo relevante del proyecto.",
+					"Guarda información importante en la memoria persistente.",
 				parameters: {
 					type: "object",
 					properties: {
@@ -24,8 +24,8 @@ export function registerMemoryTools(brain: BrainClient) {
 						type: {
 							type: "string",
 							description:
-								"Type of memory: 'feature', 'bug-fix', 'architecture', 'decision', 'discovery', or 'note'",
-							enum: ["feature", "bug-fix", "architecture", "decision", "discovery", "note"],
+								"Type: 'feature', 'bug-fix', 'architecture', 'decision', 'discovery', 'user_profile', or 'note'",
+							enum: ["feature", "bug-fix", "architecture", "decision", "discovery", "user_profile", "note"],
 						},
 						tags: {
 							type: "string",
@@ -56,7 +56,7 @@ export function registerMemoryTools(brain: BrainClient) {
 			function: {
 				name: "recall",
 				description:
-					"Busca en la memoria persistente información relevante de trabajos anteriores. Útil para recuperar contexto sobre decisiones, descubrimientos o conocimiento del proyecto.",
+					"Busca información relevante en la memoria persistente.",
 				parameters: {
 					type: "object",
 					properties: {
@@ -101,7 +101,7 @@ export function registerMemoryTools(brain: BrainClient) {
 			function: {
 				name: "get_context",
 				description:
-					"Obtiene el contexto reciente de la sesión desde el brain compartido. Úsalo al inicio de una conversación para ponerte al día.",
+					"Obtiene el contexto reciente de la sesión desde el brain compartido.",
 				parameters: {
 					type: "object",
 					properties: {
@@ -126,14 +126,14 @@ export function registerMemoryTools(brain: BrainClient) {
 			type: "function",
 			function: {
 				name: "update_memory",
-				description: "Actualiza una memoria existente en el cerebro. Permite modificar título, contenido, tipo o tags.",
+				description: "Actualiza una memoria existente (título, contenido, tipo o tags).",
 				parameters: {
 					type: "object",
 					properties: {
 						id: { type: "string", description: "ID de la memoria a actualizar" },
 						title: { type: "string", description: "Nuevo título (opcional)" },
 						content: { type: "string", description: "Nuevo contenido (opcional)" },
-						type: { type: "string", description: "Nuevo tipo: knowledge, feature, bug-fix, architecture, decision, discovery, note, learning, configuration, prompt (opcional)", enum: ["knowledge", "feature", "bug-fix", "architecture", "decision", "discovery", "note", "learning", "configuration", "prompt"] },
+						type: { type: "string", description: "Nuevo tipo (opcional): knowledge, feature, bug-fix, architecture, decision, discovery, note, learning, configuration, prompt, user_profile", enum: ["knowledge", "feature", "bug-fix", "architecture", "decision", "discovery", "note", "learning", "configuration", "prompt", "user_profile"] },
 						tags: { type: "string", description: "Nuevos tags separados por coma (opcional)" },
 					},
 					required: ["id"],

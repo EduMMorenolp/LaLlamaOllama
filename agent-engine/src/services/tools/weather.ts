@@ -104,7 +104,7 @@ export function registerWeatherTool() {
 			type: "function",
 			function: {
 				name: "weather",
-				description: "Obtiene el clima actual y pronóstico para una ciudad usando Open-Meteo (gratuito, sin API key)",
+				description: "Obtiene el clima actual y pronóstico para una ciudad usando Open-Meteo.",
 				parameters: {
 					type: "object",
 					properties: {
