@@ -11,6 +11,7 @@ import {
   Edit2,
   Save,
   X,
+  Plus,
 } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useState } from "react";
@@ -90,6 +91,71 @@ function getModelInfoValue(info: Record<string, unknown> | undefined, key: strin
   return info[key];
 }
 
+const KNOWN_PARAMS = [
+  "num_ctx", "temperature", "top_p", "top_k", "stop",
+  "num_predict", "repeat_penalty", "presence_penalty",
+  "frequency_penalty", "mirostat", "mirostat_tau",
+  "mirostat_eta", "seed", "min_p", "tfs_z", "typical_p",
+];
+
+const INPUT_TYPES: Record<string, string> = {
+  num_ctx: "number",
+  num_predict: "number",
+  top_k: "number",
+  seed: "number",
+  mirostat: "number",
+  temperature: "number",
+  top_p: "number",
+  repeat_penalty: "number",
+  presence_penalty: "number",
+  frequency_penalty: "number",
+  mirostat_tau: "number",
+  mirostat_eta: "number",
+  min_p: "number",
+  tfs_z: "number",
+  typical_p: "number",
+};
+
+const PARAM_TOOLTIPS: Record<string, string> = {
+  num_ctx: "Tamaño del contexto en tokens. Controla cuánto texto previo recuerda el modelo. Más = mejor comprensión pero más VRAM. Recomendado: 4096–131072",
+  temperature: "Creatividad de la respuesta. 0 = determinista, 2 = muy creativo. Valores típicos: 0.7 para tareas creativas, 0.2 para precisión",
+  top_p: "Nucleus sampling: acumula tokens con probabilidad hasta cubrir P. Menor valor = más enfocado. Default: 0.9",
+  top_k: "Solo considera los K tokens más probables en cada paso. Menor = menos diversidad. Default: 40",
+  num_predict: "Máximo de tokens a generar. -1 = ilimitado. Útil para limitar respuestas largas",
+  repeat_penalty: "Penaliza tokens repetidos. >1 reduce repetición. Default: 1.1. Aumentar si el modelo se repite mucho",
+  presence_penalty: "Penaliza tokens ya vistos en la conversación (sin importar frecuencia). Fomenta que el modelo explore nuevos temas",
+  frequency_penalty: "Penaliza tokens según su frecuencia de uso. Reduce repetición de frases enteras. Default: 0",
+  mirostat: "Algoritmo de sampling adaptativo. 0 = desactivado, 1 = Mirostat básico, 2 = Mirostat 2.0 (recomendado)",
+  mirostat_tau: "Perplejidad objetivo para Mirostat. Menor valor = texto más coherente y menos sorpresivo. Default: 5.0",
+  mirostat_eta: "Tasa de aprendizaje de Mirostat. Controla qué tan rápido se adapta. Default: 0.1",
+  seed: "Semilla fija para generar respuestas reproducibles. Misma semilla + mismo input = misma salida",
+  min_p: "Probabilidad mínima relativa al token más probable. Filtra tokens con probabilidad muy baja. Default: 0.05",
+  tfs_z: "Tail free sampling: corta la cola de tokens de baja probabilidad. 1.0 = desactivado. Recomendado: 0.9–1.0",
+  typical_p: "Typical sampling: selecciona tokens con perplejidad cercana al promedio. 1.0 = desactivado",
+};
+
+function Tooltip({ text }: { text: string }) {
+  const [show, setShow] = useState(false);
+  return (
+    <span style={{ position: "relative", display: "inline-flex", alignItems: "center", marginLeft: "4px", cursor: "help" }}
+      onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}
+    >
+      <Info size={10} style={{ color: "var(--text-muted)", opacity: 0.5 }} />
+      {show && (
+        <span style={{
+          position: "absolute", bottom: "calc(100% + 6px)", transform: "translateX(-50%)",
+          background: "#1a1a2e", color: "#e2e8f0", padding: "8px 10px", borderRadius: "6px",
+          fontSize: "10px", lineHeight: 1.4, whiteSpace: "normal", width: "240px", textTransform: "none",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.08)",
+          zIndex: 100, fontWeight: 400, textAlign: "left", pointerEvents: "none",
+        }}>
+          {text}
+        </span>
+      )}
+    </span>
+  );
+}
+
 export const ModelConfigModal: React.FC<ModelConfigModalProps> = ({ modelName, onClose }) => {
   const [details, setDetails] = useState<ModelDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -101,6 +167,8 @@ export const ModelConfigModal: React.FC<ModelConfigModalProps> = ({ modelName, o
   const [editParams, setEditParams] = useState<Record<string, string>>({});
   const [editTemplate, setEditTemplate] = useState("");
   const [saving, setSaving] = useState(false);
+  const [newParamKey, setNewParamKey] = useState("");
+  const [newParamValue, setNewParamValue] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -131,7 +199,7 @@ export const ModelConfigModal: React.FC<ModelConfigModalProps> = ({ modelName, o
   const handleEditStart = useCallback(() => {
     const parsed = parseParams(details?.parameters);
     const initialParams: Record<string, string> = {};
-    const defaultKeys = ["num_ctx", "temperature", "top_p", "top_k", "stop"];
+    const defaultKeys = [...KNOWN_PARAMS];
     for (const k of defaultKeys) initialParams[k] = "";
     
     for (const [k, v] of Object.entries(parsed)) {
@@ -145,6 +213,23 @@ export const ModelConfigModal: React.FC<ModelConfigModalProps> = ({ modelName, o
     setEditTemplate(details?.template || "");
     setIsEditing(true);
   }, [details]);
+
+  const handleAddParam = useCallback(() => {
+    const key = newParamKey.trim();
+    const val = newParamValue.trim();
+    if (!key || !val) return;
+    setEditParams(prev => ({ ...prev, [key]: val }));
+    setNewParamKey("");
+    setNewParamValue("");
+  }, [newParamKey, newParamValue]);
+
+  const handleRemoveParam = useCallback((key: string) => {
+    setEditParams(prev => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }, []);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -199,7 +284,7 @@ export const ModelConfigModal: React.FC<ModelConfigModalProps> = ({ modelName, o
   const stopList = Array.isArray(stopEntries) ? stopEntries : stopEntries ? [stopEntries] : [];
 
   return (
-    <ModalLayout onClose={onClose} title={`Configuración: ${modelName}`} width="680px">
+    <ModalLayout onClose={onClose} title={`Configuración: ${modelName}`} width="720px">
       {loading ? (
         <div style={{ textAlign: "center", padding: "40px 0", opacity: 0.5 }}>
           <Cpu size={32} className="animate-spin" style={{ margin: "0 auto 12px" }} />
@@ -245,59 +330,6 @@ export const ModelConfigModal: React.FC<ModelConfigModalProps> = ({ modelName, o
                 <Info size={14} /> Información Básica
               </h4>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                {!isEditing ? (
-                  <button
-                    type="button"
-                    className="btn-icon"
-                    onClick={handleEditStart}
-                    style={{
-                      fontSize: "11px",
-                      padding: "4px 10px",
-                      borderRadius: "6px",
-                      background: "rgba(79,140,255,0.1)",
-                      color: "var(--accent)",
-                      gap: "4px",
-                    }}
-                    title="Editar Configuración"
-                  >
-                    <Edit2 size={12} /> Editar
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      className="btn-icon"
-                      onClick={() => setIsEditing(false)}
-                      disabled={saving}
-                      style={{
-                        fontSize: "11px",
-                        padding: "4px 10px",
-                        borderRadius: "6px",
-                        background: "rgba(255,255,255,0.05)",
-                        gap: "4px",
-                      }}
-                    >
-                      <X size={12} /> Cancelar
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-icon"
-                      onClick={handleSave}
-                      disabled={saving}
-                      style={{
-                        fontSize: "11px",
-                        padding: "4px 10px",
-                        borderRadius: "6px",
-                        background: "var(--accent)",
-                        color: "#fff",
-                        gap: "4px",
-                      }}
-                    >
-                      {saving ? <Cpu size={12} className="animate-spin" /> : <Save size={12} />}
-                      Guardar
-                    </button>
-                  </>
-                )}
                 <button
                   type="button"
                   className="btn-icon"
@@ -351,7 +383,42 @@ export const ModelConfigModal: React.FC<ModelConfigModalProps> = ({ modelName, o
                   <span style={{ fontSize: "13px", fontWeight: 600 }}>{formatNumber(parameterCount)}</span>
                 </div>
               )}
+              {(() => {
+                const name = getModelInfoValue(modelInfo, "general.name") as string | undefined;
+                return name ? (
+                  <div>
+                    <span style={{ fontSize: "9px", color: "var(--text-muted)", fontWeight: 600, display: "block", marginBottom: "2px" }}>NOMBRE</span>
+                    <span style={{ fontSize: "13px", fontWeight: 600 }}>{name}</span>
+                  </div>
+                ) : null;
+              })()}
+              {(() => {
+                const sizeLabel = getModelInfoValue(modelInfo, "general.size_label") as string | undefined;
+                return sizeLabel ? (
+                  <div>
+                    <span style={{ fontSize: "9px", color: "var(--text-muted)", fontWeight: 600, display: "block", marginBottom: "2px" }}>TAMAÑO</span>
+                    <span style={{ fontSize: "13px", fontWeight: 600 }}>{sizeLabel}</span>
+                  </div>
+                ) : null;
+              })()}
+              {(() => {
+                const license = getModelInfoValue(modelInfo, "general.license") as string | undefined;
+                return license ? (
+                  <div>
+                    <span style={{ fontSize: "9px", color: "var(--text-muted)", fontWeight: 600, display: "block", marginBottom: "2px" }}>LICENCIA</span>
+                    <span style={{ fontSize: "13px", fontWeight: 600 }}>{license}</span>
+                  </div>
+                ) : null;
+              })()}
             </div>
+            {(() => {
+              const desc = getModelInfoValue(modelInfo, "general.description") as string | undefined;
+              return desc ? (
+                <div style={{ marginTop: "10px", padding: "8px 10px", background: "rgba(255,255,255,0.03)", borderRadius: "6px", fontSize: "11px", color: "var(--text-dim)", lineHeight: 1.5 }}>
+                  {desc}
+                </div>
+              ) : null;
+            })()}
           </div>
 
           {/* ── Arquitectura ── */}
@@ -438,6 +505,33 @@ export const ModelConfigModal: React.FC<ModelConfigModalProps> = ({ modelName, o
                   <span style={{ fontSize: "12px", fontWeight: 600 }}>{fileType}</span>
                 </div>
               )}
+              {(() => {
+                const expertCount = getModelInfoValue(modelInfo, "llama.expert_count") as number | undefined;
+                return expertCount ? (
+                  <div>
+                    <span style={{ fontSize: "9px", color: "var(--text-muted)", fontWeight: 600, display: "block", marginBottom: "2px" }}>MOE EXPERTOS</span>
+                    <span style={{ fontSize: "12px", fontWeight: 600 }}>{expertCount}</span>
+                  </div>
+                ) : null;
+              })()}
+              {(() => {
+                const expertUsed = getModelInfoValue(modelInfo, "llama.expert_used_count") as number | undefined;
+                return expertUsed ? (
+                  <div>
+                    <span style={{ fontSize: "9px", color: "var(--text-muted)", fontWeight: 600, display: "block", marginBottom: "2px" }}>EXPERTOS ACTIVOS</span>
+                    <span style={{ fontSize: "12px", fontWeight: 600 }}>{expertUsed}</span>
+                  </div>
+                ) : null;
+              })()}
+              {(() => {
+                const ropeDim = getModelInfoValue(modelInfo, "llama.rope.dimension_count") as number | undefined;
+                return ropeDim ? (
+                  <div>
+                    <span style={{ fontSize: "9px", color: "var(--text-muted)", fontWeight: 600, display: "block", marginBottom: "2px" }}>ROPE DIM</span>
+                    <span style={{ fontSize: "12px", fontWeight: 600 }}>{ropeDim}</span>
+                  </div>
+                ) : null;
+              })()}
             </div>
             {parameterCount !== undefined && details?.details?.quantization_level && (
               <div
@@ -472,21 +566,206 @@ export const ModelConfigModal: React.FC<ModelConfigModalProps> = ({ modelName, o
               border: "1px solid var(--border-light)",
             }}
           >
-            <h4
-              style={{
-                fontSize: "11px",
-                fontWeight: 700,
-                letterSpacing: "1px",
-                color: "var(--text-muted)",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-                marginBottom: "12px",
-              }}
-            >
-              <Layers size={14} /> Parámetros de Inferencia
-            </h4>
-            {Object.keys(parsedParams).length > 0 ? (
+            <div className="flex-between" style={{ marginBottom: "12px" }}>
+              <h4
+                style={{
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  letterSpacing: "1px",
+                  color: "var(--text-muted)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  margin: 0,
+                }}
+              >
+                <Layers size={14} /> Parámetros de Inferencia
+              </h4>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                {!isEditing ? (
+                  <button
+                    type="button"
+                    className="btn-icon"
+                    onClick={handleEditStart}
+                    style={{
+                      fontSize: "11px",
+                      padding: "4px 10px",
+                      borderRadius: "6px",
+                      background: "rgba(79,140,255,0.1)",
+                      color: "var(--accent)",
+                      gap: "4px",
+                    }}
+                    title="Editar Configuración"
+                  >
+                    <Edit2 size={12} /> Editar
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="btn-icon"
+                      onClick={() => setIsEditing(false)}
+                      disabled={saving}
+                      style={{
+                        fontSize: "11px",
+                        padding: "4px 10px",
+                        borderRadius: "6px",
+                        background: "rgba(255,255,255,0.05)",
+                        gap: "4px",
+                      }}
+                    >
+                      <X size={12} /> Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-icon"
+                      onClick={handleSave}
+                      disabled={saving}
+                      style={{
+                        fontSize: "11px",
+                        padding: "4px 10px",
+                        borderRadius: "6px",
+                        background: "var(--accent)",
+                        color: "#fff",
+                        gap: "4px",
+                      }}
+                    >
+                      {saving ? <Cpu size={12} className="animate-spin" /> : <Save size={12} />}
+                      Guardar
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+            {isEditing ? (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                  {Object.entries(editParams).map(([key, value]) => {
+                    if (key === "stop") return null;
+                    const isCore = KNOWN_PARAMS.includes(key);
+                    return (
+                      <div key={key} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                          <span style={{ fontSize: "9px", color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase", display: "flex", alignItems: "center" }}>
+                            {key.replace(/_/g, " ")}
+                            {PARAM_TOOLTIPS[key] && <Tooltip text={PARAM_TOOLTIPS[key]} />}
+                          </span>
+                          {!isCore && (
+                            <button
+                              type="button"
+                              className="btn-icon"
+                              onClick={() => handleRemoveParam(key)}
+                              style={{ padding: "2px", background: "none", border: "none", cursor: "pointer", color: "var(--warning)", opacity: 0.6 }}
+                              title="Quitar parámetro"
+                            >
+                              <X size={10} />
+                            </button>
+                          )}
+                        </div>
+                        <input
+                          type={INPUT_TYPES[key] || "text"}
+                          step={INPUT_TYPES[key] === "number" ? "any" : undefined}
+                          value={value}
+                          onChange={e => setEditParams(prev => ({ ...prev, [key]: e.target.value }))}
+                          placeholder={key}
+                          style={{
+                            width: "100%",
+                            padding: "6px 8px",
+                            background: "rgba(0,0,0,0.3)",
+                            border: "1px solid var(--border-light)",
+                            borderRadius: "4px",
+                            color: "var(--text)",
+                            fontSize: "12px",
+                            fontFamily: "var(--font-mono)",
+                            outline: "none",
+                          }}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                  <span style={{ fontSize: "9px", color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase" }}>STOP SEQUENCES</span>
+                  <input
+                    type="text"
+                    value={editParams["stop"] || ""}
+                    onChange={e => setEditParams(prev => ({ ...prev, stop: e.target.value }))}
+                    placeholder="coma, separada, lista"
+                    style={{
+                      width: "100%",
+                      padding: "6px 8px",
+                      background: "rgba(0,0,0,0.3)",
+                      border: "1px solid var(--border-light)",
+                      borderRadius: "4px",
+                      color: "var(--text)",
+                      fontSize: "12px",
+                      fontFamily: "var(--font-mono)",
+                      outline: "none",
+                    }}
+                  />
+                </div>
+                <div style={{ marginTop: "16px", padding: "12px", background: "rgba(255,255,255,0.03)", borderRadius: "6px", border: "1px dashed var(--border-light)" }}>
+                  <span style={{ fontSize: "9px", color: "var(--text-muted)", fontWeight: 600, display: "block", marginBottom: "8px", textTransform: "uppercase" }}>Agregar Parámetro</span>
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    <input
+                      type="text"
+                      value={newParamKey}
+                      onChange={e => setNewParamKey(e.target.value)}
+                      placeholder="nombre"
+                      style={{
+                        flex: 1,
+                        padding: "6px 8px",
+                        background: "rgba(0,0,0,0.3)",
+                        border: "1px solid var(--border-light)",
+                        borderRadius: "4px",
+                        color: "var(--text)",
+                        fontSize: "12px",
+                        fontFamily: "var(--font-mono)",
+                        outline: "none",
+                      }}
+                    />
+                    <input
+                      type="text"
+                      value={newParamValue}
+                      onChange={e => setNewParamValue(e.target.value)}
+                      placeholder="valor"
+                      style={{
+                        flex: 1,
+                        padding: "6px 8px",
+                        background: "rgba(0,0,0,0.3)",
+                        border: "1px solid var(--border-light)",
+                        borderRadius: "4px",
+                        color: "var(--text)",
+                        fontSize: "12px",
+                        fontFamily: "var(--font-mono)",
+                        outline: "none",
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="btn-icon"
+                      onClick={handleAddParam}
+                      disabled={!newParamKey.trim() || !newParamValue.trim()}
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: "6px",
+                        background: "var(--accent)",
+                        color: "#fff",
+                        border: "none",
+                        cursor: "pointer",
+                        fontSize: "11px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        opacity: !newParamKey.trim() || !newParamValue.trim() ? 0.5 : 1,
+                      }}
+                    >
+                      <Plus size={12} /> Agregar
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : Object.keys(parsedParams).length > 0 ? (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
                 {Object.entries(parsedParams).map(([key, value]) => {
                   if (key === "stop") return null;
