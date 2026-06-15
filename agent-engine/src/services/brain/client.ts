@@ -7,7 +7,7 @@ export class BrainClient {
 	private http: AxiosInstance;
 	private project: string;
 
-	constructor(config: AppConfig, project = "lallamaollama") {
+	constructor(config: AppConfig, project?: string) {
 		this.http = axios.create({
 			baseURL: config.brainUrl,
 			timeout: 30000,
@@ -16,7 +16,7 @@ export class BrainClient {
 				...(config.apiKey ? { "X-API-Key": config.apiKey } : {}),
 			},
 		});
-		this.project = project;
+		this.project = project || config.brainProject;
 	}
 
 	async saveMemory(

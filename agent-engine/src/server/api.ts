@@ -80,7 +80,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient, wsServer?
 			const mode = (req.query.mode as string) || "semantic";
 			const limit = parseInt(req.query.limit as string, 10) || 10;
 			const offset = parseInt(req.query.offset as string, 10) || 0;
-			const project = (req.query.project as string) || "lallamaollama";
+			const project = (req.query.project as string) || config.brainProject;
 			const axiosResp = await axios.get(`${config.brainUrl}/api/memory/search`, {
 				params: { q, project, mode, limit, offset },
 				timeout: 10000,
@@ -94,15 +94,16 @@ export function startApiServer(config: AppConfig, brain?: BrainClient, wsServer?
 		}
 	});
 
-	app.get("/api/memory/stats", async (_req: Request, res: Response) => {
+	app.get("/api/memory/stats", async (req: Request, res: Response) => {
 		if (!brain) {
 			res.status(503).json({ error: "Brain not available" });
 			return;
 		}
 		try {
-		const axiosResp = await axios.get(`${config.brainUrl}/api/memory/stats`, {
-			params: { project: "lallamaollama" },
-			timeout: 10000,
+			const project = (req.query.project as string) || config.brainProject;
+			const axiosResp = await axios.get(`${config.brainUrl}/api/memory/stats`, {
+				params: { project },
+				timeout: 10000,
 			headers: brainHeaders,
 		});
 			res.json(axiosResp.data);
@@ -116,6 +117,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient, wsServer?
 	app.post("/api/memory", async (req: Request, res: Response) => {
 		if (!brain) { res.status(503).json({ error: "Brain not available" }); return; }
 		try {
+			req.body.project = req.body.project || config.brainProject;
 			const axiosResp = await axios.post(
 				`${config.brainUrl}/api/memory`, req.body, { timeout: 10000, headers: brainHeaders }
 			);
@@ -134,8 +136,9 @@ export function startApiServer(config: AppConfig, brain?: BrainClient, wsServer?
 			const type = req.query.type as string | undefined;
 			const limit = parseInt(req.query.limit as string, 10) || 100;
 			const offset = parseInt(req.query.offset as string, 10) || 0;
+			const project = (req.query.project as string) || config.brainProject;
 			const axiosResp = await axios.get(`${config.brainUrl}/api/memory/timeline`, {
-				params: { project: "lallamaollama", limit, offset, ...(type ? { type } : {}) },
+				params: { project, limit, offset, ...(type ? { type } : {}) },
 				timeout: 10000,
 				headers: brainHeaders,
 			});
@@ -197,6 +200,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient, wsServer?
 	app.post("/api/memory/consolidate", async (req: Request, res: Response) => {
 		if (!brain) { res.status(503).json({ error: "Brain not available" }); return; }
 		try {
+			req.body.project = req.body.project || config.brainProject;
 			const axiosResp = await axios.post(
 				`${config.brainUrl}/api/memory/consolidate`, req.body, { timeout: 60000, headers: brainHeaders }
 			);
@@ -216,6 +220,7 @@ export function startApiServer(config: AppConfig, brain?: BrainClient, wsServer?
 			service: "agent-engine",
 			port: config.enginePort,
 			model: config.defaultModel,
+			brainProject: config.brainProject,
 			tools: toolRegistry.getToolNames().length,
 			telegramConfigured: !!config.telegramBotToken,
 		});

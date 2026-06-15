@@ -176,6 +176,7 @@ services:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_ALLOWED_USERS=${TELEGRAM_ALLOWED_USERS}
       - TRANSFORMERS_CACHE=/data/transformers
+      - BRAIN_PROJECT=${BRAIN_PROJECT:-AgenteLaLlamaOllama}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./:/workspace
