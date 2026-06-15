@@ -625,6 +625,20 @@ const summary = `[Historial: ${cached.length - 5} mensajes anteriores resumidos.
 		}
 	}
 
+	async configureModel(model: string, modelfile: string): Promise<void> {
+		try {
+			await this.axiosClient.post(`${this.baseUrl}/api/create`, {
+				name: model,
+				modelfile,
+				stream: false,
+			});
+			log.info({ model }, "Model configured/updated successfully");
+		} catch (error) {
+			log.error({ err: error, model }, "Failed to configure model");
+			throw error;
+		}
+	}
+
 	async deleteModel(model: string): Promise<void> {
 		try {
 			// Fase 1: Prevent double-delete and track pending deletions

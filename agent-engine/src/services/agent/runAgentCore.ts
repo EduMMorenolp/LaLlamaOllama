@@ -454,18 +454,16 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 
 			const latency = Date.now() - startTime;
 
-			if (!opts.skipPersistUserMsg) {
-				try {
-					saveMessage({
-						userId: opts.origin === "telegram" ? `telegram-${opts.telegramChatId || chatId}` : chatId,
-						chatId,
-						role: "assistant",
-						content: finalContent,
-						origin: opts.origin || "web",
-					});
-				} catch {
-					// DB might not be available
-				}
+			try {
+				saveMessage({
+					userId: opts.origin === "telegram" ? `telegram-${opts.telegramChatId || chatId}` : chatId,
+					chatId,
+					role: "assistant",
+					content: finalContent,
+					origin: opts.origin || "web",
+				});
+			} catch {
+				// DB might not be available
 			}
 
 			onTyping?.(false);
@@ -521,6 +519,18 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 		totalUsage.promptTokens = Math.max(1, Math.ceil(charCount / 4));
 		totalUsage.completionTokens = Math.max(1, Math.ceil((finalContent?.length || 0) / 4));
 		totalUsage.totalTokens = totalUsage.promptTokens + totalUsage.completionTokens;
+	}
+
+	try {
+		saveMessage({
+			userId: opts.origin === "telegram" ? `telegram-${opts.telegramChatId || chatId}` : chatId,
+			chatId,
+			role: "assistant",
+			content: finalContent,
+			origin: opts.origin || "web",
+		});
+	} catch {
+		// DB might not be available
 	}
 
 	return {

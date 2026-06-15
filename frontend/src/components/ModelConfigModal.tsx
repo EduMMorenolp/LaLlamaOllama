@@ -8,6 +8,9 @@ import {
   Minimize2,
   Copy,
   Check,
+  Edit2,
+  Save,
+  X,
 } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useState } from "react";
@@ -94,6 +97,10 @@ export const ModelConfigModal: React.FC<ModelConfigModalProps> = ({ modelName, o
   const [showModelfile, setShowModelfile] = useState(false);
   const [showTemplate, setShowTemplate] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editParams, setEditParams] = useState<Record<string, string>>({});
+  const [editTemplate, setEditTemplate] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -119,6 +126,59 @@ export const ModelConfigModal: React.FC<ModelConfigModalProps> = ({ modelName, o
       setTimeout(() => setCopied(false), 2000);
     });
   }, [modelName]);
+
+  
+  const handleEditStart = useCallback(() => {
+    const parsed = parseParams(details?.parameters);
+    const initialParams: Record<string, string> = {};
+    const defaultKeys = ["num_ctx", "temperature", "top_p", "top_k", "stop"];
+    for (const k of defaultKeys) initialParams[k] = "";
+    
+    for (const [k, v] of Object.entries(parsed)) {
+      if (k === "stop") {
+        initialParams[k] = Array.isArray(v) ? v.join(", ") : String(v);
+      } else {
+        initialParams[k] = Array.isArray(v) ? v[0] : String(v);
+      }
+    }
+    setEditParams(initialParams);
+    setEditTemplate(details?.template || "");
+    setIsEditing(true);
+  }, [details]);
+
+  const handleSave = useCallback(async () => {
+    setSaving(true);
+    setError("");
+    try {
+      let modelfile = `FROM ${modelName}\n`;
+      for (const [k, v] of Object.entries(editParams)) {
+        const val = v.trim();
+        if (!val) continue;
+        if (k === "stop") {
+          const stops = val.split(",").map(s => s.trim()).filter(Boolean);
+          for (const s of stops) modelfile += `PARAMETER stop "${s}"\n`;
+        } else {
+          modelfile += `PARAMETER ${k} ${val}\n`;
+        }
+      }
+      if (editTemplate.trim()) {
+        modelfile += `TEMPLATE """${editTemplate}"""\n`;
+      }
+
+      await api.post(`/api/models/${encodeURIComponent(modelName)}/config`, { modelfile });
+      
+      setIsEditing(false);
+      setLoading(true);
+      const res = await api.get(`/api/models/${encodeURIComponent(modelName)}/show`);
+      setDetails(res.data);
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: { message?: string } } } };
+      setError(e.response?.data?.error?.message || "Error al guardar la configuración.");
+    } finally {
+      setSaving(false);
+      setLoading(false);
+    }
+  }, [modelName, editParams, editTemplate]);
 
   const parsedParams = parseParams(details?.parameters);
   const modelInfo = details?.model_info || {};
@@ -184,22 +244,77 @@ export const ModelConfigModal: React.FC<ModelConfigModalProps> = ({ modelName, o
               >
                 <Info size={14} /> Información Básica
               </h4>
-              <button
-                type="button"
-                className="btn-icon"
-                onClick={handleCopyName}
-                style={{
-                  fontSize: "11px",
-                  padding: "4px 10px",
-                  borderRadius: "6px",
-                  background: "rgba(255,255,255,0.04)",
-                  gap: "4px",
-                }}
-                title="Copiar nombre del modelo"
-              >
-                {copied ? <Check size={12} style={{ color: "var(--success)" }} /> : <Copy size={12} />}
-                {copied ? "Copiado" : "Copiar nombre"}
-              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                {!isEditing ? (
+                  <button
+                    type="button"
+                    className="btn-icon"
+                    onClick={handleEditStart}
+                    style={{
+                      fontSize: "11px",
+                      padding: "4px 10px",
+                      borderRadius: "6px",
+                      background: "rgba(79,140,255,0.1)",
+                      color: "var(--accent)",
+                      gap: "4px",
+                    }}
+                    title="Editar Configuración"
+                  >
+                    <Edit2 size={12} /> Editar
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="btn-icon"
+                      onClick={() => setIsEditing(false)}
+                      disabled={saving}
+                      style={{
+                        fontSize: "11px",
+                        padding: "4px 10px",
+                        borderRadius: "6px",
+                        background: "rgba(255,255,255,0.05)",
+                        gap: "4px",
+                      }}
+                    >
+                      <X size={12} /> Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-icon"
+                      onClick={handleSave}
+                      disabled={saving}
+                      style={{
+                        fontSize: "11px",
+                        padding: "4px 10px",
+                        borderRadius: "6px",
+                        background: "var(--accent)",
+                        color: "#fff",
+                        gap: "4px",
+                      }}
+                    >
+                      {saving ? <Cpu size={12} className="animate-spin" /> : <Save size={12} />}
+                      Guardar
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  className="btn-icon"
+                  onClick={handleCopyName}
+                  style={{
+                    fontSize: "11px",
+                    padding: "4px 10px",
+                    borderRadius: "6px",
+                    background: "rgba(255,255,255,0.04)",
+                    gap: "4px",
+                  }}
+                  title="Copiar nombre del modelo"
+                >
+                  {copied ? <Check size={12} style={{ color: "var(--success)" }} /> : <Copy size={12} />}
+                  {copied ? "Copiado" : "Copiar nombre"}
+                </button>
+              </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
               <div>
@@ -408,7 +523,7 @@ export const ModelConfigModal: React.FC<ModelConfigModalProps> = ({ modelName, o
                 Sin parámetros adicionales configurados.
               </p>
             )}
-            {numCtxVal !== undefined && (
+            {!isEditing && numCtxVal !== undefined && (
               <div
                 style={{
                   marginTop: "12px",
@@ -427,7 +542,7 @@ export const ModelConfigModal: React.FC<ModelConfigModalProps> = ({ modelName, o
                 </span>
               </div>
             )}
-            {stopList.length > 0 && (
+            {!isEditing && stopList.length > 0 && (
               <div
                 style={{
                   marginTop: "8px",
@@ -503,23 +618,37 @@ export const ModelConfigModal: React.FC<ModelConfigModalProps> = ({ modelName, o
                 {showTemplate ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
               </button>
               {showTemplate && (
-                <pre
-                  style={{
-                    marginTop: "12px",
-                    padding: "12px",
-                    background: "rgba(0,0,0,0.3)",
-                    borderRadius: "6px",
-                    fontSize: "11px",
-                    fontFamily: "var(--font-mono)",
-                    color: "var(--text-dim)",
-                    overflow: "auto",
-                    maxHeight: "200px",
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-word",
-                  }}
-                >
-                  {details.template}
-                </pre>
+                isEditing ? (
+                  <textarea 
+                    value={editTemplate} 
+                    onChange={e => setEditTemplate(e.target.value)} 
+                    placeholder="Plantilla (Template)"
+                    style={{ 
+                      marginTop: "12px", width: "100%", height: "200px", 
+                      background: "rgba(0,0,0,0.3)", border: "1px solid var(--border-light)", 
+                      borderRadius: "6px", color: "var(--text-dim)", padding: "12px", 
+                      fontSize: "11px", fontFamily: "var(--font-mono)", resize: "vertical" 
+                    }}
+                  />
+                ) : (
+                  <pre
+                    style={{
+                      marginTop: "12px",
+                      padding: "12px",
+                      background: "rgba(0,0,0,0.3)",
+                      borderRadius: "6px",
+                      fontSize: "11px",
+                      fontFamily: "var(--font-mono)",
+                      color: "var(--text-dim)",
+                      overflow: "auto",
+                      maxHeight: "200px",
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {details.template}
+                  </pre>
+                )
               )}
             </div>
           )}

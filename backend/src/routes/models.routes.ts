@@ -7,6 +7,7 @@ import type { UnloadModelsUseCase } from "../use-cases/models/unload-models.js";
 import type { CleanWorkspaceUseCase } from "../use-cases/models/clean-workspace.js";
 import type { DeleteModelUseCase } from "../use-cases/models/delete-model.js";
 import type { ShowModelUseCase } from "../use-cases/models/show-model.js";
+import type { ConfigureModelUseCase } from "../use-cases/models/configure-model.js";
 import logger from "../utils/logger.js";
 
 const log = logger.child({ component: "models-routes" });
@@ -19,6 +20,7 @@ export function createModelsRouter(
   cleanWorkspace: CleanWorkspaceUseCase,
   deleteModel: DeleteModelUseCase,
   showModel: ShowModelUseCase,
+  configureModel: ConfigureModelUseCase,
   authMiddleware: RequestHandler
 ) {
   const router = Router();
@@ -106,6 +108,27 @@ export function createModelsRouter(
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       log.error({ model: name, message }, "Model delete failed");
+      res.status(500).json({ error: { message, type: "server_error" } });
+    }
+  });
+
+  router.post("/api/models/:name/config", authMiddleware, async (req, res) => {
+    const { name } = req.params;
+    const { modelfile } = req.body;
+    
+    if (!modelfile) {
+      return res.status(400).json({
+        error: { message: "modelfile is required", type: "invalid_request_error" },
+      });
+    }
+
+    log.info({ model: name }, "POST /api/models/:name/config");
+    try {
+      const result = await configureModel.execute(name, modelfile);
+      res.json(result);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      log.error({ model: name, message }, "Model config failed");
       res.status(500).json({ error: { message, type: "server_error" } });
     }
   });
