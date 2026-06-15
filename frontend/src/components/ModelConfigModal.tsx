@@ -143,7 +143,7 @@ function Tooltip({ text }: { text: string }) {
       <Info size={10} style={{ color: "var(--text-muted)", opacity: 0.5 }} />
       {show && (
         <span style={{
-          position: "absolute", bottom: "calc(100% + 6px)", transform: "translateX(-50%)",
+          position: "absolute", bottom: "calc(100% + 6px)",
           background: "#1a1a2e", color: "#e2e8f0", padding: "8px 10px", borderRadius: "6px",
           fontSize: "10px", lineHeight: 1.4, whiteSpace: "normal", width: "240px", textTransform: "none",
           boxShadow: "0 4px 12px rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.08)",
