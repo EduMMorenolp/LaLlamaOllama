@@ -13,6 +13,24 @@
   - Sección informativa sobre el aprendizaje automático
 - **➕ Nueva tab "Perfil"** — Añadida al sidebar con icono `User` y ruta activa
 
+### 🌓 Tema claro/oscuro + Feedback 👍/👎 + Exportar mejorado
+
+#### Añadido
+- **➕ `ThemeContext.tsx`** — Contexto de tema con persistencia en localStorage y toggle automático
+- **➕ Botón de cambio de tema** — En sidebar footer con iconos Sun/Moon, cambia entre dark y light mode
+- **➕ Soporte CSS `[data-theme="light"]`** — 16 variables redefinidas para modo claro manteniendo el mismo esquema visual
+- **➕ Botones 👍/👎 en mensajes del asistente** — Feedback inline que se envía vía WS (`message_feedback`) y persiste en DB
+- **➕ Estado visual del feedback** — Color verde para 👍, rojo para 👎, toggle on/off al hacer clic de nuevo
+- **➕ Exportación de chat mejorada** — Metadatos (modelo), formato más limpio, tool calls como bloques de código, locale argentino
+
+### 🧠 Cerebro: Gestor visual de memorias con CRUD, timeline y consolidación
+  - Estadísticas: interacciones totales, sentimiento promedio, estilo de comunicación detectado, tono preferido
+  - Información del perfil: nombre, persona, idioma, estilo, tono, modelo preferido, zona horaria
+  - Tags de intereses y temas recientes detectados automáticamente
+  - Modo edición con formulario completo (nombre, persona, idioma, estilo, tono, modelo, intereses, disgustos)
+  - Sección informativa sobre el aprendizaje automático
+- **➕ Nueva tab "Perfil"** — Añadida al sidebar con icono `User` y ruta activa
+
 ### 🧠 Cerebro: Gestor visual de memorias con CRUD, timeline y consolidación
 
 #### Añadido

@@ -4,10 +4,12 @@ import type { BrainClient } from "../brain/client.js";
 import { getGeneralConfig } from "../db/experts.js";
 import { getMessages, saveMessage } from "../db/messages.js";
 import { getUser, formatUserProfileForPrompt } from "../db/users.js";
+import { getWorkspaceContext, formatWorkspaceForPrompt } from "../db/workspace.js";
 import { toolRegistry } from "../tools/registry.js";
 import type { ToolSpec as RegistryToolSpec } from "../tools/types.js";
 import { buildSystemPrompt } from "./buildPrompt.js";
 import { createClient, getDefaultModelConfig } from "./createClient.js";
+import { summarizeMessages } from "./sessionSummary.js";
 import { afterResponseLearning } from "./userLearning.js";
 import type { AgentOptions, AgentResult, SessionState } from "./types.js";
 
@@ -183,6 +185,21 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 			assembly.push(`<available_tools>\nHerramientas disponibles:\n${toolList}\n</available_tools>`);
 		}
 
+		// Workspace context
+		try {
+			const wsCtx = getWorkspaceContext(userId);
+			if (wsCtx) {
+				const wsText = formatWorkspaceForPrompt(wsCtx);
+				if (wsText) {
+					assembly.push(`<workspace_context>\n${wsText}\n</workspace_context>`);
+				}
+			}
+		} catch { /* optional */ }
+
+		if (session.summary) {
+			assembly.push(`<session_summary>\nResumen de la conversación anterior:\n${session.summary}\n</session_summary>`);
+		}
+
 		if (opts.origin === "scheduler") {
 			assembly.push(`<context>\nEsta consulta proviene de una tarea programada automáticamente. No esperes respuesta del usuario; completa la tarea y reporta los resultados sin solicitar confirmación.\n</context>`);
 		}
@@ -334,9 +351,22 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 		);
 		if (totalChars > 80000) {
 			const systemMsg = session.messages[0];
-			const recentMsgs = session.messages.slice(-20);
+			const msgsToSummarize = session.messages.slice(1, -15);
+			const recentMsgs = session.messages.slice(-15);
+			if (msgsToSummarize.length >= 4) {
+				try {
+					const newSummary = await summarizeMessages(client, modelConfig.model, msgsToSummarize as Array<{ role: string; content: string }>);
+					session.summary = session.summary
+						? `${session.summary}\n\n${newSummary}`
+						: newSummary;
+					logger.agent(`[${chatId}] Context summarized via LLM (${msgsToSummarize.length} msgs → ${newSummary.length} chars)`);
+				} catch {
+					session.messages = [systemMsg, ...recentMsgs];
+					logger.agent(`[${chatId}] Summary LLM failed, truncated to ${session.messages.length} messages`);
+				}
+			}
 			session.messages = [systemMsg, ...recentMsgs];
-			logger.agent(`[${chatId}] Context compacted to ${session.messages.length} messages`);
+			logger.agent(`[${chatId}] Context compacted to ${session.messages.length} messages (summary: ${session.summary?.length || 0} chars)`);
 		}
 
 		try {
@@ -466,7 +496,18 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 
 			if (session.messages.length > 60) {
 				const systemMsg = session.messages[0];
-				session.messages = [systemMsg, ...session.messages.slice(-40)];
+				const msgsToSummarize = session.messages.slice(1, -30);
+				const recentMsgs = session.messages.slice(-30);
+				if (msgsToSummarize.length >= 4) {
+					summarizeMessages(client, modelConfig.model, msgsToSummarize as Array<{ role: string; content: string }>)
+						.then((newSummary) => {
+							session.summary = session.summary
+								? `${session.summary}\n\n${newSummary}`
+								: newSummary;
+						})
+						.catch(() => {});
+				}
+				session.messages = [systemMsg, ...recentMsgs];
 			}
 
 			const latency = Date.now() - startTime;

@@ -33,6 +33,8 @@ import {
 	saveMessageToFavorites,
 	unsaveMessage,
 } from "../services/db/savedMessages.js";
+import { saveFeedback } from "../services/db/feedback.js";
+import { searchMessages, countSearchResults } from "../services/db/messages.js";
 import { deleteUser, listAllUsers, type UserProfile, updateUserPreferences, upsertUser } from "../services/db/users.js";
 import { getDockerInfo } from "../services/runtime.js";
 import { getBot, getTelegramConfig, initTelegramDeps, setTelegramConfig, startTelegram, stopTelegram } from "../services/telegram/bot.js";
@@ -248,6 +250,39 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					deleteUser(dId);
 					logger.info("User deleted: " + dId);
 					ws.send(createMessage("list_users", { users: listAllUsers() }));
+					break;
+				}
+				case "search_messages": {
+					const sqUserId = (payload?.userId || userMap.get(clientId)) as string | undefined;
+					const sq = payload?.query as string;
+					const sqLimit = (payload?.limit as number) || 20;
+					const sqOffset = (payload?.offset as number) || 0;
+					if (!sq?.trim()) {
+						ws.send(createMessage("error", { message: "query is required", code: "NO_QUERY" }));
+						break;
+					}
+					const results = searchMessages(sq, sqUserId, sqLimit, sqOffset);
+					const total = countSearchResults(sq, sqUserId);
+					ws.send(createMessage("search_messages", { results, total, query: sq }));
+					break;
+				}
+				case "message_feedback": {
+					const mfUserId = (payload?.userId || userMap.get(clientId)) as string;
+					const mfChatId = (payload?.chatId || mfUserId) as string;
+					const mfRating = payload?.rating as string;
+					if (!mfUserId || !mfRating || !["up", "down"].includes(mfRating)) {
+						ws.send(createMessage("error", { message: "userId and rating (up/down) required", code: "INVALID_FEEDBACK" }));
+						break;
+					}
+					saveFeedback(
+						mfUserId,
+						mfChatId,
+						mfRating as "up" | "down",
+						payload?.reason as string | undefined,
+						payload?.messageId as number | undefined
+					);
+					logger.info(`Feedback ${mfRating} from ${mfUserId}`);
+					ws.send(createMessage("message_feedback", { status: "ok" }));
 					break;
 				}
 				case "user_feedback": {

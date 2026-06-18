@@ -17,6 +17,22 @@
 - **🔧 `buildPrompt.ts`** — Sección `Memoria Proactiva` reforzada con lista detallada de qué memorizar (datos personales, estilo, intereses, disgustos, tono, persona, modelo preferido)
 - **🔧 `runAgentCore.ts`** — Refactor del cálculo de `userId` como variable temprana para reutilización en toda la función
 
+### 🧠 Resúmenes automáticos de sesiones + Workspace persistente + Feedback loop + Búsqueda FTS
+
+#### Añadido
+- **➕ `sessionSummary.ts`** — Genera resúmenes de conversación vía LLM cuando el contexto supera 80K chars o 60 mensajes. El resumen se inyecta como `<session_summary>` en el system prompt. Fallback a resumen estadístico si el LLM falla
+- **➕ Tabla `workspace_context`** — Persiste proyecto, último archivo, último directorio, archivos abiertos (top 10) y tags por usuario
+- **➕ `workspace.ts`** — Funciones `getWorkspaceContext()`, `upsertWorkspaceContext()`, `trackFileAccess()`, `formatWorkspaceForPrompt()`
+- **➕ Tracking automático en `read_file`, `write_file`, `edit_file`** — Cada acceso a archivo actualiza el workspace context del usuario
+- **➕ Inyección de `<workspace_context>`** en system prompt al iniciar sesión
+- **➕ Tabla `message_feedback`** — Almacena ratings 👍/👎 por usuario, chat y mensaje con razón opcional
+- **➕ `feedback.ts`** — Funciones `saveFeedback()`, `getFeedbackStats()`, `getRecentFeedback()`
+- **➕ Handler WS `message_feedback`** — Recibe ratings del frontend y los persiste
+- **➕ Ajuste automático de `tone_preference`** — `userLearning.ts` analiza el ratio de feedback positivo/negativo y ajusta el tono (si +80% → cálido, si -30% → neutral)
+- **➕ FTS5 en `messages`** — Virtual table `messages_fts` con triggers de sync INSERT/UPDATE/DELETE y población inicial de datos existentes
+- **➕ `searchMessages()` / `countSearchResults()`** — Búsqueda full-text en historial de chats con snippets, ranking y paginación
+- **➕ Handler WS `search_messages`** — Busca en todos los mensajes del usuario o globalmente
+
 ### 🧠 Modos, Recordatorios y Prompt Engineering
 
 #### Añadido

@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { trackFileAccess } from "../db/workspace.js";
 import { toolRegistry } from "./registry.js";
 import type { ToolContext } from "./types.js";
 
@@ -47,6 +48,9 @@ export function registerWriteFileTool() {
 
 				fs.writeFileSync(resolvedPath, content, "utf-8");
 				const size = Buffer.byteLength(content, "utf-8");
+
+				try { trackFileAccess(ctx.chatId || ctx.sessionId, filePath); } catch { /* optional */ }
+
 				return `File written: ${filePath} (${size} bytes, ${content.split("\n").length} lines)`;
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err);
@@ -117,6 +121,8 @@ export function registerEditFileTool() {
 
 				const newContent = content.replace(oldString, newString);
 				fs.writeFileSync(resolvedPath, newContent, "utf-8");
+
+				try { trackFileAccess(ctx.chatId || ctx.sessionId, filePath); } catch { /* optional */ }
 
 				return `File edited: ${filePath} (replacement applied)`;
 			} catch (err) {

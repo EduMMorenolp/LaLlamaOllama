@@ -19,6 +19,20 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 #### Agent Frontend
 - **➕ `Perfil.tsx`** — Nueva tab con estadísticas de interacción, vista de perfil y modo edición con formulario completo (persona, estilo, tono, intereses, disgustos, modelo)
 
+### 🧠 Resúmenes de sesiones + Workspace + Feedback + Búsqueda + Tema + Export (2026-06-18)
+
+#### Agent Engine
+- **➕ `sessionSummary.ts`** — Resúmenes automáticos de conversación vía LLM cuando el contexto supera 80K chars. Inyecta `<session_summary>` en system prompt
+- **➕ Tabla `workspace_context`** — Persiste proyecto, archivos abiertos y directorio actual por usuario. Tracking automático en `read_file`, `write_file`, `edit_file`
+- **➕ Inyección de `<workspace_context>`** — El agente sabe en qué proyecto/archivos estás trabajando
+- **➕ Tabla `message_feedback`** + handler WS — Almacena ratings 👍/👎 por mensaje. Ajusta automáticamente `tone_preference` según el ratio de feedback
+- **➕ FTS5 en `messages`** — Full-text search en historial de chats con `messages_fts` + triggers + `searchMessages()`
+
+#### Agent Frontend
+- **➕ `ThemeContext.tsx`** — Toggle claro/oscuro con persistencia en localStorage + CSS `[data-theme="light"]`
+- **➕ Botones 👍/👎** — Feedback inline en cada mensaje del asistente, con estado visual y toggle
+- **➕ Exportación de chat mejorada** — Metadatos, formato MD más limpio, tool calls como bloques de código
+
 ### 🐛 Corrección 429 + 401 + Mejoras en Tareas y contexto programado (2026-06-12)
 
 #### Agent Engine

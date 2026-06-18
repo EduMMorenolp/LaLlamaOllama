@@ -1,200 +1,178 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync, lstatSync } from "node:fs";
-import { join, extname, relative, basename } from "node:path";
+﻿import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { basename, join, resolve } from "node:path";
 import type { BrainClient } from "../brain/client.js";
-import { logger } from "../../utils/logger.js";
 
-export interface KnowledgeFile {
-	name: string;
-	relativePath: string;
-	size: number;
-	ext: string;
-	modifiedAt: string;
-	chunks: number;
+/**
+ * List knowledge files in the workspace knowledge directory (flat list).
+ */
+export function listKnowledgeFiles(workspaceDir: string): Array<{ name: string; path: string; size: number; modified: string }> {
+	const knowledgeDir = join(workspaceDir, "knowledge");
+	if (!existsSync(knowledgeDir)) return [];
+	try {
+		const entries = readdirSync(knowledgeDir, { withFileTypes: true });
+		const files: Array<{ name: string; path: string; size: number; modified: string }> = [];
+		for (const entry of entries) {
+			if (entry.isFile()) {
+				const fullPath = join(knowledgeDir, entry.name);
+				try {
+					const stat = statSync(fullPath);
+					files.push({
+						name: entry.name,
+						path: entry.name,
+						size: stat.size,
+						modified: stat.mtime.toISOString(),
+					});
+				} catch {
+					// skip unreadable files
+				}
+			}
+		}
+		return files.sort((a, b) => b.modified.localeCompare(a.modified));
+	} catch {
+		return [];
+	}
 }
 
-function scanDirRecursive(dir: string, baseDir: string): KnowledgeFile[] {
-	const entries = readdirSync(dir);
-	const files: KnowledgeFile[] = [];
-
-	for (const entry of entries) {
-		if (entry.startsWith(".")) continue;
-		const fullPath = join(dir, entry);
-		const stat = lstatSync(fullPath);
-
-		if (stat.isDirectory()) {
-			files.push(...scanDirRecursive(fullPath, baseDir));
-		} else {
-			const relPath = relative(baseDir, fullPath);
-			files.push({
-				name: entry,
-				relativePath: relPath.replace(/\\/g, "/"),
-				size: stat.size,
-				ext: extname(entry).toLowerCase(),
-				modifiedAt: stat.mtime.toISOString(),
-				chunks: 0,
-			});
+/**
+ * List all knowledge files recursively, including subdirectories.
+ */
+export function listAllKnowledgeFiles(workspaceDir: string): Array<{ name: string; path: string; size: number; modified: string }> {
+	const knowledgeDir = join(workspaceDir, "knowledge");
+	if (!existsSync(knowledgeDir)) return [];
+	const result: Array<{ name: string; path: string; size: number; modified: string }> = [];
+	function walk(dir: string, relativeDir: string): void {
+		try {
+			const entries = readdirSync(dir, { withFileTypes: true });
+			for (const entry of entries) {
+				const fullPath = join(dir, entry.name);
+				const relativePath = relativeDir ? ${relativeDir}/ : entry.name;
+				if (entry.isDirectory()) {
+					walk(fullPath, relativePath);
+				} else if (entry.isFile()) {
+					try {
+						const st = statSync(fullPath);
+						result.push({
+							name: entry.name,
+							path: relativePath,
+							size: st.size,
+							modified: st.mtime.toISOString(),
+						});
+					} catch {
+						// skip unreadable files
+					}
+				}
+			}
+		} catch {
+			// skip unreadable directories
 		}
 	}
-
-	return files;
+	walk(knowledgeDir, "");
+	return result.sort((a, b) => b.modified.localeCompare(a.modified));
 }
 
-export function listAllKnowledgeFiles(workspaceDir: string): KnowledgeFile[] {
-	const dir = join(workspaceDir, "knowledge");
-	if (!existsSync(dir)) {
-		mkdirSync(dir, { recursive: true });
-		return [];
-	}
-
-	return scanDirRecursive(dir, dir);
-}
-
-export function listKnowledgeFiles(workspaceDir: string): KnowledgeFile[] {
-	const dir = join(workspaceDir, "knowledge");
-	if (!existsSync(dir)) {
-		mkdirSync(dir, { recursive: true });
-		return [];
-	}
-
-	return readdirSync(dir)
-		.filter((f) => !f.startsWith("."))
-		.map((name) => {
-			const fullPath = join(dir, name);
-			const stat = statSync(fullPath);
-			if (!stat.isFile()) return null;
-			return {
-				name,
-				relativePath: name,
-				size: stat.size,
-				ext: extname(name).toLowerCase(),
-				modifiedAt: stat.mtime.toISOString(),
-				chunks: 0,
-			};
-		})
-		.filter((f): f is KnowledgeFile => f !== null);
-}
-
-export function saveKnowledgeFile(
-	workspaceDir: string,
-	relativePath: string,
-	content: string
-): string {
-	const dir = join(workspaceDir, "knowledge");
-	if (!existsSync(dir)) {
-		mkdirSync(dir, { recursive: true });
-	}
-
-	const filePath = join(dir, relativePath);
-	mkdirSync(join(filePath, ".."), { recursive: true });
-	writeFileSync(filePath, content, "utf-8");
-	return filePath;
-}
-
-export function deleteKnowledgeFile(
-	workspaceDir: string,
-	relativePath: string
-): boolean {
-	const filePath = join(workspaceDir, "knowledge", relativePath);
-	if (!existsSync(filePath)) return false;
-	unlinkSync(filePath);
-	return true;
-}
-
-export function readKnowledgeFile(
-	workspaceDir: string,
-	relativePath: string
-): string | null {
-	const filePath = join(workspaceDir, "knowledge", relativePath);
-	if (!existsSync(filePath)) return null;
+/**
+ * Read a knowledge file's content.
+ * Returns null if the file does not exist or is outside the knowledge directory.
+ */
+export function readKnowledgeFile(workspaceDir: string, filePath: string): string | null {
+	const knowledgeDir = resolve(join(workspaceDir, "knowledge"));
+	const targetPath = resolve(join(knowledgeDir, filePath));
+	if (!targetPath.startsWith(knowledgeDir)) return null;
+	if (!existsSync(targetPath)) return null;
 	try {
-		return readFileSync(filePath, "utf-8");
+		return readFileSync(targetPath, "utf-8");
 	} catch {
 		return null;
 	}
 }
 
-export function chunkText(text: string, maxChunkSize = 1000): string[] {
-	const paragraphs = text.split(/\n\s*\n/);
-	const chunks: string[] = [];
-	let current = "";
-
-	for (const para of paragraphs) {
-		const trimmed = para.trim();
-		if (!trimmed) continue;
-
-		if (current.length + trimmed.length > maxChunkSize && current.length > 0) {
-			chunks.push(current.trim());
-			current = "";
-		}
-
-		if (trimmed.length > maxChunkSize) {
-			if (current.trim()) {
-				chunks.push(current.trim());
-				current = "";
-			}
-			for (let i = 0; i < trimmed.length; i += maxChunkSize) {
-				chunks.push(trimmed.slice(i, i + maxChunkSize).trim());
-			}
-		} else {
-			current += (current ? "\n\n" : "") + trimmed;
-		}
+/**
+ * Save content to a knowledge file. Creates intermediate directories if needed.
+ * Returns the full path of the saved file.
+ */
+export function saveKnowledgeFile(workspaceDir: string, name: string, content: string): string {
+	const knowledgeDir = join(workspaceDir, "knowledge");
+	const sanitizedName = basename(name).replace(/[^a-zA-Z0-9._-]/g, "_");
+	const fullPath = join(knowledgeDir, sanitizedName);
+	if (!existsSync(knowledgeDir)) {
+		mkdirSync(knowledgeDir, { recursive: true });
 	}
-
-	if (current.trim()) {
-		chunks.push(current.trim());
-	}
-
-	return chunks;
+	writeFileSync(fullPath, content, "utf-8");
+	return fullPath;
 }
 
-export async function chunkAndIndexFile(
-	filePath: string,
-	fileName: string,
-	brain: BrainClient
-): Promise<number> {
-	const content = readFileSync(filePath, "utf-8");
-	const chunks = chunkText(content);
-
-	let indexed = 0;
-	for (let i = 0; i < chunks.length; i++) {
-		const chunk = chunks[i];
-		const title = `${fileName} — parte ${i + 1}/${chunks.length}`;
-		const tags = `knowledge,${fileName},chunk-${i + 1}`;
-		try {
-			const result = await brain.saveMemory("knowledge", title, chunk, tags);
-			if (result) indexed++;
-		} catch (err) {
-			logger.error(`[Knowledge] Failed to index chunk ${i + 1} of ${fileName}: ${err}`);
-		}
-	}
-
-	return indexed;
-}
-
-export async function deleteBrainChunksByFile(
-	brain: BrainClient,
-	fileName: string
-): Promise<number> {
+/**
+ * Delete a knowledge file by name.
+ * Returns true if the file was deleted, false if not found.
+ */
+export function deleteKnowledgeFile(workspaceDir: string, name: string): boolean {
+	const knowledgeDir = resolve(join(workspaceDir, "knowledge"));
+	const targetPath = resolve(join(knowledgeDir, basename(name)));
+	if (!targetPath.startsWith(knowledgeDir)) return false;
+	if (!existsSync(targetPath)) return false;
 	try {
-		const searchResults = await brain.searchMemories(fileName, 200);
-		const toDelete = searchResults.filter(
-			(r) => r.tags && r.tags.includes(`knowledge,${fileName}`)
-		);
-		let deleted = 0;
-		for (const mem of toDelete) {
-			try {
-				await brain.deleteMemory(mem.id);
-				deleted++;
-			} catch {
-				// skip individual failures
+		unlinkSync(targetPath);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * Chunk a file's content and index it into the MCP Brain.
+ * Returns the number of chunks indexed.
+ */
+export async function chunkAndIndexFile(filePath: string, fileName: string, brain: BrainClient): Promise<number> {
+	try {
+		if (!existsSync(filePath)) return 0;
+		const content = readFileSync(filePath, "utf-8");
+		if (!content.trim()) return 0;
+
+		// Simple chunking strategy: split by paragraphs or fixed-size chunks
+		const maxChunkSize = 2000;
+		const chunks: string[] = [];
+		const paragraphs = content.split(/\n\n+/);
+
+		let currentChunk = "";
+		for (const paragraph of paragraphs) {
+			const trimmed = paragraph.trim();
+			if (!trimmed) continue;
+			if ((currentChunk + "\n\n" + trimmed).length > maxChunkSize && currentChunk) {
+				chunks.push(currentChunk.trim());
+				currentChunk = trimmed;
+			} else {
+				currentChunk = currentChunk ? ${currentChunk}\n\n : trimmed;
 			}
 		}
-		if (deleted > 0) {
-			logger.info(`[Knowledge] Deleted ${deleted} brain chunks for: ${fileName}`);
+		if (currentChunk.trim()) {
+			chunks.push(currentChunk.trim());
 		}
-		return deleted;
-	} catch (err) {
-		logger.error(`[Knowledge] Failed to delete brain chunks for ${fileName}: ${err}`);
+
+		let indexed = 0;
+		for (let i = 0; i < chunks.length; i++) {
+			const title = chunks.length > 1 ? ${fileName} (parte /) : fileName;
+			const result = await brain.saveMemory("knowledge", title, chunks[i], "knowledge,file");
+			if (result) indexed++;
+		}
+		return indexed;
+	} catch {
 		return 0;
+	}
+}
+
+/**
+ * Delete all brain chunks associated with a given file name.
+ */
+export async function deleteBrainChunksByFile(brain: BrainClient, fileName: string): Promise<void> {
+	try {
+		// Search for memories with the file name in the title
+		const results = await brain.searchMemories(fileName, 100, "knowledge");
+		for (const result of results) {
+			if (result.title?.startsWith(fileName) || result.title === fileName) {
+				await brain.deleteMemory(result.id).catch(() => {});
+			}
+		}
+	} catch {
+		// Best-effort cleanup
 	}
 }

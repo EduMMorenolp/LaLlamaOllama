@@ -1,3 +1,4 @@
+import { getRecentFeedback, getFeedbackStats } from "../db/feedback.js";
 import { getUser, updateUserPreferences, updateUserStats } from "../db/users.js";
 import type { BrainClient } from "../brain/client.js";
 
@@ -162,6 +163,20 @@ export async function afterResponseLearning(
 	if (style !== "neutral" && style !== user.communication_style) {
 		updateUserPreferences(userId, { communication_style: style });
 	}
+
+	// Adjust tone based on feedback patterns
+	try {
+		const stats = getFeedbackStats(userId);
+		if (stats.total >= 3) {
+			const ratio = stats.up / stats.total;
+			let tone = user.tone_preference;
+			if (ratio > 0.8 && stats.total >= 5) tone = tone || "warm";
+			if (ratio < 0.3 && stats.total >= 5) tone = "neutral";
+			if (tone && tone !== user.tone_preference) {
+				updateUserPreferences(userId, { tone_preference: tone });
+			}
+		}
+	} catch { /* optional */ }
 
 	// Update persona
 	if (persona && persona !== user.persona) {

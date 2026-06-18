@@ -116,6 +116,30 @@ export function getDb(dbPath?: string): Database.Database {
 		CREATE INDEX IF NOT EXISTS idx_messages_chatId ON messages(chatId);
 		CREATE INDEX IF NOT EXISTS idx_chats_userId ON chats(userId);
 
+		CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
+			id UNINDEXED,
+			content,
+			role UNINDEXED,
+			chatId UNINDEXED,
+			userId UNINDEXED,
+			content='messages',
+			content_rowid='id'
+		);
+		CREATE TRIGGER IF NOT EXISTS messages_fts_ai AFTER INSERT ON messages BEGIN
+			INSERT INTO messages_fts (id, content, role, chatId, userId)
+			VALUES (new.id, new.content, new.role, new.chatId, new.userId);
+		END;
+		CREATE TRIGGER IF NOT EXISTS messages_fts_ad AFTER DELETE ON messages BEGIN
+			INSERT INTO messages_fts (messages_fts, id, content, role, chatId, userId)
+			VALUES ('delete', old.id, old.content, old.role, old.chatId, old.userId);
+		END;
+		CREATE TRIGGER IF NOT EXISTS messages_fts_au AFTER UPDATE ON messages BEGIN
+			INSERT INTO messages_fts (messages_fts, id, content, role, chatId, userId)
+			VALUES ('delete', old.id, old.content, old.role, old.chatId, old.userId);
+			INSERT INTO messages_fts (id, content, role, chatId, userId)
+			VALUES (new.id, new.content, new.role, new.chatId, new.userId);
+		END;
+
 		CREATE TABLE IF NOT EXISTS settings (
 			key TEXT PRIMARY KEY,
 			value TEXT NOT NULL,
@@ -288,6 +312,46 @@ export function getDb(dbPath?: string): Database.Database {
 	try { _db.exec("ALTER TABLE users ADD COLUMN average_sentiment REAL DEFAULT 0.5"); } catch { /* exists */ }
 	try { _db.exec("ALTER TABLE users ADD COLUMN model_preference TEXT"); } catch { /* exists */ }
 	try { _db.exec("ALTER TABLE users ADD COLUMN metadata TEXT"); } catch { /* exists */ }
+	// Populate FTS with existing messages (safe to run multiple times)
+	try {
+		_db.exec(`
+			INSERT OR IGNORE INTO messages_fts (id, content, role, chatId, userId)
+			SELECT id, content, role, chatId, userId FROM messages
+			WHERE id NOT IN (SELECT id FROM messages_fts)
+		`);
+	} catch { /* FTS may not be available or already populated */ }
+	try {
+		_db.exec(`
+			CREATE TABLE IF NOT EXISTS message_feedback (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				userId TEXT NOT NULL,
+				chatId TEXT NOT NULL,
+				messageId INTEGER,
+				rating TEXT NOT NULL CHECK(rating IN ('up', 'down')),
+				reason TEXT,
+				created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+			);
+			CREATE INDEX IF NOT EXISTS idx_feedback_userId ON message_feedback(userId);
+			CREATE INDEX IF NOT EXISTS idx_feedback_chatId ON message_feedback(chatId);
+			CREATE INDEX IF NOT EXISTS idx_feedback_rating ON message_feedback(rating);
+		`);
+	} catch { /* ignore */ }
+
+	try {
+		_db.exec(`
+			CREATE TABLE IF NOT EXISTS workspace_context (
+				userId TEXT PRIMARY KEY,
+				project TEXT,
+				last_file TEXT,
+				last_directory TEXT,
+				open_files TEXT,
+				tags TEXT,
+				metadata TEXT,
+				updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+			);
+		`);
+	} catch { /* ignore */ }
+
 	try {
 		_db.exec(`
 			CREATE TABLE IF NOT EXISTS saved_messages (

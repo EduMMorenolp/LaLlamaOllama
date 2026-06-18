@@ -38,3 +38,91 @@ export function getMessagesByUser(userId: string, limit = 50): StoredMessage[] {
 		.all(userId, limit) as StoredMessage[];
 }
 
+export interface SearchResult {
+	id: number;
+	content: string;
+	role: string;
+	chatId: string | null;
+	userId: string;
+	created_at: string;
+	rank: number;
+	snippet?: string;
+}
+
+export function searchMessages(
+	query: string,
+	userId?: string,
+	limit = 20,
+	offset = 0
+): SearchResult[] {
+	const db = getDb();
+	// Sanitize FTS5 query: escape double-quotes and remove FTS5 special characters
+	function sanitizeFts5(input: string): string {
+		// Remove FTS5 control characters: * " ( ) ^ + - ~
+		return input.replace(/["*()^+~\\-]/g, " ").replace(/\s+/g, " ").trim();
+	}
+	const sanitized = sanitizeFts5(query);
+	if (!sanitized) {
+		return [];
+	}
+	const ftsQuery = sanitized.includes(" ")
+		? sanitized.split(" ").map((w) => `"${w}"`).join(" OR ")
+		: `"${sanitized}"`;
+
+	let sql: string;
+	let params: unknown[];
+
+	if (userId) {
+		sql = `
+			SELECT m.id, m.content, m.role, m.chatId, m.userId, m.created_at,
+				rank as rank,
+				snippet(messages_fts, 1, '**', '**', '...', 40) as snippet
+			FROM messages_fts
+			JOIN messages m ON m.id = messages_fts.id
+			WHERE messages_fts MATCH ? AND m.userId = ?
+			ORDER BY rank
+			LIMIT ? OFFSET ?
+		`;
+		params = [ftsQuery, userId, limit, offset];
+	} else {
+		sql = `
+			SELECT m.id, m.content, m.role, m.chatId, m.userId, m.created_at,
+				rank as rank,
+				snippet(messages_fts, 1, '**', '**', '...', 40) as snippet
+			FROM messages_fts
+			JOIN messages m ON m.id = messages_fts.id
+			WHERE messages_fts MATCH ?
+			ORDER BY rank
+			LIMIT ? OFFSET ?
+		`;
+		params = [ftsQuery, limit, offset];
+	}
+
+	return db.prepare(sql).all(...params) as SearchResult[];
+}
+
+export function countSearchResults(query: string, userId?: string): number {
+	const db = getDb();
+	const sanitized = sanitizeFts5(query);
+	if (!sanitized) {
+		return 0;
+	}
+	const ftsQuery = sanitized.includes(" ")
+		? sanitized.split(" ").map((w) => `"${w}"`).join(" OR ")
+		: `"${sanitized}"`;
+
+	let sql: string;
+	let params: unknown[];
+
+	if (userId) {
+		sql = "SELECT COUNT(*) as c FROM messages_fts JOIN messages m ON m.id = messages_fts.id WHERE messages_fts MATCH ? AND m.userId = ?";
+		params = [ftsQuery, userId];
+	} else {
+		sql = "SELECT COUNT(*) as c FROM messages_fts WHERE messages_fts MATCH ?";
+		params = [ftsQuery];
+	}
+
+	return (db.prepare(sql).get(...params) as { c: number })?.c || 0;
+}
+
+

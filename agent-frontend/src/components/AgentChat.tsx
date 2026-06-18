@@ -17,6 +17,8 @@
 	Star,
 	StopCircle,
 	Terminal,
+	ThumbsDown,
+	ThumbsUp,
 	Trash2,
 	Wrench,
 	X,
@@ -34,6 +36,7 @@ interface TokenUsage {
 	promptTokens: number;
 	completionTokens: number;
 	totalTokens: number;
+	model?: string;
 }
 
 interface ChatMessage {
@@ -137,6 +140,7 @@ export const AgentChat: React.FC = () => {
 
 	// Feature: saved/favorited messages
 	const [savedMessages, setSavedMessages] = useState<Set<string>>(new Set());
+	const [feedbackMap, setFeedbackMap] = useState<Map<string, "up" | "down">>(new Map());
 
 	// Feature: auto suggestions
 	const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -793,26 +797,38 @@ export const AgentChat: React.FC = () => {
 		const title = chats.find((c) => c.id === currentChatId)?.title || "chat";
 		const date = new Date().toISOString().split("T")[0];
 		const chatId = currentChatId || "export";
+		const model = messages.find((m) => m.usage)?.usage?.model || "";
 
-		let md = `# Chat - ${title}\n\n`;
-		md += `*Exportado el ${new Date().toLocaleString()}*\n\\n\n`;
+		let md = `# ${title}\n\n`;
+		md += `*Exportado el ${new Date().toLocaleString("es-AR")}*\n\n`;
+		if (model) md += `*Modelo: ${model}*\n\n`;
+		md += `---\n\n`;
 
 		messages.forEach((msg) => {
+			if (msg.role === "system") return;
+
 			const roleLabel =
 				msg.role === "user"
 					? "Usuario"
 					: msg.role === "assistant"
 						? "Asistente"
-						: msg.role === "system"
-							? "Sistema"
-							: "Herramienta";
-			const time = new Date(msg.timestamp).toLocaleString();
-			md += `## ${roleLabel} (${time})\n\n`;
-			md += `${msg.content}\n\n`;
-			if (msg.usage) {
-				md += `> Tokens: ${msg.usage.promptTokens}? / ${msg.usage.completionTokens}?\n\n`;
+						: msg.role === "tool"
+							? "Herramienta"
+							: msg.role;
+			const time = new Date(msg.timestamp).toLocaleString("es-AR");
+			md += `## ${roleLabel} — ${time}\n\n`;
+
+			if (msg.role === "tool") {
+				md += "```\n" + msg.content.substring(0, 2000) + "\n```\n\n";
+			} else {
+				md += `${msg.content}\n\n`;
 			}
-			md += "\n\n---\n\n";
+
+			if (msg.usage) {
+				md += `> Tokens: ${msg.usage.promptTokens || "?"} ↑ / ${msg.usage.completionTokens || "?"} ↓\n\n`;
+			}
+
+			md += `---\n\n`;
 		});
 
 		const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
@@ -1227,6 +1243,25 @@ export const AgentChat: React.FC = () => {
 									isSaved={savedMessages.has(
 										`${currentChatId || "dashboard"}|${msg.content.substring(0, 50)}`
 									)}
+									onFeedback={(idx, rating) => {
+										const key = `${currentChatId}-${idx}`;
+										const prev = feedbackMap.get(key);
+										// If same rating clicked again, toggle off
+										const newRating = prev === rating ? null : rating;
+										setFeedbackMap((prev) => {
+											const next = new Map(prev);
+											if (newRating) next.set(key, newRating);
+											else next.delete(key);
+											return next;
+										});
+										if (newRating) {
+											sendWs("message_feedback", {
+												chatId: currentChatId,
+												rating: newRating,
+											});
+										}
+									}}
+									feedbackState={feedbackMap.get(`${currentChatId}-${i}`) || null}
 								/>
 							);
 						})}
@@ -2224,6 +2259,8 @@ interface MessageBubbleProps {
 	onReply?: (index: number, content: string, role: string, timestamp: Date) => void;
 	onToggleSave?: (index: number, role: string, content: string, timestamp: Date, isSaved: boolean) => void;
 	isSaved?: boolean;
+	onFeedback?: (index: number, rating: "up" | "down") => void;
+	feedbackState?: "up" | "down" | null;
 }
 
 const MessageBubble: React.FC<MessageBubbleProps> = ({
@@ -2234,6 +2271,8 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 	onReply,
 	onToggleSave,
 	isSaved,
+	onFeedback,
+	feedbackState,
 }) => {
 	const isUser = message.role === "user";
 	const isSystem = message.role === "system";
@@ -2258,6 +2297,13 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 		e.stopPropagation();
 		if (onReply && index !== undefined) {
 			onReply(index, message.content, message.role, message.timestamp);
+		}
+	};
+
+	const handleFeedback = (rating: "up" | "down") => (e: React.MouseEvent) => {
+		e.stopPropagation();
+		if (onFeedback && index !== undefined) {
+			onFeedback(index, rating);
 		}
 	};
 
@@ -2389,6 +2435,47 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 					</span>
 				)}
 				<span style={{ flex: 1 }} />
+				{/* Feedback buttons (assistant only) */}
+				{!isUser && !isSystem && (
+					<>
+						<button
+							type="button"
+							onClick={handleFeedback("up")}
+							title="Respuesta útil"
+							style={{
+								background: "none",
+								border: "none",
+								color: feedbackState === "up" ? "var(--success)" : "var(--text-muted)",
+								cursor: "pointer",
+								padding: "2px",
+								display: "flex",
+								opacity: feedbackState === "up" ? 1 : 0.6,
+							}}
+							onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; }}
+							onMouseLeave={(e) => { e.currentTarget.style.opacity = feedbackState === "up" ? "1" : "0.6"; }}
+						>
+							<ThumbsUp size={10} />
+						</button>
+						<button
+							type="button"
+							onClick={handleFeedback("down")}
+							title="Respuesta incorrecta"
+							style={{
+								background: "none",
+								border: "none",
+								color: feedbackState === "down" ? "var(--error)" : "var(--text-muted)",
+								cursor: "pointer",
+								padding: "2px",
+								display: "flex",
+								opacity: feedbackState === "down" ? 1 : 0.6,
+							}}
+							onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; }}
+							onMouseLeave={(e) => { e.currentTarget.style.opacity = feedbackState === "down" ? "1" : "0.6"; }}
+						>
+							<ThumbsDown size={10} />
+						</button>
+					</>
+				)}
 				{/* Feature: reply button */}
 				<button
 					type="button"

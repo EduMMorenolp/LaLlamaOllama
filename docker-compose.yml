@@ -3,7 +3,7 @@ name: "lallamaollama"
 services:
   ollama:
     image: ollama/ollama:latest
-    container_name: mcp-ollama-motor
+    container_name: ollama-motor
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
