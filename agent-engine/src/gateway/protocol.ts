@@ -20,6 +20,7 @@ export type WsMessageType =
 	| "user_register"
 	| "user_update"
 	| "user_delete"
+	| "user_feedback"
 	| "identify"
 	// Chat management
 	| "list_chats"

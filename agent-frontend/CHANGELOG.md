@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### 👤 Perfil de Usuario: Tab de preferencias y estadísticas
+
+#### Añadido
+- **➕ `Perfil.tsx`** — Nueva componente con vista de perfil de usuario que muestra:
+  - Estadísticas: interacciones totales, sentimiento promedio, estilo de comunicación detectado, tono preferido
+  - Información del perfil: nombre, persona, idioma, estilo, tono, modelo preferido, zona horaria
+  - Tags de intereses y temas recientes detectados automáticamente
+  - Modo edición con formulario completo (nombre, persona, idioma, estilo, tono, modelo, intereses, disgustos)
+  - Sección informativa sobre el aprendizaje automático
+- **➕ Nueva tab "Perfil"** — Añadida al sidebar con icono `User` y ruta activa
+
 ### 🧠 Cerebro: Gestor visual de memorias con CRUD, timeline y consolidación
 
 #### Añadido

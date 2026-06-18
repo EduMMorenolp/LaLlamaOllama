@@ -7,6 +7,18 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 
 ## [Unreleased]
 
+### 👤 Perfil de Usuario: Aprendizaje automático y personalización evolutiva (2026-06-18)
+
+#### Agent Engine
+- **➕ `userLearning.ts`** — Nuevo servicio que extrae temas, analiza sentimiento, detecta estilo de comunicación y persona automáticamente tras cada respuesta
+- **➕ Columnas en tabla `users`** — 11 nuevas columnas para perfil enriquecido (persona, intereses, disgustos, estilo, tono, estadísticas de interacción, modelo preferido, metadata)
+- **➕ Perfil combinado en system prompt** — Se inyectan datos de DB local + memorias mcp-brain en `<user_profile>` al iniciar sesión
+- **➕ Handler WS `user_feedback`** — Permite al frontend enviar preferencias explícitas del usuario
+- **🔧 `buildPrompt.ts`** — Instrucción de `memorize` reforzada con lista detallada de qué memorizar
+
+#### Agent Frontend
+- **➕ `Perfil.tsx`** — Nueva tab con estadísticas de interacción, vista de perfil y modo edición con formulario completo (persona, estilo, tono, intereses, disgustos, modelo)
+
 ### 🐛 Corrección 429 + 401 + Mejoras en Tareas y contexto programado (2026-06-12)
 
 #### Agent Engine

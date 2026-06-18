@@ -29,6 +29,17 @@ export function getDb(dbPath?: string): Database.Database {
 			telegram_token TEXT,
 			login_pin TEXT DEFAULT '0000',
 			preferences TEXT,
+			persona TEXT,
+			language TEXT DEFAULT 'es',
+			interests TEXT,
+			dislikes TEXT,
+			communication_style TEXT,
+			tone_preference TEXT,
+			interaction_count INTEGER DEFAULT 0,
+			last_topics TEXT,
+			average_sentiment REAL DEFAULT 0.5,
+			model_preference TEXT,
+			metadata TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		);
 
@@ -266,6 +277,17 @@ export function getDb(dbPath?: string): Database.Database {
 	} catch {
 		// already exists
 	}
+	try { _db.exec("ALTER TABLE users ADD COLUMN persona TEXT"); } catch { /* exists */ }
+	try { _db.exec("ALTER TABLE users ADD COLUMN language TEXT DEFAULT 'es'"); } catch { /* exists */ }
+	try { _db.exec("ALTER TABLE users ADD COLUMN interests TEXT"); } catch { /* exists */ }
+	try { _db.exec("ALTER TABLE users ADD COLUMN dislikes TEXT"); } catch { /* exists */ }
+	try { _db.exec("ALTER TABLE users ADD COLUMN communication_style TEXT"); } catch { /* exists */ }
+	try { _db.exec("ALTER TABLE users ADD COLUMN tone_preference TEXT"); } catch { /* exists */ }
+	try { _db.exec("ALTER TABLE users ADD COLUMN interaction_count INTEGER DEFAULT 0"); } catch { /* exists */ }
+	try { _db.exec("ALTER TABLE users ADD COLUMN last_topics TEXT"); } catch { /* exists */ }
+	try { _db.exec("ALTER TABLE users ADD COLUMN average_sentiment REAL DEFAULT 0.5"); } catch { /* exists */ }
+	try { _db.exec("ALTER TABLE users ADD COLUMN model_preference TEXT"); } catch { /* exists */ }
+	try { _db.exec("ALTER TABLE users ADD COLUMN metadata TEXT"); } catch { /* exists */ }
 	try {
 		_db.exec(`
 			CREATE TABLE IF NOT EXISTS saved_messages (

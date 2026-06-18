@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+### 👤 Perfil de Usuario: Aprendizaje automático y personalización evolutiva
+
+#### Añadido
+- **➕ Columnas en tabla `users`** — 11 nuevas columnas: `persona`, `language`, `interests`, `dislikes`, `communication_style`, `tone_preference`, `interaction_count`, `last_topics`, `average_sentiment`, `model_preference`, `metadata`
+- **➕ `userLearning.ts`** — Nuevo servicio de auto-aprendizaje post-respuesta que extrae temas, analiza sentimiento, detecta estilo de comunicación (técnico/casual/formal) y persona (desarrollador/estudiante/escritor/diseñador/emprendedor/sysadmin)
+- **➕ `afterResponseLearning()`** — Se ejecuta automáticamente tras cada respuesta exitosa del agente, actualizando `interaction_count`, `last_topics`, `average_sentiment` y guardando memorias `user_profile` en mcp-brain
+- **➕ Perfil combinado en system prompt** — Se inyecta `<user_profile>` con datos de la DB local + memorias de mcp-brain al iniciar cada sesión
+- **➕ `updateUserStats()` / `updateUserPreferences()`** — Nuevas funciones en `users.ts` para actualizar estadísticas y preferencias de usuario atómicamente
+- **➕ `formatUserProfileForPrompt()`** — Convierte el perfil estructurado a texto legible para el prompt del LLM
+- **➕ Handler WS `user_feedback`** — Permite al frontend enviar preferencias explícitas del usuario (persona, estilo, tono, intereses, disgustos, modelo) que se persisten al instante en DB y mcp-brain
+
+#### Cambiado
+- **🔧 `buildPrompt.ts`** — Sección `Memoria Proactiva` reforzada con lista detallada de qué memorizar (datos personales, estilo, intereses, disgustos, tono, persona, modelo preferido)
+- **🔧 `runAgentCore.ts`** — Refactor del cálculo de `userId` como variable temprana para reutilización en toda la función
+
 ### 🧠 Modos, Recordatorios y Prompt Engineering
 
 #### Añadido

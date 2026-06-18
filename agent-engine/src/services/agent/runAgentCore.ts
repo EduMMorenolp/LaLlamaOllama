@@ -3,10 +3,12 @@ import { logger } from "../../utils/logger.js";
 import type { BrainClient } from "../brain/client.js";
 import { getGeneralConfig } from "../db/experts.js";
 import { getMessages, saveMessage } from "../db/messages.js";
+import { getUser, formatUserProfileForPrompt } from "../db/users.js";
 import { toolRegistry } from "../tools/registry.js";
 import type { ToolSpec as RegistryToolSpec } from "../tools/types.js";
 import { buildSystemPrompt } from "./buildPrompt.js";
 import { createClient, getDefaultModelConfig } from "./createClient.js";
+import { afterResponseLearning } from "./userLearning.js";
 import type { AgentOptions, AgentResult, SessionState } from "./types.js";
 
 const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
@@ -63,6 +65,10 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 
 	const session = getSession(opts);
 
+	const userId = opts.origin === "telegram"
+		? `telegram-${opts.telegramChatId || chatId}`
+		: chatId;
+
 	let generalModel = config.defaultModel;
 	let generalTemperature = 0.7;
 	let generalHistoryLimit = 10;
@@ -103,7 +109,7 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 	if (!opts.skipPersistUserMsg) {
 		try {
 			saveMessage({
-				userId: opts.origin === "telegram" ? `telegram-${opts.telegramChatId || chatId}` : chatId,
+				userId,
 				chatId,
 				role: "user",
 				content: userText,
@@ -116,10 +122,17 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 
 	if (session.messages.length === 0) {
 		logger.agent(`[${chatId}] New session, loading brain context...`);
-		const [directives, userProfile] = await Promise.all([
+		const [directives, brainProfile] = await Promise.all([
 			brain.getDirectives().catch(() => ""),
 			brain.getUserProfile().catch(() => "")
 		]);
+
+		// Enrich with local DB profile
+		let dbProfile = "";
+		const dbUser = getUser(userId);
+		if (dbUser) {
+			dbProfile = formatUserProfileForPrompt(dbUser);
+		}
 
 		let systemPrompt: string;
 		try {
@@ -155,8 +168,12 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 			assembly.push(`<project_directives>\n${directives}\n</project_directives>`);
 		}
 
-		if (userProfile) {
-			assembly.push(`<user_profile>\nLo que sabes sobre este usuario/proyecto:\n${userProfile}\n</user_profile>`);
+		// Combine brain profile + local DB profile
+		let fullProfile = "";
+		if (brainProfile) fullProfile += `Lo que sabes sobre este usuario/proyecto:\n${brainProfile}\n`;
+		if (dbProfile) fullProfile += `\nPerfil almacenado:\n${dbProfile}`;
+		if (fullProfile) {
+			assembly.push(`<user_profile>\n${fullProfile}\n</user_profile>`);
 		}
 
 		// Inform about available tools (only active/enabled ones)
@@ -456,7 +473,7 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 
 			try {
 				saveMessage({
-					userId: opts.origin === "telegram" ? `telegram-${opts.telegramChatId || chatId}` : chatId,
+					userId,
 					chatId,
 					role: "assistant",
 					content: finalContent,
@@ -468,6 +485,8 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 
 			onTyping?.(false);
 			logger.agent(`[${chatId}] Response complete (${latency}ms)`);
+
+			afterResponseLearning(userId, userText, finalContent, brain).catch(() => {});
 
 			// Estimate token usage if model didn't provide it (e.g. Ollama)
 			if (!totalUsage.promptTokens && !totalUsage.completionTokens) {
@@ -523,7 +542,7 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 
 	try {
 		saveMessage({
-			userId: opts.origin === "telegram" ? `telegram-${opts.telegramChatId || chatId}` : chatId,
+			userId,
 			chatId,
 			role: "assistant",
 			content: finalContent,
@@ -532,6 +551,8 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 	} catch {
 		// DB might not be available
 	}
+
+	afterResponseLearning(userId, userText, finalContent, brain).catch(() => {});
 
 	return {
 		text: finalContent,

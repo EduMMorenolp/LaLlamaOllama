@@ -33,7 +33,7 @@ import {
 	saveMessageToFavorites,
 	unsaveMessage,
 } from "../services/db/savedMessages.js";
-import { deleteUser, listAllUsers, type UserProfile, upsertUser } from "../services/db/users.js";
+import { deleteUser, listAllUsers, type UserProfile, updateUserPreferences, upsertUser } from "../services/db/users.js";
 import { getDockerInfo } from "../services/runtime.js";
 import { getBot, getTelegramConfig, initTelegramDeps, setTelegramConfig, startTelegram, stopTelegram } from "../services/telegram/bot.js";
 import {
@@ -248,6 +248,32 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					deleteUser(dId);
 					logger.info("User deleted: " + dId);
 					ws.send(createMessage("list_users", { users: listAllUsers() }));
+					break;
+				}
+				case "user_feedback": {
+					const fbUserId = (payload?.userId || userMap.get(clientId)) as string;
+					if (!fbUserId) {
+						ws.send(createMessage("error", { message: "userId required", code: "NO_USER" }));
+						break;
+					}
+					const prefs: Record<string, unknown> = {};
+					const FEEDBACK_FIELDS = [
+						"persona", "language", "interests", "dislikes",
+						"communication_style", "tone_preference", "model_preference", "metadata",
+					] as const;
+					for (const field of FEEDBACK_FIELDS) {
+						if (payload?.[field] !== undefined) {
+							prefs[field] = payload[field];
+						}
+					}
+					if (Object.keys(prefs).length > 0) {
+						updateUserPreferences(fbUserId, prefs as Parameters<typeof updateUserPreferences>[1]);
+						// Also save as brain memory for long-term recall
+						const summary = Object.entries(prefs).map(([k, v]) => `${k}: ${v}`).join(", ");
+						brain.saveMemory("user_profile", `Feedback de ${fbUserId}`, summary, "user-feedback").catch(() => {});
+						logger.info(`User feedback saved for ${fbUserId}: ${summary}`);
+					}
+					ws.send(createMessage("user_feedback", { status: "ok", userId: fbUserId }));
 					break;
 				}
 
