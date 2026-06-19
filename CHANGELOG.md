@@ -1,4 +1,4 @@
-# LaLlamaOllama — Changelog
+﻿# LaLlamaOllama — Changelog
 
 Todos los cambios notables del proyecto están documentados aquí.
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
@@ -32,6 +32,20 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 - **➕ `ThemeContext.tsx`** — Toggle claro/oscuro con persistencia en localStorage + CSS `[data-theme="light"]`
 - **➕ Botones 👍/👎** — Feedback inline en cada mensaje del asistente, con estado visual y toggle
 - **➕ Exportación de chat mejorada** — Metadatos, formato MD más limpio, tool calls como bloques de código
+
+### 🔧 Correcciones de infraestructura y features (2026-06-18)
+
+#### Bug Fixes
+- **🔧 Endpoint de embeddings incorrecto (mcp-brain)** - Corregido `/api/embed` → `/api/embeddings` en `embed.ts`. Las búsquedas semánticas (RAG) ahora funcionan correctamente.
+- **🔧 Resolución del modo base `__base__` (agent-engine)** - `resolveMode()` ahora busca `__base__` en las definiciones en memoria si no está en la DB. Elimina warnings de modo no encontrado en cada interacción.
+- **🔧 Reducción del umbral de contexto overflow (agent-engine)** - Umbral de resumen reducido de 80000 → 30000 caracteres en `runAgentCore.ts`. Conserva 10 mensajes recientes (antes 15). El resumen se activa antes, evitando que el prompt llegue al límite de 8192 tokens.
+
+#### Features
+- **✨ Cache de sesión con `user` (backend)** - El endpoint `/v1/chat/completions` ahora acepta `user` como sessionId en `chat.ts`, `create-chat.ts` y `create-chat-stream.ts`. El backend puede cachear el historial por sesión.
+- **✨ Envío inteligente de contexto (agent-engine)** - En turnos siguientes al primero, solo se envía el mensaje nuevo del usuario + sessionId. El historial completo se envía solo en el primer mensaje de la sesión o en iteraciones de herramientas. Reduce drásticamente el consumo de tokens (~2-4K tokens por llamado).
+
+#### Performance
+- **⚡ Warm-up del modelo en startup (agent-engine)** - Agregado bloque de warm-up en `index.ts` que precarga el modelo LLM al iniciar. Elimina el cold start de ~256s en la primera interacción.
 
 ### 🐛 Corrección 429 + 401 + Mejoras en Tareas y contexto programado (2026-06-12)
 

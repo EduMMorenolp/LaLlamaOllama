@@ -5,7 +5,7 @@ export class CreateChatUseCase {
   constructor(private readonly ollamaService: OllamaService) {}
 
   async execute(input: ChatRequest) {
-    const { model, messages, stream: _stream, ...options } = input;
+    const { model, messages, stream: _stream, user, ...options } = input;
 
     const response = await this.ollamaService.chat(
       model,
@@ -17,7 +17,7 @@ export class CreateChatUseCase {
         top_k: options.top_k,
       },
       "5m",
-      undefined,
+      user,
       options.tools
     );
 

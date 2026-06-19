@@ -1,4 +1,4 @@
-import { exec } from "node:child_process";
+﻿import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import { toolRegistry } from "./registry.js";
 import type { ToolContext } from "./types.js";
@@ -7,10 +7,19 @@ const execAsync = promisify(exec);
 
 const DANGEROUS_PATTERNS = [
 	/^rm\s+-rf\s+\/\s*$/,
+	/^rm\s+-rf\s+\/\s+\w+/,
+	/^rm\s+-rf\s+~\s*$/,
 	/^mkfs\./,
 	/^dd\s+/,
 	/^:\(\)\s*\{\s*:\|\|:&\s*};?\s*:/,
 	/^>\/dev\/sda/,
+	/^chmod\s+-R\s+777\s+\//,
+	/^chown\s+-R/,
+	/^wget\s+.+[|;]/,
+	/^curl\s+.+[|;]/,
+	/^sudo\s+rm/,
+	/^mv\s+\/\s+\/[^/]/,
+	/^echo\s+.+>\/dev\/sda/,
 ];
 
 function isDangerous(command: string): boolean {

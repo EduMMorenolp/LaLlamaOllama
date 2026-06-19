@@ -276,13 +276,17 @@ export class OllamaService {
 				const data = JSON.parse(fs.readFileSync(this.statsFile, "utf8"));
 				this.stats = { ...this.stats, ...data };
 			}
-		} catch {}
+		} catch (err) {
+			log.error({ err }, "Error loading stats");
+		}
 	}
 
 	private saveStats() {
 		try {
 			fs.writeFileSync(this.statsFile, JSON.stringify(this.stats, null, 2));
-		} catch {}
+		} catch (err) {
+			log.error({ err }, "Error saving stats");
+		}
 	}
 
 	trackTokenUsage(inputTokens: number, outputTokens: number, durationMs: number, powerWatts?: number | null) {

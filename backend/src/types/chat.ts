@@ -49,6 +49,7 @@ export const ChatRequestSchema = z.object({
   top_p: z.number().min(0).max(1).optional(),
   top_k: z.number().int().min(0).max(100).optional(),
   tools: z.array(z.record(z.unknown())).optional(),
+  user: z.string().optional(),
 });
 
 export type ChatRequest = z.infer<typeof ChatRequestSchema>;

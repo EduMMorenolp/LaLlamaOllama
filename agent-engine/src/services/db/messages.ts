@@ -1,6 +1,11 @@
 ﻿import { touchChat } from "./chats.js";
 import { getDb } from "./connection.js";
 
+/** Sanitize FTS5 query input to prevent injection of special characters */
+function sanitizeFts5(input: string): string {
+	return input.replace(/["*()^+~\\-]/g, " ").replace(/\s+/g, " ").trim();
+}
+
 export interface StoredMessage {
 	id?: number;
 	userId: string;
@@ -56,11 +61,6 @@ export function searchMessages(
 	offset = 0
 ): SearchResult[] {
 	const db = getDb();
-	// Sanitize FTS5 query: escape double-quotes and remove FTS5 special characters
-	function sanitizeFts5(input: string): string {
-		// Remove FTS5 control characters: * " ( ) ^ + - ~
-		return input.replace(/["*()^+~\\-]/g, " ").replace(/\s+/g, " ").trim();
-	}
 	const sanitized = sanitizeFts5(query);
 	if (!sanitized) {
 		return [];
@@ -124,5 +124,3 @@ export function countSearchResults(query: string, userId?: string): number {
 
 	return (db.prepare(sql).get(...params) as { c: number })?.c || 0;
 }
-
-

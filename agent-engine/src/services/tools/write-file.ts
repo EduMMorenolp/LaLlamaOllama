@@ -1,4 +1,5 @@
-import * as fs from "node:fs";
+﻿import * as fs from "node:fs";
+import * as fsPromises from "node:fs/promises";
 import * as path from "node:path";
 import { trackFileAccess } from "../db/workspace.js";
 import { toolRegistry } from "./registry.js";
@@ -42,11 +43,9 @@ export function registerWriteFileTool() {
 
 			try {
 				const dir = path.dirname(resolvedPath);
-				if (!fs.existsSync(dir)) {
-					fs.mkdirSync(dir, { recursive: true });
-				}
+				await fsPromises.mkdir(dir, { recursive: true });
 
-				fs.writeFileSync(resolvedPath, content, "utf-8");
+				await fsPromises.writeFile(resolvedPath, content, "utf-8");
 				const size = Buffer.byteLength(content, "utf-8");
 
 				try { trackFileAccess(ctx.chatId || ctx.sessionId, filePath); } catch { /* optional */ }
@@ -104,11 +103,11 @@ export function registerEditFileTool() {
 			}
 
 			try {
-				if (!fs.existsSync(resolvedPath)) {
-					return `Error: File not found: ${filePath}`;
-				}
+				await fsPromises.access(resolvedPath).catch(() => {
+					throw new Error(`File not found: ${filePath}`);
+				});
 
-				const content = fs.readFileSync(resolvedPath, "utf-8");
+				const content = await fsPromises.readFile(resolvedPath, "utf-8");
 
 				if (!content.includes(oldString)) {
 					return `Error: old_string not found in ${filePath}`;
@@ -120,7 +119,7 @@ export function registerEditFileTool() {
 				}
 
 				const newContent = content.replace(oldString, newString);
-				fs.writeFileSync(resolvedPath, newContent, "utf-8");
+				await fsPromises.writeFile(resolvedPath, newContent, "utf-8");
 
 				try { trackFileAccess(ctx.chatId || ctx.sessionId, filePath); } catch { /* optional */ }
 

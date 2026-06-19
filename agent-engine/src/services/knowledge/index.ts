@@ -45,7 +45,7 @@ export function listAllKnowledgeFiles(workspaceDir: string): Array<{ name: strin
 			const entries = readdirSync(dir, { withFileTypes: true });
 			for (const entry of entries) {
 				const fullPath = join(dir, entry.name);
-				const relativePath = relativeDir ? ${relativeDir}/ : entry.name;
+				const relativePath = relativeDir ? `${relativeDir}/${entry.name}` : entry.name;
 				if (entry.isDirectory()) {
 					walk(fullPath, relativePath);
 				} else if (entry.isFile()) {
@@ -141,7 +141,7 @@ export async function chunkAndIndexFile(filePath: string, fileName: string, brai
 				chunks.push(currentChunk.trim());
 				currentChunk = trimmed;
 			} else {
-				currentChunk = currentChunk ? ${currentChunk}\n\n : trimmed;
+				currentChunk = currentChunk ? `${currentChunk}\n\n${trimmed}` : trimmed;
 			}
 		}
 		if (currentChunk.trim()) {
@@ -150,7 +150,7 @@ export async function chunkAndIndexFile(filePath: string, fileName: string, brai
 
 		let indexed = 0;
 		for (let i = 0; i < chunks.length; i++) {
-			const title = chunks.length > 1 ? ${fileName} (parte /) : fileName;
+			const title = chunks.length > 1 ? `${fileName} (parte ${i + 1}/${chunks.length})` : fileName;
 			const result = await brain.saveMemory("knowledge", title, chunks[i], "knowledge,file");
 			if (result) indexed++;
 		}

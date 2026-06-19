@@ -6,7 +6,7 @@ const log = logger.child({ component: "llm" });
 
 export async function embed(input: string): Promise<number[][]> {
 	try {
-		const response = await axios.post(`${config.ollamaUrl}/api/embed`, {
+		const response = await axios.post(`${config.ollamaUrl}/api/embeddings`, {
 			model: config.embeddingModel,
 			input,
 		});
