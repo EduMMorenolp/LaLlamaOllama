@@ -7,6 +7,26 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 
 ## [Unreleased]
 
+### 🧵 Retención de hilo: Sesiones persistentes, resúmenes de contexto y streaming largo (2026-06-18)
+
+#### Agent Engine
+- **🗑️ `cron.ts`** — Eliminado cron job que reseteaba sesiones cada 30 minutos (causa raíz de pérdida de contexto)
+- **🔧 `db.ts`** — Session TTL aumentado de 30 min a 24h
+- **🔧 `buildPrompt.ts`** — Inyección de `<session_summary>` desde mcp-brain; recordatorio de memorizar reforzado
+- **🔧 `runAgentCore.ts`** — Guardado automático de resúmenes en mcp-brain en umbrales de contexto
+
+#### Backend
+- **🔧 `ollama.service.ts`** — `maxTokens` 8192 → 16384; streaming real con chunk yields
+- **🔧 `chat.service.ts`** — `contextLength` 4096 → 8192; buffers de streaming mejorados
+
+#### MCP Brain
+- **➕ `updateMemory.ts`** — Upsert por `type` + `userId` (crea o actualiza)
+- **🔧 `searchMemories.ts`** — Exportada como función pública; búsqueda semántica FTS5 + embeddings
+
+#### Agent Frontend
+- **🔧 `AgentChat.tsx`** — Scroll persistente; auto-reconexión WS con backoff exponencial; imports limpiados
+- **🔧 `MessageBubble.tsx`** — Tool calls colapsables; feedback visual de streaming
+
 ### 👤 Perfil de Usuario: Aprendizaje automático y personalización evolutiva (2026-06-18)
 
 #### Agent Engine

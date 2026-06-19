@@ -7,12 +7,13 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1
 ## [Unreleased]
 
 ### Added
+- **🧠 `updateMemory.ts` — Upsert por type+userId** — Ahora crea o actualiza memoria según `type` + `userId` en lugar de insertar siempre duplicados
 - **🧠 CRUD REST para memorias** — Nuevos endpoints: `GET /api/memory/:id` (obtener), `PUT /api/memory/:id` (actualizar), `GET /api/memory/timeline` (timeline cronológico)
 - **➕ `POST /api/memory`** — Endpoint existente ahora accesible desde agent-engine proxy
 - **➕ `offset` parameter** — Soportado en timeline, search y getContext para paginación
 
 ### Changed
-- **🔧 `updateMemory.ts`** — Ahora acepta `type` como parámetro opcional para cambiar el tipo de memoria al editarla
+- **🔧 `searchMemories.ts`** — Exportada como función pública; mejorada búsqueda semántica con FTS5 + embeddings
 - **🔧 `getTimeline.ts`** — Ahora acepta `type` filter opcional y `offset` para paginación
 - **🔧 `getContext.ts`** — Ahora acepta `offset` parameter
 - **🔧 `searchMemories.ts`** — Ahora acepta `offset` parameter; semantic results usan slice

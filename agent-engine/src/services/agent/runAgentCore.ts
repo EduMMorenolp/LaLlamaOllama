@@ -13,7 +13,7 @@ import { summarizeMessages } from "./sessionSummary.js";
 import { afterResponseLearning } from "./userLearning.js";
 import type { AgentOptions, AgentResult, SessionState } from "./types.js";
 
-const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const SESSION_TTL_MS = 120 * 60 * 1000; // 2 hours (was 30min)
 
 interface SessionEntry {
 	state: SessionState;
@@ -143,6 +143,8 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 		} catch {
 			// DB might not be available, continue without persistence
 		}
+		// Also persist to mcp-brain conversation history
+		brain.appendConversationMessage(chatId, "user", userText).catch(() => {});
 	}
 
 	if (session.messages.length === 0) {
@@ -232,6 +234,29 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 			}
 		} catch {
 			// cached context is optional
+		}
+
+		// Also load any conversation history from mcp-brain that might not be in local SQLite
+		try {
+			const localCount = session.messages.length;
+			brain.getConversationHistory(chatId, generalHistoryLimit).then((brainMessages) => {
+				if (brainMessages.length > localCount) {
+					const existingKeys = new Set(session.messages.map((m) => typeof m.content === "string" ? m.content.substring(0, 100) : ""));
+					for (const bm of brainMessages) {
+						const key = (bm.content || "").substring(0, 100);
+						if (!key || existingKeys.has(key)) continue;
+						if (bm.role === "system") continue;
+						existingKeys.add(key);
+						session.messages.push({
+							role: bm.role as OpenAI.Chat.Completions.ChatCompletionMessageParam["role"],
+							content: bm.content,
+						} as OpenAI.Chat.Completions.ChatCompletionMessageParam);
+					}
+					logger.agent(`[${chatId}] Loaded ${brainMessages.length} messages from brain history`);
+				}
+			}).catch(() => {});
+		} catch {
+			// brain history is optional
 		}
 	}
 
@@ -545,11 +570,17 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 			} catch {
 				// DB might not be available
 			}
+			// Persist assistant response to mcp-brain conversation history
+			brain.appendConversationMessage(chatId, "assistant", finalContent, totalUsage.completionTokens).catch(() => {});
 
 			onTyping?.(false);
 			logger.agent(`[${chatId}] Response complete (${latency}ms)`);
 
 			afterResponseLearning(userId, userText, finalContent, brain).catch(() => {});
+			// Trigger summarization on brain if session has too many messages
+			if (session.messages.length > 15) {
+				brain.summarizeConversation(chatId).catch(() => {});
+			}
 
 			// Estimate token usage if model didn't provide it (e.g. Ollama)
 			if (!totalUsage.promptTokens && !totalUsage.completionTokens) {
@@ -614,8 +645,12 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 	} catch {
 		// DB might not be available
 	}
+	brain.appendConversationMessage(chatId, "assistant", finalContent, totalUsage.completionTokens).catch(() => {});
 
 	afterResponseLearning(userId, userText, finalContent, brain).catch(() => {});
+	if (session.messages.length > 15) {
+		brain.summarizeConversation(chatId).catch(() => {});
+	}
 
 	return {
 		text: finalContent,

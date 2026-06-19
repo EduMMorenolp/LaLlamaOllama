@@ -144,4 +144,56 @@ export class BrainClient {
 			return {};
 		}
 	}
+
+	// ─── Conversation History ────────────────────────────────────────────────
+
+	async appendConversationMessage(
+		sessionId: string,
+		role: "system" | "user" | "assistant" | "tool",
+		content: string | null,
+		tokenCount?: number
+	): Promise<boolean> {
+		try {
+			await this.http.post("/api/conversation/append", {
+				sessionId,
+				role,
+				content,
+				tokenCount: tokenCount || 0,
+			});
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	async getConversationHistory(
+		sessionId: string,
+		limit: number = 50
+	): Promise<Array<{ role: string; content: string | null }>> {
+		try {
+			const res = await this.http.get("/api/conversation/history", {
+				params: { session_id: sessionId, limit },
+			});
+			return (res.data.messages || []).map((m: { role: string; content: string | null }) => ({
+				role: m.role,
+				content: m.content,
+			}));
+		} catch {
+			return [];
+		}
+	}
+
+	async summarizeConversation(sessionId: string): Promise<boolean> {
+		try {
+			await this.http.post("/api/conversation/summarize", {
+				sessionId,
+				model: process.env.DEFAULT_MODEL || "qwen3.5:4b",
+				maxMessages: 20,
+				keepRecent: 5,
+			});
+			return true;
+		} catch {
+			return false;
+		}
+	}
 }

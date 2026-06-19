@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### 🧵 Retención de hilo: Reconexión persistente y UX de contexto largo
+
+#### Cambiado
+- **🔧 `AgentChat.tsx`** — Scroll persistente al reconectar; auto-reconexión WebSocket con backoff exponencial; header con modelo activo y controles de pin/unpin; importado `TokenUsage` del types; removidos imports no usados (`Markdown`, `remarkGfm`, `Star`, `ThumbsDown`, `ThumbsUp`)
+- **🔧 `MessageBubble.tsx`** — Tool calls colapsables por defecto; feedback visual de streaming
+
 ### 👤 Perfil de Usuario: Tab de preferencias y estadísticas
 
 #### Añadido

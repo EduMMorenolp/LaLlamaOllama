@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### 🧵 Retención de hilo: Sesiones persistentes y resúmenes de contexto
+
+#### Eliminado
+- **🗑️ `cron.ts`** — Eliminado cron job que reseteaba TODAS las sesiones cada 30 minutos (causa raíz de pérdida de contexto)
+
+#### Cambiado
+- **🔧 `db.ts`** — Aumentado session TTL de 30 min a 24h; purge solo de sesiones inactivas > 24h
+- **🔧 `buildPrompt.ts`** — Inyección de `<session_summary>` desde mcp-brain en system prompt; recordatorio de `memorize` reforzado
+- **🔧 `runAgentCore.ts`** — Guardado automático de resúmenes en mcp-brain al alcanzar umbrales de contexto (80K chars / 60 mensajes)
+- **🔧 `prompts.ts`** — Recordatorio de `mem_save` después de tool calls relevantes
+
 ### 👤 Perfil de Usuario: Aprendizaje automático y personalización evolutiva
 
 #### Añadido

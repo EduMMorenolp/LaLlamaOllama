@@ -5,7 +5,7 @@ import cors from "cors";
 import express from "express";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import type { DatabaseService } from "../database/connection.js";
-import { analysis, memories, sessions, settings, templates } from "../services/index.js";
+import { analysis, conversation, memories, sessions, settings, templates } from "../services/index.js";
 import { normalizeProject } from "../services/normalizeProject.js";
 import { mergeProjects } from "../services/memories/mergeProjects.js";
 import { createMcpServer } from "./mcp.js";
@@ -446,6 +446,80 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 		log.info({ id: req.params.id }, "PUT /api/sessions/:id");
 		try {
 			const success = await sessions.endSession(dbService, req.params.id, req.body.summary || "");
+			if (success) res.json({ success: true });
+			else res.status(404).json({ error: "Session not found" });
+		} catch (e: unknown) {
+			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+		}
+	});
+
+	// ─── Conversation History ────────────────────────────────────────────────
+
+	// Append a message to conversation history
+	app.post("/api/conversation/append", async (req, res) => {
+		const { sessionId, role, content, toolCalls, toolCallId, name, tokenCount } = req.body;
+		if (!sessionId || !role) {
+			return res.status(400).json({ error: "sessionId and role are required" });
+		}
+		if (!["system", "user", "assistant", "tool"].includes(role)) {
+			return res.status(400).json({ error: "Invalid role" });
+		}
+		try {
+			const result = await conversation.appendMessage(dbService, {
+				sessionId,
+				role,
+				content: content ?? null,
+				toolCalls,
+				toolCallId,
+				name,
+				tokenCount: tokenCount || 0,
+			});
+			res.status(201).json(result);
+		} catch (e: unknown) {
+			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+		}
+	});
+
+	// Get conversation history
+	app.get("/api/conversation/history", async (req, res) => {
+		const sessionId = req.query.session_id as string;
+		if (!sessionId) {
+			return res.status(400).json({ error: "session_id query param is required" });
+		}
+		const limit = parseInt((req.query.limit as string) || "50", 10);
+		const offset = parseInt((req.query.offset as string) || "0", 10);
+		try {
+			const result = await conversation.getHistory(dbService, sessionId, limit, offset);
+			res.json(result);
+		} catch (e: unknown) {
+			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+		}
+	});
+
+	// Summarize conversation history (compress old messages via LLM)
+	app.post("/api/conversation/summarize", async (req, res) => {
+		const { sessionId, model, maxMessages, keepRecent } = req.body;
+		if (!sessionId) {
+			return res.status(400).json({ error: "sessionId is required" });
+		}
+		try {
+			const result = await conversation.summarizeHistory(
+				dbService,
+				sessionId,
+				model || process.env.OLLAMA_MODEL || "qwen3.5:4b",
+				maxMessages || 20,
+				keepRecent || 5
+			);
+			res.json(result);
+		} catch (e: unknown) {
+			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+		}
+	});
+
+	// Delete conversation history for a session
+	app.delete("/api/conversation/:sessionId", async (req, res) => {
+		try {
+			const success = await conversation.deleteSession(dbService, req.params.sessionId);
 			if (success) res.json({ success: true });
 			else res.status(404).json({ error: "Session not found" });
 		} catch (e: unknown) {
