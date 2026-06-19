@@ -1,13 +1,15 @@
-﻿import { BookOpen, Cable, ClipboardList, Menu, MessageSquare, Settings, X } from "lucide-react";
+﻿import { BookOpen, Cable, ClipboardList, Menu, MessageSquare, Moon, Settings, Sun, User, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { useTheme } from "./contexts/ThemeContext";
 import { AgentChat } from "./components/AgentChat";
 import { Agentes } from "./components/Agentes";
 import { Conexion } from "./components/Conexion";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Knowledge } from "./components/Knowledge";
+import { Perfil } from "./components/Perfil";
 import { Tareas } from "./components/Tareas";
 
-type Tab = "chat" | "agentes" | "tareas" | "knowledge" | "conexion";
+type Tab = "chat" | "agentes" | "tareas" | "knowledge" | "conexion" | "perfil";
 
 interface TabDef {
 	id: Tab;
@@ -22,9 +24,11 @@ const tabs: TabDef[] = [
 	{ id: "tareas", label: "Tareas", sub: "Historial de ejecuciones", icon: ClipboardList },
 	{ id: "knowledge", label: "Cerebro", sub: "Memorias, timeline y archivos RAG", icon: BookOpen },
 	{ id: "conexion", label: "Conexión", sub: "Telegram, Modelos, Herramientas", icon: Cable },
+	{ id: "perfil", label: "Perfil", sub: "Tu perfil y preferencias", icon: User },
 ];
 
 export default function App() {
+	const { theme, toggle: toggleTheme } = useTheme();
 	const [activeTab, setActiveTab] = useState<Tab>("chat");
 	const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -98,18 +102,28 @@ export default function App() {
 				</nav>
 
 				<div className="sidebar-footer">
-					<div
+					<button
+						type="button"
+						onClick={toggleTheme}
 						style={{
-							padding: "12px",
+							width: "100%",
+							padding: "10px 12px",
 							borderRadius: "8px",
 							border: "1px solid var(--border)",
-							background: "rgba(79, 140, 255, 0.05)",
+							background: "var(--bg-surface)",
+							color: "var(--text-dim)",
+							cursor: "pointer",
+							fontSize: "12px",
+							display: "flex",
+							alignItems: "center",
+							gap: "8px",
+							justifyContent: "center",
+							transition: "var(--transition)",
 						}}
 					>
-						<div style={{ fontSize: "10px", color: "var(--text-muted)", textAlign: "center" }}>
-							Agent Engine UI v2.0
-						</div>
-					</div>
+						{theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
+						{theme === "dark" ? "Modo claro" : "Modo oscuro"}
+					</button>
 				</div>
 			</aside>
 
@@ -138,6 +152,7 @@ export default function App() {
 					<ErrorBoundary name="Tareas">{activeTab === "tareas" && <Tareas />}</ErrorBoundary>
 					<ErrorBoundary name="Knowledge">{activeTab === "knowledge" && <Knowledge />}</ErrorBoundary>
 					<ErrorBoundary name="Conexion">{activeTab === "conexion" && <Conexion />}</ErrorBoundary>
+				<ErrorBoundary name="Perfil">{activeTab === "perfil" && <Perfil />}</ErrorBoundary>
 				</div>
 			</div>
 		</div>

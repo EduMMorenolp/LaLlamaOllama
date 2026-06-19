@@ -276,13 +276,17 @@ export class OllamaService {
 				const data = JSON.parse(fs.readFileSync(this.statsFile, "utf8"));
 				this.stats = { ...this.stats, ...data };
 			}
-		} catch {}
+		} catch (err) {
+			log.error({ err }, "Error loading stats");
+		}
 	}
 
 	private saveStats() {
 		try {
 			fs.writeFileSync(this.statsFile, JSON.stringify(this.stats, null, 2));
-		} catch {}
+		} catch (err) {
+			log.error({ err }, "Error saving stats");
+		}
 	}
 
 	trackTokenUsage(inputTokens: number, outputTokens: number, durationMs: number, powerWatts?: number | null) {
@@ -622,6 +626,20 @@ const summary = `[Historial: ${cached.length - 5} mensajes anteriores resumidos.
 			if (this.io)
 				this.io.emit("security-alert", { type: "error", message: `Fallo al descargar ${model}: ${message}` });
 			throw e;
+		}
+	}
+
+	async configureModel(model: string, modelfile: string): Promise<void> {
+		try {
+			await this.axiosClient.post(`${this.baseUrl}/api/create`, {
+				name: model,
+				modelfile,
+				stream: false,
+			});
+			log.info({ model }, "Model configured/updated successfully");
+		} catch (error) {
+			log.error({ err: error, model }, "Failed to configure model");
+			throw error;
 		}
 	}
 

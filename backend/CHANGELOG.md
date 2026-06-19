@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### 🧵 Retención de hilo: Contexto largo y streaming mejorado
+
+#### Cambiado
+- **🔧 `ollama.service.ts`** — Aumentado `maxTokens` de 8192 a 16384; streaming real con chunk yields
+- **🔧 `chat.service.ts`** — Aumentado `contextLength` de 4096 a 8192; mejorado manejo de buffers de streaming
+
 ### 🧹 Eliminado módulo engine-stats
 
 #### Eliminado

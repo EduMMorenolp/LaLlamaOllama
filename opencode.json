@@ -42,5 +42,13 @@
       "type": "remote",
       "url": "http://localhost:3015/sse"
     }
+  },
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest"
+      ]
+    }
   }
 }

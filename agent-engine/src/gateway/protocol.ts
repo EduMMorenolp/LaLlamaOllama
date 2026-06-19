@@ -20,6 +20,7 @@ export type WsMessageType =
 	| "user_register"
 	| "user_update"
 	| "user_delete"
+	| "user_feedback"
 	| "identify"
 	// Chat management
 	| "list_chats"
@@ -41,6 +42,8 @@ export type WsMessageType =
 	| "update_scheduled_task"
 	| "delete_scheduled_task"
 	| "toggle_scheduled_task"
+	| "message_feedback"
+	| "search_messages"
 	| "save_message"
 	| "unsave_message"
 	| "list_saved_messages"

@@ -1,4 +1,3 @@
-import { resetAllSessions } from "../services/agent/runAgentCore.js";
 import type { BrainClient } from "../services/brain/client.js";
 import { getDueTasks, updateScheduledTask } from "../services/db/scheduled-tasks.js";
 import { submitAgentRun } from "../services/orchestrator/index.js";
@@ -193,18 +192,8 @@ export function startCronJobs(brain: BrainClient) {
 		60 * 1000 // every 60 seconds
 	);
 
-	// Session cleanup every 30 minutes
-	setInterval(
-		async () => {
-			logger.debug("[Cron] Running periodic cleanup...");
-			try {
-				resetAllSessions();
-			} catch (err) {
-				logger.warn("[Cron] Session cleanup failed: " + err);
-			}
-		},
-		30 * 60 * 1000
-	);
+	// Session cleanup: removed global resetAllSessions() to preserve conversation context.
+	// Individual sessions are cleaned up by their own TTL mechanism on access.
 
-	logger.info("[Cron] Background jobs started (task scheduler every 60s, cleanup every 30min)");
+	logger.info("[Cron] Background jobs started (task scheduler every 60s)");
 }

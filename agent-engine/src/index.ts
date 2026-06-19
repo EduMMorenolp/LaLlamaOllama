@@ -1,4 +1,4 @@
-﻿import "dotenv/config";
+import "dotenv/config";
 import { validateEnv } from "./env.js";
 import { startApiServer } from "./server/api.js";
 import { startCronJobs } from "./server/cron.js";
@@ -16,9 +16,9 @@ import { toolRegistry } from "./services/tools/registry.js";
 import { logger } from "./utils/logger.js";
 
 async function bootstrap() {
-	logger.info("╔═══════════════════════════════════════════════════════════╗");
-	logger.info("║     Agent Engine - Autonomous Coding Agent   ║");
-	logger.info("╚═══════════════════════════════════════════════════════════╝");
+	logger.info("+-----------------------------------------------------------+");
+	logger.info("�     Agent Engine - Autonomous Coding Agent   �");
+	logger.info("+-----------------------------------------------------------+");
 
 	// 1. Validate environment
 	validateEnv();
@@ -75,7 +75,7 @@ async function bootstrap() {
 
 	// 8. Load Telegram config from DB (persists frontend settings across restarts)
 	try {
-		// Token solo se carga de DB si el .env no trae uno válido
+		// Token solo se carga de DB si el .env no trae uno v�lido
 		if (!config.telegramBotToken || config.telegramBotToken === "123456:ABCDEF") {
 			const savedToken = getSetting("telegram_bot_token");
 			if (savedToken) {
@@ -132,14 +132,14 @@ async function bootstrap() {
 				"aprendizaje",
 			];
 			const labels: Record<string, string> = {
-				asistente: "🧑 Asistente General",
-				"coach-personal": "🧘 Coach Personal",
-				investigador: "🔍 Investigador",
-				evolutivo: "🧬 Evolutivo",
-				planificador: "📅 Planificador",
-				"tutor-educador": "🎓 Tutor / Educador",
-				"escritor-creativo": "✍️ Escritor / Creativo",
-				aprendizaje: "📚 Aprendizaje",
+				asistente: "?? Asistente General",
+				"coach-personal": "?? Coach Personal",
+				investigador: "?? Investigador",
+				evolutivo: "?? Evolutivo",
+				planificador: "?? Planificador",
+				"tutor-educador": "?? Tutor / Educador",
+				"escritor-creativo": "?? Escritor / Creativo",
+				aprendizaje: "?? Aprendizaje",
 			};
 			for (const name of modeNames) {
 				const data = getModeSeedData(name);
@@ -194,6 +194,25 @@ async function bootstrap() {
 	} catch (err) {
 		logger.warn(`[Modes] Could not initialize: ${err instanceof Error ? err.message : String(err)}`);
 	}
+	// 14. Warm-up: preload model to avoid cold start latency on first user request
+	try {
+		const { default: OpenAI } = await import("openai");
+		const { getActiveMode } = await import("./services/db/modes.js");
+		const warmupClient = new OpenAI({ baseURL: `${config.backendUrl}/v1`, apiKey: config.apiKey });
+		const mode = getActiveMode();
+		const warmModel = mode?.model || config.defaultModel;
+		logger.info(`[Warmup] Pre-loading model '${warmModel}'...`);
+		await warmupClient.chat.completions.create({
+			model: warmModel,
+			messages: [{ role: "user", content: "Responde con una palabra: lista" }],
+			max_tokens: 10,
+			temperature: 0.1,
+		});
+		logger.info(`[Warmup] Model '${warmModel}' loaded successfully`);
+	} catch (err) {
+		logger.warn(`[Warmup] Could not pre-load model: ${err instanceof Error ? err.message : String(err)}`);
+	}
+
 
 	// 13. Background jobs
 	startCronJobs(brain);

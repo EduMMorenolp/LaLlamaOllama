@@ -1,8 +1,9 @@
-import { logger } from "../../utils/logger.js";
+﻿import { logger } from "../../utils/logger.js";
 import { toolRegistry } from "../tools/registry.js";
 import { getDb } from "./connection.js";
 import { getSetting, setSetting } from "./settings.js";
 import { mergeSystemPrompts } from "../prompts/utils.js";
+import { getModeDefinition, resolveModePrompt } from "../prompts/index.js";
 
 export interface AgentMode {
 	name: string;
@@ -22,7 +23,7 @@ export interface AgentMode {
 const SETTING_KEY = "active_mode";
 const DEFAULT_MODE = "asistente";
 
-// ─── Internal helpers ────────────────────────────────────────────────────
+// ─── Internal helpers ────────────────────────────────────────
 
 function rowToMode(row: Record<string, unknown>): AgentMode {
 	return {
@@ -56,7 +57,7 @@ function modeToRow(mode: Partial<AgentMode>): Record<string, unknown> {
 	};
 }
 
-// ─── CRUD ────────────────────────────────────────────────────────────────
+// ─── CRUD ────────────────────────────────────────────────────
 
 export function listModes(): AgentMode[] {
 	const db = getDb();
@@ -75,11 +76,45 @@ export function getMode(name: string): AgentMode | null {
  * Resuelve un modo aplicando herencia si extiende otro modo.
  * Combina system_prompt fusionando secciones XML (<tag>...</tag>).
  * Las secciones del hijo reemplazan a las del padre con el mismo tag.
+ * Si el modo padre no est� en la DB, intenta resolver desde las definiciones
+ * en memoria (e.g., __base__).
  */
 export function resolveMode(mode: AgentMode): AgentMode {
 	if (!mode.extends) return mode;
 	const parent = getMode(mode.extends);
 	if (!parent) {
+		// Try to resolve from in-memory prompt definitions (e.g., __base__)
+		try {
+			const def = getModeDefinition(mode.extends);
+			if (def) {
+				const parentMode: AgentMode = {
+					name: mode.extends,
+					label: mode.extends,
+					system_prompt: resolveModePrompt(mode.extends),
+					tools: def.tools,
+					model: def.model || "",
+					temperature: def.temperature,
+					history_limit: def.history_limit,
+					tool_policy: def.tool_policy,
+					extends: def.extends || null,
+					usage_count: 0,
+					last_used: null,
+				};
+				const resolvedParent = resolveMode(parentMode);
+				const mergedPrompt = mergeSystemPrompts(
+					resolvedParent.system_prompt,
+					mode.system_prompt
+				);
+				return {
+					...resolvedParent,
+					...mode,
+					system_prompt: mergedPrompt,
+					tools: [...new Set([...resolvedParent.tools, ...mode.tools])],
+				};
+			}
+		} catch {
+			// Fall through to warning below
+		}
 		logger.warn(`[Modes] Parent mode '${mode.extends}' not found for '${mode.name}', ignoring extends`);
 		return mode;
 	}
@@ -145,7 +180,7 @@ export function deleteMode(name: string): void {
 		throw new Error(`Cannot delete default mode '${DEFAULT_MODE}'`);
 	}
 
-	// Verificar que ningún otro modo lo extiende
+	// Verificar que ning�n otro modo lo extiende
 	const db = getDb();
 	const dependents = db
 		.prepare("SELECT name FROM agent_modes WHERE extends = ?")
@@ -166,7 +201,7 @@ export function deleteMode(name: string): void {
 	}
 }
 
-// ─── Active mode ─────────────────────────────────────────────────────────
+// ─── Active mode ─────────────────────────────────────────────
 
 export function getActiveMode(): AgentMode {
 	const name = getSetting(SETTING_KEY) || DEFAULT_MODE;
@@ -175,10 +210,10 @@ export function getActiveMode(): AgentMode {
 		logger.warn(`[Modes] Active mode '${name}' not found, falling back to '${DEFAULT_MODE}'`);
 		const fallback = getMode(DEFAULT_MODE);
 		if (fallback) return fallback;
-		// Si no existe el default, devolvemos un modo genérico
+		// Si no existe el default, devolvemos un modo gen�rico
 		return {
 			name: DEFAULT_MODE,
-			label: "🧑 Asistente General",
+			label: "🛠 Asistente General",
 			system_prompt: "Eres un asistente conversacional amigable.",
 			tools: [],
 			model: "",

@@ -1,4 +1,4 @@
-import type { Database } from "sqlite";
+﻿import type { Database } from "sqlite";
 import type sqlite3 from "sqlite3";
 
 export async function createMemoriesTable(db: Database<sqlite3.Database, sqlite3.Statement>) {
@@ -73,5 +73,7 @@ export async function createMemoriesTable(db: Database<sqlite3.Database, sqlite3
 	await db.exec(`
 		CREATE INDEX IF NOT EXISTS idx_memories_project_created ON memories(project, createdAt);
 		CREATE INDEX IF NOT EXISTS idx_memories_project_type ON memories(project, type);
+		CREATE INDEX IF NOT EXISTS idx_memories_sessionId ON memories(sessionId);
+		CREATE INDEX IF NOT EXISTS idx_memories_topic_key ON memories(topic_key);
 	`);
 }

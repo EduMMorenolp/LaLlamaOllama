@@ -1,6 +1,49 @@
 ﻿import axios from "axios";
+import { lookup } from "node:dns/promises";
+import { isIP } from "node:net";
 import { toolRegistry } from "./registry.js";
 import type { ToolContext } from "./types.js";
+
+// RFC 1918 / private / reserved / link-local IP ranges to block for SSRF prevention
+const PRIVATE_CIDRS = [
+	{ prefix: "10.", prefixLen: 8 },        // 10.0.0.0/8
+	{ prefix: "172.16.", prefixLen: 12 },    // 172.16.0.0/12 (172.16-31)
+	{ prefix: "192.168.", prefixLen: 16 },   // 192.168.0.0/16
+	{ prefix: "127.", prefixLen: 8 },        // 127.0.0.0/8 (loopback)
+	{ prefix: "0.", prefixLen: 8 },          // 0.0.0.0/8
+	{ prefix: "169.254.", prefixLen: 16 },   // 169.254.0.0/16 (link-local)
+	{ prefix: "::1", prefixLen: 128 },       // IPv6 loopback
+	{ prefix: "fe80:", prefixLen: 10 },      // IPv6 link-local
+	{ prefix: "fc", prefixLen: 7 },          // IPv6 unique-local fc00::/7
+	{ prefix: "fd", prefixLen: 7 },          // IPv6 unique-local fd00::/7
+];
+
+function isPrivateIp(ip: string): boolean {
+	return PRIVATE_CIDRS.some((cidr) => ip.startsWith(cidr.prefix));
+}
+
+async function isPrivateHost(url: URL): Promise<boolean> {
+	const hostname = url.hostname;
+	if (hostname === "localhost" || hostname === "localhost.localdomain") return true;
+
+	const ip = isIP(hostname);
+	if (ip === 4 || ip === 6) {
+		return isPrivateIp(hostname);
+	}
+
+	// Resolve DNS and check all resolved addresses
+	try {
+		const addresses = await lookup(hostname, { all: true });
+		for (const addr of addresses) {
+			const addrStr = typeof addr === "string" ? addr : addr.address;
+			if (isPrivateIp(addrStr)) return true;
+		}
+	} catch {
+		// If DNS fails, err on the side of caution and block
+		return true;
+	}
+	return false;
+}
 
 // Strip HTML tags and clean up the content for readability
 function htmlToText(html: string): string {
@@ -56,7 +99,15 @@ export function registerReadUrlTool() {
 			if (!url) return "Error: url is required";
 
 			try {
-				new URL(url);
+				const parsedUrl = new URL(url);
+				if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+					return "Error: Only http and https URLs are allowed";
+				}
+
+				// SSRF protection: block private/internal hosts
+				if (await isPrivateHost(parsedUrl)) {
+					return "Error: Access to private or internal network addresses is not allowed";
+				}
 
 				const res = await axios.get(url, {
 					timeout: 15000,

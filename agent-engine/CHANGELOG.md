@@ -2,6 +2,48 @@
 
 ## [Unreleased]
 
+### 🧵 Retención de hilo: Sesiones persistentes y resúmenes de contexto
+
+#### Eliminado
+- **🗑️ `cron.ts`** — Eliminado cron job que reseteaba TODAS las sesiones cada 30 minutos (causa raíz de pérdida de contexto)
+
+#### Cambiado
+- **🔧 `db.ts`** — Aumentado session TTL de 30 min a 24h; purge solo de sesiones inactivas > 24h
+- **🔧 `buildPrompt.ts`** — Inyección de `<session_summary>` desde mcp-brain en system prompt; recordatorio de `memorize` reforzado
+- **🔧 `runAgentCore.ts`** — Guardado automático de resúmenes en mcp-brain al alcanzar umbrales de contexto (80K chars / 60 mensajes)
+- **🔧 `prompts.ts`** — Recordatorio de `mem_save` después de tool calls relevantes
+
+### 👤 Perfil de Usuario: Aprendizaje automático y personalización evolutiva
+
+#### Añadido
+- **➕ Columnas en tabla `users`** — 11 nuevas columnas: `persona`, `language`, `interests`, `dislikes`, `communication_style`, `tone_preference`, `interaction_count`, `last_topics`, `average_sentiment`, `model_preference`, `metadata`
+- **➕ `userLearning.ts`** — Nuevo servicio de auto-aprendizaje post-respuesta que extrae temas, analiza sentimiento, detecta estilo de comunicación (técnico/casual/formal) y persona (desarrollador/estudiante/escritor/diseñador/emprendedor/sysadmin)
+- **➕ `afterResponseLearning()`** — Se ejecuta automáticamente tras cada respuesta exitosa del agente, actualizando `interaction_count`, `last_topics`, `average_sentiment` y guardando memorias `user_profile` en mcp-brain
+- **➕ Perfil combinado en system prompt** — Se inyecta `<user_profile>` con datos de la DB local + memorias de mcp-brain al iniciar cada sesión
+- **➕ `updateUserStats()` / `updateUserPreferences()`** — Nuevas funciones en `users.ts` para actualizar estadísticas y preferencias de usuario atómicamente
+- **➕ `formatUserProfileForPrompt()`** — Convierte el perfil estructurado a texto legible para el prompt del LLM
+- **➕ Handler WS `user_feedback`** — Permite al frontend enviar preferencias explícitas del usuario (persona, estilo, tono, intereses, disgustos, modelo) que se persisten al instante en DB y mcp-brain
+
+#### Cambiado
+- **🔧 `buildPrompt.ts`** — Sección `Memoria Proactiva` reforzada con lista detallada de qué memorizar (datos personales, estilo, intereses, disgustos, tono, persona, modelo preferido)
+- **🔧 `runAgentCore.ts`** — Refactor del cálculo de `userId` como variable temprana para reutilización en toda la función
+
+### 🧠 Resúmenes automáticos de sesiones + Workspace persistente + Feedback loop + Búsqueda FTS
+
+#### Añadido
+- **➕ `sessionSummary.ts`** — Genera resúmenes de conversación vía LLM cuando el contexto supera 80K chars o 60 mensajes. El resumen se inyecta como `<session_summary>` en el system prompt. Fallback a resumen estadístico si el LLM falla
+- **➕ Tabla `workspace_context`** — Persiste proyecto, último archivo, último directorio, archivos abiertos (top 10) y tags por usuario
+- **➕ `workspace.ts`** — Funciones `getWorkspaceContext()`, `upsertWorkspaceContext()`, `trackFileAccess()`, `formatWorkspaceForPrompt()`
+- **➕ Tracking automático en `read_file`, `write_file`, `edit_file`** — Cada acceso a archivo actualiza el workspace context del usuario
+- **➕ Inyección de `<workspace_context>`** en system prompt al iniciar sesión
+- **➕ Tabla `message_feedback`** — Almacena ratings 👍/👎 por usuario, chat y mensaje con razón opcional
+- **➕ `feedback.ts`** — Funciones `saveFeedback()`, `getFeedbackStats()`, `getRecentFeedback()`
+- **➕ Handler WS `message_feedback`** — Recibe ratings del frontend y los persiste
+- **➕ Ajuste automático de `tone_preference`** — `userLearning.ts` analiza el ratio de feedback positivo/negativo y ajusta el tono (si +80% → cálido, si -30% → neutral)
+- **➕ FTS5 en `messages`** — Virtual table `messages_fts` con triggers de sync INSERT/UPDATE/DELETE y población inicial de datos existentes
+- **➕ `searchMessages()` / `countSearchResults()`** — Búsqueda full-text en historial de chats con snippets, ranking y paginación
+- **➕ Handler WS `search_messages`** — Busca en todos los mensajes del usuario o globalmente
+
 ### 🧠 Modos, Recordatorios y Prompt Engineering
 
 #### Añadido

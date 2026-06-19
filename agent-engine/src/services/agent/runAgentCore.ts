@@ -3,13 +3,17 @@ import { logger } from "../../utils/logger.js";
 import type { BrainClient } from "../brain/client.js";
 import { getGeneralConfig } from "../db/experts.js";
 import { getMessages, saveMessage } from "../db/messages.js";
+import { getUser, formatUserProfileForPrompt } from "../db/users.js";
+import { getWorkspaceContext, formatWorkspaceForPrompt } from "../db/workspace.js";
 import { toolRegistry } from "../tools/registry.js";
 import type { ToolSpec as RegistryToolSpec } from "../tools/types.js";
 import { buildSystemPrompt } from "./buildPrompt.js";
 import { createClient, getDefaultModelConfig } from "./createClient.js";
+import { summarizeMessages } from "./sessionSummary.js";
+import { afterResponseLearning } from "./userLearning.js";
 import type { AgentOptions, AgentResult, SessionState } from "./types.js";
 
-const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const SESSION_TTL_MS = 120 * 60 * 1000; // 2 hours (was 30min)
 
 interface SessionEntry {
 	state: SessionState;
@@ -55,19 +59,21 @@ function getSession(opts: AgentOptions): SessionState {
 	return state;
 }
 
-export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
-	const { chatId, userText, config, brain, onToolCall, onToolResult, onStatus, onTyping } = opts;
-	const startTime = Date.now();
+/**
+ * Resolve mode configuration: modeId > active mode > __general__ > defaults.
+ * Returns { model, temperature, history_limit, system_prompt }.
+ */
+async function resolveModeConfig(opts: AgentOptions, chatId: string, _config: { defaultModel: string }): Promise<{
+	model: string;
+	temperature: number;
+	historyLimit: number;
+	systemPrompt: string | null;
+}> {
+	let model = _config.defaultModel;
+	let temperature = 0.7;
+	let historyLimit = 10;
+	let systemPrompt: string | null = null;
 
-	onTyping?.(true);
-
-	const session = getSession(opts);
-
-	let generalModel = config.defaultModel;
-	let generalTemperature = 0.7;
-	let generalHistoryLimit = 10;
-
-	// Preferir modo específico (modeId) > modo activo > __general__ > defaults
 	try {
 		const { getActiveMode, getMode } = await import("../db/modes.js");
 		let mode = null;
@@ -78,18 +84,25 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 			mode = getActiveMode();
 		}
 		if (mode) {
-			if (mode.model) generalModel = mode.model;
-			if (mode.temperature != null) generalTemperature = mode.temperature;
-			if (mode.history_limit != null) generalHistoryLimit = mode.history_limit;
+			if (mode.model) model = mode.model;
+			if (mode.temperature != null) temperature = mode.temperature;
+			if (mode.history_limit != null) historyLimit = mode.history_limit;
+			if (mode.system_prompt) {
+				systemPrompt = mode.system_prompt;
+				logger.agent(`[${chatId}] Using system prompt from mode '${mode.name}'`);
+			}
 		}
 	} catch {
 		// fallback a __general__
 		try {
 			const g = getGeneralConfig();
 			if (g) {
-				if (g.model) generalModel = g.model;
-				if (g.temperature != null) generalTemperature = g.temperature;
-				if (g.history_limit != null) generalHistoryLimit = g.history_limit;
+				if (g.model) model = g.model;
+				if (g.temperature != null) temperature = g.temperature;
+				if (g.history_limit != null) historyLimit = g.history_limit;
+				if (g.system_prompt) {
+					systemPrompt = g.system_prompt;
+				}
 			}
 		} catch {
 			// use defaults
@@ -97,13 +110,31 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 	}
 
 	if (opts.preferredModel && opts.preferredModel !== "default") {
-		generalModel = opts.preferredModel;
+		model = opts.preferredModel;
 	}
+
+	return { model, temperature, historyLimit, systemPrompt };
+}
+
+export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
+	const { chatId, userText, config, brain, onToolCall, onToolResult, onStatus, onTyping } = opts;
+	const startTime = Date.now();
+
+	onTyping?.(true);
+
+	const session = getSession(opts);
+
+	const userId = opts.origin === "telegram"
+		? `telegram-${opts.telegramChatId || chatId}`
+		: chatId;
+
+	const modeConfig = await resolveModeConfig(opts, chatId, config);
+	const { model: generalModel, temperature: generalTemperature, historyLimit: generalHistoryLimit, systemPrompt: modeSystemPrompt } = modeConfig;
 
 	if (!opts.skipPersistUserMsg) {
 		try {
 			saveMessage({
-				userId: opts.origin === "telegram" ? `telegram-${opts.telegramChatId || chatId}` : chatId,
+				userId,
 				chatId,
 				role: "user",
 				content: userText,
@@ -112,51 +143,50 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 		} catch {
 			// DB might not be available, continue without persistence
 		}
+		// Also persist to mcp-brain conversation history
+		brain.appendConversationMessage(chatId, "user", userText).catch(() => {});
 	}
 
 	if (session.messages.length === 0) {
 		logger.agent(`[${chatId}] New session, loading brain context...`);
-		const [directives, userProfile] = await Promise.all([
+		const [directives, brainProfile] = await Promise.all([
 			brain.getDirectives().catch(() => ""),
 			brain.getUserProfile().catch(() => "")
 		]);
 
-		let systemPrompt: string;
-		try {
-			// Prioridad: modeId específico > modo activo > __general__ > built-in
-			const { getActiveMode, getMode } = await import("../db/modes.js");
-			let mode = null;
-			if (opts.modeId) {
-				mode = getMode(opts.modeId);
-			}
-			if (!mode) {
-				mode = getActiveMode();
-			}
-			if (mode?.system_prompt) {
-				systemPrompt = mode.system_prompt;
-				logger.agent(`[${chatId}] Using system prompt from mode '${mode.name}'`);
-			} else {
-				const generalOverride = getGeneralConfig();
-				if (generalOverride?.system_prompt) {
-					systemPrompt = generalOverride.system_prompt;
-				} else {
-					systemPrompt = buildSystemPrompt(config, generalModel);
-				}
-			}
-		} catch {
-			systemPrompt = buildSystemPrompt(config, generalModel);
+		// Enrich with local DB profile
+		let dbProfile = "";
+		const dbUser = getUser(userId);
+		if (dbUser) {
+			dbProfile = formatUserProfileForPrompt(dbUser);
 		}
 
-		// Consolidar toda la información de sistema en UN solo mensaje system
-		// para que el LLM tenga contexto completo sin fragmentación
+		let systemPrompt: string;
+		if (modeSystemPrompt) {
+			systemPrompt = modeSystemPrompt;
+		} else {
+			const generalOverride = getGeneralConfig();
+			if (generalOverride?.system_prompt) {
+				systemPrompt = generalOverride.system_prompt;
+			} else {
+				systemPrompt = buildSystemPrompt(config, generalModel);
+			}
+		}
+
+		// Consolidar toda la informaci�n de sistema en UN solo mensaje system
+		// para que el LLM tenga contexto completo sin fragmentaci�n
 		const assembly: string[] = [systemPrompt];
 
 		if (directives) {
 			assembly.push(`<project_directives>\n${directives}\n</project_directives>`);
 		}
 
-		if (userProfile) {
-			assembly.push(`<user_profile>\nLo que sabes sobre este usuario/proyecto:\n${userProfile}\n</user_profile>`);
+		// Combine brain profile + local DB profile
+		let fullProfile = "";
+		if (brainProfile) fullProfile += `Lo que sabes sobre este usuario/proyecto:\n${brainProfile}\n`;
+		if (dbProfile) fullProfile += `\nPerfil almacenado:\n${dbProfile}`;
+		if (fullProfile) {
+			assembly.push(`<user_profile>\n${fullProfile}\n</user_profile>`);
 		}
 
 		// Inform about available tools (only active/enabled ones)
@@ -166,8 +196,23 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 			assembly.push(`<available_tools>\nHerramientas disponibles:\n${toolList}\n</available_tools>`);
 		}
 
+		// Workspace context
+		try {
+			const wsCtx = getWorkspaceContext(userId);
+			if (wsCtx) {
+				const wsText = formatWorkspaceForPrompt(wsCtx);
+				if (wsText) {
+					assembly.push(`<workspace_context>\n${wsText}\n</workspace_context>`);
+				}
+			}
+		} catch { /* optional */ }
+
+		if (session.summary) {
+			assembly.push(`<session_summary>\nResumen de la conversaci�n anterior:\n${session.summary}\n</session_summary>`);
+		}
+
 		if (opts.origin === "scheduler") {
-			assembly.push(`<context>\nEsta consulta proviene de una tarea programada automáticamente. No esperes respuesta del usuario; completa la tarea y reporta los resultados sin solicitar confirmación.\n</context>`);
+			assembly.push(`<context>\nEsta consulta proviene de una tarea programada autom�ticamente. No esperes respuesta del usuario; completa la tarea y reporta los resultados sin solicitar confirmaci�n.\n</context>`);
 		}
 
 		session.messages.push({
@@ -190,19 +235,42 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 		} catch {
 			// cached context is optional
 		}
+
+		// Also load any conversation history from mcp-brain that might not be in local SQLite
+		try {
+			const localCount = session.messages.length;
+			brain.getConversationHistory(chatId, generalHistoryLimit).then((brainMessages) => {
+				if (brainMessages.length > localCount) {
+					const existingKeys = new Set(session.messages.map((m) => typeof m.content === "string" ? m.content.substring(0, 100) : ""));
+					for (const bm of brainMessages) {
+						const key = (bm.content || "").substring(0, 100);
+						if (!key || existingKeys.has(key)) continue;
+						if (bm.role === "system") continue;
+						existingKeys.add(key);
+						session.messages.push({
+							role: bm.role as OpenAI.Chat.Completions.ChatCompletionMessageParam["role"],
+							content: bm.content,
+						} as OpenAI.Chat.Completions.ChatCompletionMessageParam);
+					}
+					logger.agent(`[${chatId}] Loaded ${brainMessages.length} messages from brain history`);
+				}
+			}).catch(() => {});
+		} catch {
+			// brain history is optional
+		}
 	}
 
-	// ── Build user content with attachment support ───────────────────────
+	// -- Build user content with attachment support -----------------------
 	// Supports:
-	//   - Text-only messages  → content: string
-	//   - Messages with images → content: ChatCompletionContentPart[] (multi-modal)
-	//   - Text documents       → inline text in the content parts
-	//   - Audio transcripts    → inline text
+	//   - Text-only messages  ? content: string
+	//   - Messages with images ? content: ChatCompletionContentPart[] (multi-modal)
+	//   - Text documents       ? inline text in the content parts
+	//   - Audio transcripts    ? inline text
 	const hasImages = opts.attachments?.some((a) => a.type.startsWith("image/")) ?? false;
 
-	// Enviar imágenes como multi-modal siempre que el backend proxy lo soporte.
-	// El backend (puerto 3016) ahora convierte automáticamente image_url a Ollama images[].
-	// Si el modelo de Ollama no soporta visión, Ollama ignorará las imágenes silenciosamente.
+	// Enviar im�genes como multi-modal siempre que el backend proxy lo soporte.
+	// El backend (puerto 3016) ahora convierte autom�ticamente image_url a Ollama images[].
+	// Si el modelo de Ollama no soporta visi�n, Ollama ignorar� las im�genes silenciosamente.
 	const shouldUseMultiModal = hasImages;
 
 	let userContent: string | OpenAI.Chat.Completions.ChatCompletionContentPart[] = userText;
@@ -214,54 +282,54 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 		for (const att of opts.attachments) {
 			if (att.type.startsWith("image/") && att.data) {
 				if (shouldUseMultiModal) {
-					// Modelo con visión → enviar como image_url multi-modal
+					// Modelo con visi�n ? enviar como image_url multi-modal
 					imageParts.push({
 						type: "image_url",
 						image_url: { url: att.data, detail: "auto" },
 					});
 				} else {
-					// Modelo sin visión → solo mencionar como texto
+					// Modelo sin visi�n ? solo mencionar como texto
 					textParts.push(`\n[Imagen adjunta: ${att.name}]`);
 				}
 			} else if (att.type.startsWith("text/") || att.type === "application/json") {
-				// Documento de texto → decodificar base64 a texto
+				// Documento de texto ? decodificar base64 a texto
 				try {
 					const base64Content = att.data.split(",")[1] || att.data || "";
 					const decoded = Buffer.from(base64Content, "base64").toString("utf-8");
 					if (decoded.trim()) {
 						textParts.push(`\n--- ${att.name} ---\n${decoded}\n---`);
 					} else {
-						textParts.push(`\n[${att.name}: archivo vacío]`);
+						textParts.push(`\n[${att.name}: archivo vac�o]`);
 					}
 				} catch {
 					textParts.push(`\n[No se pudo leer: ${att.name}]`);
 				}
 			} else if (att.type.startsWith("audio/")) {
-				// Audio → metadata (la transcripción ya viene como text/plain aparte)
+				// Audio ? metadata (la transcripci�n ya viene como text/plain aparte)
 				textParts.push(`\n[Mensaje de audio: ${att.name}]`);
 			} else {
-				// Otros tipos (video, binarios, etc.) → metadata
+				// Otros tipos (video, binarios, etc.) ? metadata
 				textParts.push(`\n[Archivo adjunto: ${att.name} (${att.type})]`);
 			}
 		}
 
 		if (shouldUseMultiModal) {
-			// ── Caso multi-modal: texto + imágenes (solo modelos con visión) ──
+			// -- Caso multi-modal: texto + im�genes (solo modelos con visi�n) --
 			const parts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
 
 			// Texto del usuario + documentos de texto como primer content part
-			let combinedText = userText || "¿Qué hay en esta imagen?";
+			let combinedText = userText || "�Qu� hay en esta imagen?";
 			if (textParts.length > 0) {
 				combinedText += `\n\n--- Documentos adjuntos ---${textParts.join("\n")}`;
 			}
 			parts.push({ type: "text", text: combinedText });
 
-			// Agregar todas las imágenes
+			// Agregar todas las im�genes
 			parts.push(...imageParts);
 
 			userContent = parts;
 		} else if (textParts.length > 0) {
-			// ── Solo texto (modelo sin visión o sin imágenes) ──
+			// -- Solo texto (modelo sin visi�n o sin im�genes) --
 			userContent = `${userText || ""}\n\n--- Archivos adjuntos ---${textParts.join("\n")}`;
 		}
 	}
@@ -304,6 +372,9 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 		},
 	}));
 
+	// Determine if this is a subsequent turn (existing history beyond current user message)
+	let isNewTurn = session.messages.length > 2;
+
 	let finalContent = "";
 	const totalUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 	const maxIterations = 10;
@@ -315,17 +386,35 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 			(sum, m) => sum + (typeof m.content === "string" ? m.content.length : 200),
 			0
 		);
-		if (totalChars > 80000) {
+		if (totalChars > 30000) {
 			const systemMsg = session.messages[0];
-			const recentMsgs = session.messages.slice(-20);
+			const msgsToSummarize = session.messages.slice(1, -11);
+			const recentMsgs = session.messages.slice(-11);
+			if (msgsToSummarize.length >= 4) {
+				try {
+					const newSummary = await summarizeMessages(client, modelConfig.model, msgsToSummarize as Array<{ role: string; content: string }>);
+					session.summary = session.summary
+						? `${session.summary}\n\n${newSummary}`
+						: newSummary;
+					logger.agent(`[${chatId}] Context summarized via LLM (${msgsToSummarize.length} msgs, ${newSummary.length} chars, reduced from ~${Math.ceil(msgsToSummarize.reduce((s,m) => s + (typeof m.content === "string" ? m.content.length : 200), 0) / 4)} est. tokens)`);
+				} catch {
+					session.messages = [systemMsg, ...recentMsgs];
+					logger.agent(`[${chatId}] Summary LLM failed, truncated to ${session.messages.length} messages`);
+				}
+			}
 			session.messages = [systemMsg, ...recentMsgs];
-			logger.agent(`[${chatId}] Context compacted to ${session.messages.length} messages`);
+			logger.agent(`[${chatId}] Context compacted to ${session.messages.length} messages (${totalChars} chars, ~${Math.ceil(totalChars / 4)} est. tokens, summary: ${session.summary?.length || 0} chars)`);
 		}
+
+		const messagesForLLM = (isNewTurn && iteration === 0)
+			? [session.messages[session.messages.length - 1]]
+			: session.messages;
 
 		try {
 			const stream = await client.chat.completions.create({
 				model: modelConfig.model,
-				messages: session.messages,
+				messages: messagesForLLM,
+				user: (isNewTurn && iteration === 0) ? chatId : undefined,
 				tools: openAiTools.length > 0 ? openAiTools : undefined,
 				tool_choice: "auto",
 				stream: true,
@@ -383,6 +472,11 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 				}
 			}
 
+			// After first iteration, restore full context for tool call handling
+			if (isNewTurn && iteration === 0) {
+				isNewTurn = false;
+			}
+
 			// After streaming: determine if tool calls or content
 			const hasToolCalls = toolCallDeltas.some((tc) => tc.function?.name);
 
@@ -413,7 +507,7 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 					}
 
 					onToolCall?.(toolName, args);
-					onStatus?.(`🧰 Usando herramienta: ${toolName}`);
+					onStatus?.(`?? Usando herramienta: ${toolName}`);
 					logger.tool(`[${chatId}] Tool call: ${toolName}`, args);
 
 					let result: string;
@@ -449,27 +543,44 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 
 			if (session.messages.length > 60) {
 				const systemMsg = session.messages[0];
-				session.messages = [systemMsg, ...session.messages.slice(-40)];
+				const msgsToSummarize = session.messages.slice(1, -30);
+				const recentMsgs = session.messages.slice(-30);
+				if (msgsToSummarize.length >= 4) {
+					summarizeMessages(client, modelConfig.model, msgsToSummarize as Array<{ role: string; content: string }>)
+						.then((newSummary) => {
+							session.summary = session.summary
+								? `${session.summary}\n\n${newSummary}`
+								: newSummary;
+						})
+						.catch(() => {});
+				}
+				session.messages = [systemMsg, ...recentMsgs];
 			}
 
 			const latency = Date.now() - startTime;
 
-			if (!opts.skipPersistUserMsg) {
-				try {
-					saveMessage({
-						userId: opts.origin === "telegram" ? `telegram-${opts.telegramChatId || chatId}` : chatId,
-						chatId,
-						role: "assistant",
-						content: finalContent,
-						origin: opts.origin || "web",
-					});
-				} catch {
-					// DB might not be available
-				}
+			try {
+				saveMessage({
+					userId,
+					chatId,
+					role: "assistant",
+					content: finalContent,
+					origin: opts.origin || "web",
+				});
+			} catch {
+				// DB might not be available
 			}
+			// Persist assistant response to mcp-brain conversation history
+			brain.appendConversationMessage(chatId, "assistant", finalContent, totalUsage.completionTokens).catch(() => {});
 
 			onTyping?.(false);
 			logger.agent(`[${chatId}] Response complete (${latency}ms)`);
+
+			afterResponseLearning(userId, userText, finalContent, brain).catch(() => {});
+			// Trigger summarization on brain if session has too many messages
+			if (session.messages.length > 15) {
+				brain.summarizeConversation(chatId).catch(() => {});
+			}
 
 			// Estimate token usage if model didn't provide it (e.g. Ollama)
 			if (!totalUsage.promptTokens && !totalUsage.completionTokens) {
@@ -499,7 +610,7 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 
 			onTyping?.(false);
 			return {
-				text: `Lo siento, encontré un error al procesar tu solicitud:\n\n${errorMsg}`,
+				text: `Lo siento, encontr� un error al procesar tu solicitud:\n\n${errorMsg}`,
 				model: modelConfig.model,
 				latencyMs: latency,
 			};
@@ -508,7 +619,7 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 
 	const latency = Date.now() - startTime;
 	finalContent =
-		finalContent || "He llegado al límite de iteraciones. Considera dividir la tarea en partes más pequeñas.";
+		finalContent || "He llegado al l�mite de iteraciones. Considera dividir la tarea en partes m�s peque�as.";
 	session.messages.push({ role: "assistant", content: finalContent });
 	onTyping?.(false);
 
@@ -521,6 +632,24 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 		totalUsage.promptTokens = Math.max(1, Math.ceil(charCount / 4));
 		totalUsage.completionTokens = Math.max(1, Math.ceil((finalContent?.length || 0) / 4));
 		totalUsage.totalTokens = totalUsage.promptTokens + totalUsage.completionTokens;
+	}
+
+	try {
+		saveMessage({
+			userId,
+			chatId,
+			role: "assistant",
+			content: finalContent,
+			origin: opts.origin || "web",
+		});
+	} catch {
+		// DB might not be available
+	}
+	brain.appendConversationMessage(chatId, "assistant", finalContent, totalUsage.completionTokens).catch(() => {});
+
+	afterResponseLearning(userId, userText, finalContent, brain).catch(() => {});
+	if (session.messages.length > 15) {
+		brain.summarizeConversation(chatId).catch(() => {});
 	}
 
 	return {

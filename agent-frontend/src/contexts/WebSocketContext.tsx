@@ -3,6 +3,7 @@ import { config } from "../config";
 
 interface WsContextValue {
 	connected: boolean;
+	reconnecting: boolean;
 	send: (type: string, payload?: Record<string, unknown>) => boolean;
 	subscribe: (handler: (msg: { type: string; payload?: Record<string, unknown> }) => void) => () => void;
 	userId: string;
@@ -12,6 +13,7 @@ const WsContext = createContext<WsContextValue>(null!);
 
 export function WsProvider({ children }: { children: ReactNode }) {
 	const [connected, setConnected] = useState(false);
+	const [reconnecting, setReconnecting] = useState(false);
 	const wsRef = useRef<WebSocket | null>(null);
 	const handlersRef = useRef<Set<(msg: any) => void>>(new Set());
 	const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -40,6 +42,7 @@ export function WsProvider({ children }: { children: ReactNode }) {
 			if (!mounted) return;
 			intentionalRef.current = false;
 			setConnected(false);
+			setReconnecting(true);
 			const ws = new WebSocket(config.wsUrl);
 			wsRef.current = ws;
 			ws.onopen = () => {
@@ -49,12 +52,15 @@ export function WsProvider({ children }: { children: ReactNode }) {
 				}
 				reconnectAttemptsRef.current = 0;
 				setConnected(true);
+				setReconnecting(false);
 				ws.send(JSON.stringify({ type: "identify", payload: { userId } }));
 			};
 			ws.onclose = () => {
 				if (!mounted) return;
 				setConnected(false);
+				setReconnecting(false);
 				if (intentionalRef.current) return;
+				setReconnecting(true);
 				const delay = Math.min(1000 * 2 ** reconnectAttemptsRef.current, 15000);
 				reconnectAttemptsRef.current++;
 				reconnectTimerRef.current = setTimeout(connect, delay);
@@ -81,7 +87,7 @@ export function WsProvider({ children }: { children: ReactNode }) {
 		};
 	}, []);
 
-	return <WsContext.Provider value={{ connected, send, subscribe, userId }}>{children}</WsContext.Provider>;
+	return <WsContext.Provider value={{ connected, reconnecting, send, subscribe, userId }}>{children}</WsContext.Provider>;
 }
 
 export function useWs() {

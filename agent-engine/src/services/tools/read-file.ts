@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { trackFileAccess } from "../db/workspace.js";
 import { toolRegistry } from "./registry.js";
 import type { ToolContext } from "./types.js";
 
@@ -73,6 +74,13 @@ export function registerReadFileTool() {
 
 				const totalLines = lines.length;
 				const showing = `Showing lines ${startLine + 1}-${Math.min(endLine, totalLines)} of ${totalLines}\n`;
+
+				// Track file access for workspace context
+				try {
+					const userId = ctx.chatId || ctx.sessionId;
+					trackFileAccess(userId, filePath);
+				} catch { /* workspace tracking is optional */ }
+
 				return showing + result;
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err);

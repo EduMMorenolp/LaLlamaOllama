@@ -1,4 +1,4 @@
-import type { BrainClient } from "../brain/client.js";
+﻿import type { BrainClient } from "../brain/client.js";
 import type { AppConfig } from "../config.js";
 import { getGeneralConfig } from "../db/experts.js";
 import { createClient, getDefaultModelConfig } from "./createClient.js";
@@ -36,7 +36,8 @@ export async function generateSuggestions(
 		const content = response.choices[0]?.message?.content || "[]";
 		let suggestions: string[] = [];
 		try {
-			const match = content.match(/[[sS]*]/);
+			// Match a JSON array: [...]
+			const match = content.match(/\[[\s\S]*?\]/);
 			if (match) {
 				suggestions = JSON.parse(match[0]);
 			}
@@ -44,7 +45,8 @@ export async function generateSuggestions(
 			suggestions = content
 				.split("\n")
 				.filter((l) => l.trim() && !l.startsWith("{") && !l.startsWith("}"))
-				.map((l) => l.replace(/^d+[.)]s*/, "").trim())
+				// Remove leading digits followed by period or parenthesis: "1. ", "2) ", etc.
+				.map((l) => l.replace(/^\d+[.)]\s*/, "").trim())
 				.filter(Boolean);
 		}
 

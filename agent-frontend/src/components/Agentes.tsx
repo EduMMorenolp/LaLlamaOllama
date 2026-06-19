@@ -1,4 +1,4 @@
-﻿import { Palette, User, Users } from "lucide-react";
+import { Palette, User, Users } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useWs } from "../contexts/WebSocketContext";
 import { AgentePrincipal } from "./AgentePrincipal";
@@ -100,8 +100,6 @@ export const Agentes: React.FC = () => {
             requestRef.current = true;
             sendWs("list_modes", {});
             sendWs("get_active_mode", {});
-            sendWs("list_tools", {});
-            sendWs("list_ollama_models", {});
         }
         if (!connected) {
             requestRef.current = false;

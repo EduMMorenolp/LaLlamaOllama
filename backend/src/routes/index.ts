@@ -44,6 +44,7 @@ import { UnloadModelsUseCase } from "../use-cases/models/unload-models.js";
 import { CleanWorkspaceUseCase } from "../use-cases/models/clean-workspace.js";
 import { DeleteModelUseCase } from "../use-cases/models/delete-model.js";
 import { ShowModelUseCase } from "../use-cases/models/show-model.js";
+import { ConfigureModelUseCase } from "../use-cases/models/configure-model.js";
 import { createModelsRouter } from "./models.routes.js";
 // Chat
 import { CreateChatUseCase } from "../use-cases/chat/create-chat.js";
@@ -127,9 +128,10 @@ export function createAllRoutes(
   const cleanWorkspace = new CleanWorkspaceUseCase(ollamaService);
   const deleteModel = new DeleteModelUseCase(ollamaService);
   const showModel = new ShowModelUseCase(ollamaService);
+  const configureModel = new ConfigureModelUseCase(ollamaService);
   const modelsRouter = createModelsRouter(
     listModels, listModelsOpenAi, pullModel, unloadModels,
-    cleanWorkspace, deleteModel, showModel, config.authMiddleware
+    cleanWorkspace, deleteModel, showModel, configureModel, config.authMiddleware
   );
 
   // --- Chat ---

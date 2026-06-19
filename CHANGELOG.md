@@ -1,4 +1,4 @@
-# LaLlamaOllama — Changelog
+﻿# LaLlamaOllama — Changelog
 
 Todos los cambios notables del proyecto están documentados aquí.
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
@@ -6,6 +6,70 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 ---
 
 ## [Unreleased]
+
+### 🧵 Retención de hilo: Sesiones persistentes, resúmenes de contexto y streaming largo (2026-06-18)
+
+#### Agent Engine
+- **🗑️ `cron.ts`** — Eliminado cron job que reseteaba sesiones cada 30 minutos (causa raíz de pérdida de contexto)
+- **🔧 `db.ts`** — Session TTL aumentado de 30 min a 24h
+- **🔧 `buildPrompt.ts`** — Inyección de `<session_summary>` desde mcp-brain; recordatorio de memorizar reforzado
+- **🔧 `runAgentCore.ts`** — Guardado automático de resúmenes en mcp-brain en umbrales de contexto
+
+#### Backend
+- **🔧 `ollama.service.ts`** — `maxTokens` 8192 → 16384; streaming real con chunk yields
+- **🔧 `chat.service.ts`** — `contextLength` 4096 → 8192; buffers de streaming mejorados
+
+#### MCP Brain
+- **➕ `updateMemory.ts`** — Upsert por `type` + `userId` (crea o actualiza)
+- **🔧 `searchMemories.ts`** — Exportada como función pública; búsqueda semántica FTS5 + embeddings
+
+#### Agent Frontend
+- **🔧 `AgentChat.tsx`** — Scroll persistente; auto-reconexión WS con backoff exponencial; imports limpiados
+- **🔧 `MessageBubble.tsx`** — Tool calls colapsables; feedback visual de streaming
+
+### 👤 Perfil de Usuario: Aprendizaje automático y personalización evolutiva (2026-06-18)
+
+#### Agent Engine
+- **➕ `userLearning.ts`** — Nuevo servicio que extrae temas, analiza sentimiento, detecta estilo de comunicación y persona automáticamente tras cada respuesta
+- **➕ Columnas en tabla `users`** — 11 nuevas columnas para perfil enriquecido (persona, intereses, disgustos, estilo, tono, estadísticas de interacción, modelo preferido, metadata)
+- **➕ Perfil combinado en system prompt** — Se inyectan datos de DB local + memorias mcp-brain en `<user_profile>` al iniciar sesión
+- **➕ Handler WS `user_feedback`** — Permite al frontend enviar preferencias explícitas del usuario
+- **🔧 `buildPrompt.ts`** — Instrucción de `memorize` reforzada con lista detallada de qué memorizar
+
+#### Agent Frontend
+- **➕ `Perfil.tsx`** — Nueva tab con estadísticas de interacción, vista de perfil y modo edición con formulario completo (persona, estilo, tono, intereses, disgustos, modelo)
+
+### 🧠 Resúmenes de sesiones + Workspace + Feedback + Búsqueda + Tema + Export (2026-06-18)
+
+#### Agent Engine
+- **➕ `sessionSummary.ts`** — Resúmenes automáticos de conversación vía LLM cuando el contexto supera 80K chars. Inyecta `<session_summary>` en system prompt
+- **➕ Tabla `workspace_context`** — Persiste proyecto, archivos abiertos y directorio actual por usuario. Tracking automático en `read_file`, `write_file`, `edit_file`
+- **➕ Inyección de `<workspace_context>`** — El agente sabe en qué proyecto/archivos estás trabajando
+- **➕ Tabla `message_feedback`** + handler WS — Almacena ratings 👍/👎 por mensaje. Ajusta automáticamente `tone_preference` según el ratio de feedback
+- **➕ FTS5 en `messages`** — Full-text search en historial de chats con `messages_fts` + triggers + `searchMessages()`
+
+#### Agent Frontend
+- **➕ `ThemeContext.tsx`** — Toggle claro/oscuro con persistencia en localStorage + CSS `[data-theme="light"]`
+- **➕ Botones 👍/👎** — Feedback inline en cada mensaje del asistente, con estado visual y toggle
+- **➕ Exportación de chat mejorada** — Metadatos, formato MD más limpio, tool calls como bloques de código
+
+### 🔧 Correcciones de infraestructura y features (2026-06-18)
+
+#### Bug Fixes
+- **🔧 Endpoint de embeddings incorrecto (mcp-brain)** - Corregido `/api/embed` → `/api/embeddings` en `embed.ts`. Las búsquedas semánticas (RAG) ahora funcionan correctamente.
+- **🔧 Resolución del modo base `__base__` (agent-engine)** - `resolveMode()` ahora busca `__base__` en las definiciones en memoria si no está en la DB. Elimina warnings de modo no encontrado en cada interacción.
+- **🔧 Reducción del umbral de contexto overflow (agent-engine)** - Umbral de resumen reducido de 80000 → 30000 caracteres en `runAgentCore.ts`. Conserva 10 mensajes recientes (antes 15). El resumen se activa antes, evitando que el prompt llegue al límite de 8192 tokens.
+
+#### Features
+- **✨ Cache de sesión con `user` (backend)** - El endpoint `/v1/chat/completions` ahora acepta `user` como sessionId en `chat.ts`, `create-chat.ts` y `create-chat-stream.ts`. El backend puede cachear el historial por sesión.
+- **✨ Envío inteligente de contexto (agent-engine)** - En turnos siguientes al primero, solo se envía el mensaje nuevo del usuario + sessionId. El historial completo se envía solo en el primer mensaje de la sesión o en iteraciones de herramientas. Reduce drásticamente el consumo de tokens (~2-4K tokens por llamado).
+
+#### Performance
+- **⚡ Warm-up del modelo en startup (agent-engine)** - Agregado bloque de warm-up en `index.ts` que precarga el modelo LLM al iniciar. Elimina el cold start de ~256s en la primera interacción.
+
+#### Bug Fixes
+- **🔧 Chat ya no crea tareas automáticamente (agent-engine)** - `handleUserMessage` ahora llama a `runAgentCore()` directamente en lugar de `runAgent()`. Los mensajes de chat ya no pasan por el orquestador/cola BullMQ, evitando la creación automática de runs y la emisión de `task_created`.
+- **🔧 Mensajes duplicados al cambiar de pestaña (agent-frontend)** - Se agregaron flags `pendingModelList`/`pendingToolsList` en AgentChat para ignorar eventos no solicitados. Se eliminaron envíos automáticos de `list_ollama_models`/`list_tools` en Agentes.tsx y SubAgentesList.tsx.
 
 ### 🐛 Corrección 429 + 401 + Mejoras en Tareas y contexto programado (2026-06-12)
 

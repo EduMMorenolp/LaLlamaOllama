@@ -294,6 +294,7 @@ function Cerebro() {
 	const [tagsFilter, setTagsFilter] = useState("");
 	const [sortBy, setSortBy] = useState<"date" | "type">("date");
 	const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+	const [activeProject, setActiveProject] = useState("agent-back-front");
 	const [selectedMemory, setSelectedMemory] = useState<Memory | null>(null);
 	const [editingMemory, setEditingMemory] = useState<Memory | null>(null);
 	const [editTitle, setEditTitle] = useState("");
@@ -315,11 +316,20 @@ function Cerebro() {
 	const sentinelRef = useRef<HTMLDivElement | null>(null);
 	const offsetRef = useRef(0);
 
+	useEffect(() => {
+		fetch(`${engine}/health`, { headers: apiHeaders })
+			.then(res => res.json())
+			.then(data => {
+				if (data.brainProject) setActiveProject(data.brainProject);
+			})
+			.catch(() => {});
+	}, []);
+
 	const fetchMemories = useCallback(async (append = false) => {
 		if (!append) { setLoading(true); offsetRef.current = 0; }
 		else setLoadingMore(true);
 		try {
-			const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offsetRef.current) });
+			const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offsetRef.current), project: activeProject });
 			if (filterType) params.set("type", filterType);
 			let data: Memory[];
 			if (searchQuery.trim()) {
@@ -343,15 +353,15 @@ function Cerebro() {
 			setLoading(false);
 			setLoadingMore(false);
 		}
-	}, [searchQuery, filterType]);
+	}, [searchQuery, filterType, activeProject]);
 
 	const fetchStats = useCallback(async () => {
 		try {
-			const res = await fetch(`${engine}/api/memory/stats`, { headers: apiHeaders });
+			const res = await fetch(`${engine}/api/memory/stats?project=${encodeURIComponent(activeProject)}`, { headers: apiHeaders });
 			const data = await res.json();
 			setStats(data);
 		} catch { /* ignore */ }
-	}, []);
+	}, [activeProject]);
 
 	useEffect(() => { fetchStats(); }, [fetchStats]);
 	useEffect(() => { fetchMemories(); }, [fetchMemories]);
@@ -451,7 +461,7 @@ function Cerebro() {
 			await fetch(`${engine}/api/memory`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json", ...apiHeaders },
-				body: JSON.stringify({ type: newType, title: newTitle.trim(), content: newContent.trim(), tags: newTags.trim() }),
+				body: JSON.stringify({ project: activeProject, type: newType, title: newTitle.trim(), content: newContent.trim(), tags: newTags.trim() }),
 			});
 			setNewTitle("");
 			setNewContent("");
@@ -474,7 +484,7 @@ function Cerebro() {
 			const res = await fetch(`${engine}/api/memory/consolidate`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json", ...apiHeaders },
-				body: JSON.stringify({ project: "lallamaollama" }),
+				body: JSON.stringify({ project: activeProject }),
 			});
 			const data = await res.json();
 			const msg = data.message || data.summary || "Consolidación completada";
@@ -557,6 +567,12 @@ function Cerebro() {
 					</button>
 				)}
 				<div style={{ flex: 1 }} />
+				<div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "6px 12px", background: "rgba(79,140,255,0.05)", border: "1px solid rgba(79,140,255,0.2)", borderRadius: "8px" }}>
+					<Brain size={14} style={{ color: "var(--accent)", flexShrink: 0 }} />
+					<input type="text" value={activeProject} onChange={(e) => setActiveProject(e.target.value)}
+						placeholder="Proyecto Cerebro" title="Proyecto Cerebro activo"
+						style={{ width: "120px", background: "none", border: "none", color: "var(--accent)", fontSize: "10px", fontWeight: 700, fontFamily: "inherit", outline: "none" }} />
+				</div>
 				<input type="text" value={tagsFilter} onChange={(e) => setTagsFilter(e.target.value)}
 					placeholder="Filtrar por tags..."
 					style={{ width: "140px", padding: "6px 10px", background: "rgba(255,255,255,0.03)", border: "1px solid var(--border-light)", borderRadius: "8px", color: "var(--text-main)", fontSize: "10px", fontFamily: "inherit", outline: "none" }} />

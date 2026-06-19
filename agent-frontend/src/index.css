@@ -5,6 +5,7 @@
 	--bg-sidebar: #0f1117;
 	--bg-surface: #141721;
 	--bg-input: #1b1e2b;
+	--bg-card: #141721;
 	--accent: #4f8cff;
 	--accent-glow: rgba(79, 140, 255, 0.3);
 	--primary: #4f8cff;
@@ -27,6 +28,27 @@
 	--font-mono: "JetBrains Mono", monospace;
 
 	--transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-theme="light"] {
+	--bg-dark: #f0f2f5;
+	--bg-sidebar: #ffffff;
+	--bg-surface: #ffffff;
+	--bg-input: #e8ecf1;
+	--bg-card: #ffffff;
+	--accent: #4f8cff;
+	--accent-glow: rgba(79, 140, 255, 0.15);
+	--primary: #4f8cff;
+	--primary-glow: rgba(79, 140, 255, 0.08);
+	--border: #d1d5db;
+	--border-light: rgba(0, 0, 0, 0.06);
+	--text-main: #1f2937;
+	--text-dim: #6b7280;
+	--text-muted: #9ca3af;
+	--success: #10b981;
+	--error: #ef4444;
+	--warning: #f59e0b;
+	--glass: rgba(255, 255, 255, 0.8);
 }
 
 /* ─── Global Reset ─────────────────────────────────────────────────────── */

@@ -9,7 +9,7 @@ export class CreateChatStreamUseCase {
   constructor(private readonly ollamaService: OllamaService) {}
 
   async execute(input: ChatRequest, res: Response): Promise<void> {
-    const { model, messages, stream: _stream, ...options } = input;
+    const { model, messages, stream: _stream, user, ...options } = input;
 
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
@@ -26,7 +26,7 @@ export class CreateChatStreamUseCase {
         top_k: options.top_k,
       },
       "5m",
-      undefined,
+      user,
       options.tools
     );
 
@@ -70,7 +70,7 @@ export class CreateChatStreamUseCase {
                 const args = fn?.arguments;
                 return {
                   index: i,
-                  id: (tc.id as string) || `call_${fn?.name || i}`,
+                  id: (tc.id as string) || "call_" + (fn?.name || i),
                   type: "function",
                   function: {
                     name: fn?.name || tc.name || "",
@@ -88,7 +88,7 @@ export class CreateChatStreamUseCase {
           }
 
           const sseData = {
-            id: `chatcmpl-${Date.now()}`,
+            id: "chatcmpl-" + Date.now(),
             object: "chat.completion.chunk",
             created: Math.floor(Date.now() / 1000),
             model,
@@ -100,7 +100,7 @@ export class CreateChatStreamUseCase {
               },
             ],
           };
-          res.write(`data: ${JSON.stringify(sseData)}\n\n`);
+          res.write("data: " + JSON.stringify(sseData) + "\n\n");
         }
       } catch {
         /* ignore parse errors */
@@ -125,7 +125,7 @@ export class CreateChatStreamUseCase {
       this.log.info({ model, totalDurationMs, tokensPerSec: tokensPerSec.toFixed(2), ttftMs }, "stream-final");
 
       const finalData = {
-        id: `chatcmpl-${Date.now()}`,
+        id: "chatcmpl-" + Date.now(),
         object: "chat.completion.chunk",
         created: Math.floor(Date.now() / 1000),
         model,
@@ -142,14 +142,14 @@ export class CreateChatStreamUseCase {
           total_tokens: promptTokens + completionTokens,
         },
       };
-      res.write(`data: ${JSON.stringify(finalData)}\n\n`);
+      res.write("data: " + JSON.stringify(finalData) + "\n\n");
       res.write("data: [DONE]\n\n");
       res.end();
     });
 
     streamResponse.data.on("error", (err: Error) => {
       this.log.error(err, "stream-error");
-      res.write(`data: ${JSON.stringify({ error: { message: err.message, type: "server_error" } })}\n\n`);
+      res.write("data: " + JSON.stringify({ error: { message: err.message, type: "server_error" } }) + "\n\n");
       res.end();
     });
   }

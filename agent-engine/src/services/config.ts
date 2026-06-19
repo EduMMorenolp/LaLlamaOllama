@@ -10,6 +10,7 @@ export interface AppConfig {
 	llmTimeout: number;
 	workspaceDir: string;
 	dbPath: string;
+	brainProject: string;
 	telegramBotToken: string;
 	telegramAllowedUsers: string[];
 	allowedOrigins?: string[];
@@ -28,6 +29,7 @@ export function loadConfig(): AppConfig {
 		llmTimeout: parseInt(process.env.LLM_TIMEOUT || "600000", 10),
 		workspaceDir: process.env.WORKSPACE_DIR || "/workspace",
 		dbPath: process.env.DB_PATH || "./agent-engine.db",
+		brainProject: process.env.BRAIN_PROJECT || "AgenteLaLlamaOllama",
 		telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || "",
 		telegramAllowedUsers: (process.env.TELEGRAM_ALLOWED_USERS || "").split(",").filter(Boolean),
 		allowedOrigins: (process.env.ALLOWED_ORIGINS || "").split(",").filter(Boolean),

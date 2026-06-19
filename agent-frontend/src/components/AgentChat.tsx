@@ -14,7 +14,6 @@
 	Save,
 	Search,
 	Send,
-	Star,
 	StopCircle,
 	Terminal,
 	Trash2,
@@ -22,71 +21,11 @@
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import Markdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { useToast } from "../contexts/ToastContext";
 import { useWs } from "../contexts/WebSocketContext";
 import { ConfirmModal } from "./ConfirmModal";
-
-// Types
-
-interface TokenUsage {
-	promptTokens: number;
-	completionTokens: number;
-	totalTokens: number;
-}
-
-interface ChatMessage {
-	role: "user" | "assistant" | "tool" | "system";
-	content: string;
-	timestamp: Date;
-	usage?: TokenUsage;
-}
-
-interface ToolCallInfo {
-	toolName: string;
-	args: Record<string, unknown>;
-	result?: string;
-	status: "pending" | "done" | "error";
-}
-
-interface ChatEntry {
-	id: string;
-	userId: string;
-	title: string;
-	origin: string;
-	expertName: string | null;
-	pinned: number;
-	created_at: string;
-	updated_at: string;
-	lastMessage?: string;
-	messageCount?: number;
-}
-
-// Utility: extract images from message content
-
-function extractImagesFromContent(content: string): string[] {
-	const images: string[] = [];
-	if (content.startsWith("data:image/")) {
-		images.push(content);
-		return images;
-	}
-	const mdImgRegex = /!\[.*?\]\(([^)]+)\)/g;
-	let match;
-	while ((match = mdImgRegex.exec(content)) !== null) {
-		const url = match[1];
-		if (url.startsWith("data:image/") || /\.(png|jpg|jpeg|gif|svg|webp)(\?.*)?$/i.test(url)) {
-			images.push(url);
-		}
-	}
-	const dataUrlRegex = /data:image\/[a-zA-Z]+;base64,[a-zA-Z0-9+/=]+/g;
-	while ((match = dataUrlRegex.exec(content)) !== null) {
-		if (!images.includes(match[0])) {
-			images.push(match[0]);
-		}
-	}
-	return images;
-}
+import { MessageBubble } from "./MessageBubble";
+import type { ChatMessage, ChatEntry, ToolCallInfo, TokenUsage } from "../types/chat";
 
 // Main Component
 
@@ -137,6 +76,7 @@ export const AgentChat: React.FC = () => {
 
 	// Feature: saved/favorited messages
 	const [savedMessages, setSavedMessages] = useState<Set<string>>(new Set());
+	const [feedbackMap, setFeedbackMap] = useState<Map<string, "up" | "down">>(new Map());
 
 	// Feature: auto suggestions
 	const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -156,16 +96,16 @@ export const AgentChat: React.FC = () => {
 	const [showNewTaskModal, setShowNewTaskModal] = useState(false);
 	const [newTaskText, setNewTaskText] = useState("");
 
-	const { connected, send: sendWs, subscribe } = useWs();
+	const { connected, reconnecting, send: sendWs, subscribe } = useWs();
 	const { show: showToast } = useToast();
 
-	const scrollToBottom = () => {
+	const scrollToBottom = useCallback(() => {
 		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-	};
+	}, []);
 
 	useEffect(() => {
 		scrollToBottom();
-	}, [scrollToBottom]);
+	}, [messages, isProcessing, scrollToBottom]);
 
 	// Keep messageQueueRef in sync
 	useEffect(() => {
@@ -738,11 +678,16 @@ export const AgentChat: React.FC = () => {
 		const files = e.target.files;
 		if (!files) return;
 
+		const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 		const newAttachments: Array<{ name: string; type: string; data: string }> = [];
 		let loaded = 0;
 
 		for (let i = 0; i < files.length; i++) {
 			const file = files[i];
+			if (file.size > MAX_FILE_SIZE) {
+				showToast(`Archivo demasiado grande: ${file.name} (máx 5MB)`, "error");
+				continue;
+			}
 			const reader = new FileReader();
 			reader.onload = (ev) => {
 				const data = ev.target?.result as string;
@@ -793,26 +738,38 @@ export const AgentChat: React.FC = () => {
 		const title = chats.find((c) => c.id === currentChatId)?.title || "chat";
 		const date = new Date().toISOString().split("T")[0];
 		const chatId = currentChatId || "export";
+		const model = messages.find((m) => m.usage)?.usage?.model || "";
 
-		let md = `# Chat - ${title}\n\n`;
-		md += `*Exportado el ${new Date().toLocaleString()}*\n\\n\n`;
+		let md = `# ${title}\n\n`;
+		md += `*Exportado el ${new Date().toLocaleString("es-AR")}*\n\n`;
+		if (model) md += `*Modelo: ${model}*\n\n`;
+		md += `---\n\n`;
 
 		messages.forEach((msg) => {
+			if (msg.role === "system") return;
+
 			const roleLabel =
 				msg.role === "user"
 					? "Usuario"
 					: msg.role === "assistant"
 						? "Asistente"
-						: msg.role === "system"
-							? "Sistema"
-							: "Herramienta";
-			const time = new Date(msg.timestamp).toLocaleString();
-			md += `## ${roleLabel} (${time})\n\n`;
-			md += `${msg.content}\n\n`;
-			if (msg.usage) {
-				md += `> Tokens: ${msg.usage.promptTokens}? / ${msg.usage.completionTokens}?\n\n`;
+						: msg.role === "tool"
+							? "Herramienta"
+							: msg.role;
+			const time = new Date(msg.timestamp).toLocaleString("es-AR");
+			md += `## ${roleLabel} — ${time}\n\n`;
+
+			if (msg.role === "tool") {
+				md += "```\n" + msg.content.substring(0, 2000) + "\n```\n\n";
+			} else {
+				md += `${msg.content}\n\n`;
 			}
-			md += "\n\n---\n\n";
+
+			if (msg.usage) {
+				md += `> Tokens: ${msg.usage.promptTokens || "?"} ↑ / ${msg.usage.completionTokens || "?"} ↓\n\n`;
+			}
+
+			md += `---\n\n`;
 		});
 
 		const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
@@ -868,11 +825,12 @@ export const AgentChat: React.FC = () => {
 						height: "7px",
 						borderRadius: "50%",
 						flexShrink: 0,
-						background: connected ? "var(--success)" : "var(--error)",
+						background: connected ? "var(--success)" : reconnecting ? "var(--warning)" : "var(--error)",
+						animation: reconnecting ? "pulse 1.5s ease-in-out infinite" : "none",
 					}}
 				/>
 				<span style={{ fontSize: "11px", color: "var(--text-dim)", fontWeight: 500 }}>
-					{connected ? "Conectado" : "Desconectado"}
+					{connected ? "Conectado" : reconnecting ? "Reconectando..." : "Desconectado"}
 				</span>
 				{model && (
 					<span style={{ fontSize: "11px", color: "var(--accent)", fontFamily: "var(--font-mono)" }}>
@@ -880,9 +838,33 @@ export const AgentChat: React.FC = () => {
 					</span>
 				)}
 				{(totalPromptTokens > 0 || totalCompletionTokens > 0) && (
-					<span style={{ fontSize: "10px", color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
-						Tokens: {totalPromptTokens + totalCompletionTokens}
-					</span>
+					<>
+						<span style={{ fontSize: "10px", color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
+							Tokens: {totalPromptTokens + totalCompletionTokens}
+						</span>
+						<div
+							style={{
+								width: "60px",
+								height: "4px",
+								background: "rgba(255,255,255,0.1)",
+								borderRadius: "2px",
+								overflow: "hidden",
+							}}
+							title={`${totalPromptTokens} prompt + ${totalCompletionTokens} completion`}
+						>
+							<div
+								style={{
+									width: `${Math.min(100, ((totalPromptTokens + totalCompletionTokens) / 8000) * 100)}%`,
+									height: "100%",
+									background: (totalPromptTokens + totalCompletionTokens) > 6000
+										? "var(--warning)"
+										: "var(--accent)",
+									borderRadius: "2px",
+									transition: "width 0.3s ease",
+								}}
+							/>
+						</div>
+					</>
 				)}
 				<span style={{ flex: 1 }} />
 				<span style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-main)" }}>
@@ -1227,6 +1209,25 @@ export const AgentChat: React.FC = () => {
 									isSaved={savedMessages.has(
 										`${currentChatId || "dashboard"}|${msg.content.substring(0, 50)}`
 									)}
+									onFeedback={(idx, rating) => {
+										const key = `${currentChatId}-${idx}`;
+										const prev = feedbackMap.get(key);
+										// If same rating clicked again, toggle off
+										const newRating = prev === rating ? null : rating;
+										setFeedbackMap((prev) => {
+											const next = new Map(prev);
+											if (newRating) next.set(key, newRating);
+											else next.delete(key);
+											return next;
+										});
+										if (newRating) {
+											sendWs("message_feedback", {
+												chatId: currentChatId,
+												rating: newRating,
+											});
+										}
+									}}
+									feedbackState={feedbackMap.get(`${currentChatId}-${i}`) || null}
 								/>
 							);
 						})}
@@ -2213,229 +2214,6 @@ export const AgentChat: React.FC = () => {
 	}
 };
 
-// Message Bubble Component
 
-interface MessageBubbleProps {
-	message: ChatMessage;
-	index?: number;
-	onEdit?: (index: number) => void;
-	onImageClick?: (src: string) => void;
 
-	onReply?: (index: number, content: string, role: string, timestamp: Date) => void;
-	onToggleSave?: (index: number, role: string, content: string, timestamp: Date, isSaved: boolean) => void;
-	isSaved?: boolean;
-}
 
-const MessageBubble: React.FC<MessageBubbleProps> = ({
-	message,
-	index,
-	onEdit,
-	onImageClick,
-	onReply,
-	onToggleSave,
-	isSaved,
-}) => {
-	const isUser = message.role === "user";
-	const isSystem = message.role === "system";
-
-	const images = extractImagesFromContent(message.content);
-
-	if (isSystem) {
-		return (
-			<div style={{ textAlign: "center", padding: "8px 16px", fontSize: "12px", color: "var(--text-dim)" }}>
-				{message.content}
-			</div>
-		);
-	}
-
-	const handleClick = () => {
-		if (isUser && onEdit && index !== undefined) {
-			onEdit(index);
-		}
-	};
-
-	const handleReply = (e: React.MouseEvent) => {
-		e.stopPropagation();
-		if (onReply && index !== undefined) {
-			onReply(index, message.content, message.role, message.timestamp);
-		}
-	};
-
-	const handleToggleSave = (e: React.MouseEvent) => {
-		e.stopPropagation();
-		if (onToggleSave && index !== undefined) {
-			onToggleSave(index, message.role, message.content, message.timestamp, !!isSaved);
-		}
-	};
-
-	return (
-		<div
-			style={{
-				display: "flex",
-				flexDirection: "column",
-				alignItems: isUser ? "flex-end" : "flex-start",
-				maxWidth: "80%",
-				alignSelf: isUser ? "flex-end" : "flex-start",
-				cursor: isUser && onEdit ? "pointer" : "default",
-			}}
-			onClick={handleClick}
-		>
-			<div
-				style={{
-					padding: "10px 14px",
-					borderRadius: "12px",
-					background: isUser ? "linear-gradient(135deg, var(--accent), #7c3aed)" : "rgba(255,255,255,0.05)",
-					border: isUser ? "none" : "1px solid var(--border-light)",
-					color: isUser ? "white" : "var(--text-main)",
-					fontSize: "13px",
-					lineHeight: 1.5,
-				}}
-			>
-				{isUser ? (
-					<div style={{ whiteSpace: "pre-wrap" }}>{message.content}</div>
-				) : (
-					<Markdown
-						remarkPlugins={[remarkGfm]}
-						components={{
-							code({ className, children, ...props }) {
-								const isInline = !className;
-								if (isInline) {
-									return (
-										<code
-											style={{
-												background: "rgba(255,255,255,0.05)",
-												padding: "2px 6px",
-												borderRadius: "3px",
-												fontSize: "12px",
-											}}
-											{...props}
-										>
-											{children}
-										</code>
-									);
-								}
-								return (
-									<pre
-										style={{
-											background: "rgba(0,0,0,0.3)",
-											padding: "12px",
-											borderRadius: "8px",
-											overflow: "auto",
-											fontSize: "12px",
-										}}
-									>
-										<code {...props}>{children}</code>
-									</pre>
-								);
-							},
-							a({ href, children }) {
-								return (
-									<a
-										href={href}
-										target="_blank"
-										rel="noopener noreferrer"
-										style={{ color: "var(--accent)" }}
-									>
-										{children}
-									</a>
-								);
-							},
-						}}
-					>
-						{message.content}
-					</Markdown>
-				)}
-				{/* Feature: render inline images */}
-				{images.length > 0 && (
-					<div style={{ marginTop: "8px", display: "flex", flexDirection: "column", gap: "6px" }}>
-						{images.map((src, i) => (
-							<img
-								key={i}
-								src={src}
-								alt="Imagen"
-								loading="lazy"
-								onClick={(e) => {
-									e.stopPropagation();
-									if (onImageClick) onImageClick(src);
-								}}
-								style={{
-									maxWidth: "100%",
-									maxHeight: "300px",
-									borderRadius: "8px",
-									cursor: onImageClick ? "pointer" : "default",
-									objectFit: "contain",
-									background: "rgba(0,0,0,0.1)",
-								}}
-							/>
-						))}
-					</div>
-				)}
-			</div>
-			<div
-				style={{
-					fontSize: "10px",
-					color: "var(--text-dim)",
-					marginTop: "4px",
-					padding: "0 4px",
-					display: "flex",
-					gap: "8px",
-					alignItems: "center",
-				}}
-			>
-				<span>{message.timestamp.toLocaleTimeString()}</span>
-				{!isUser && message.usage && (
-					<span>
-						{message.usage.promptTokens} ⇧ / {message.usage.completionTokens} ⇩
-					</span>
-				)}
-				<span style={{ flex: 1 }} />
-				{/* Feature: reply button */}
-				<button
-					type="button"
-					onClick={handleReply}
-					title="Responder"
-					style={{
-						background: "none",
-						border: "none",
-						color: "var(--text-muted)",
-						cursor: "pointer",
-						padding: "2px",
-						display: "flex",
-						opacity: 0.6,
-					}}
-					onMouseEnter={(e) => {
-						e.currentTarget.style.opacity = "1";
-					}}
-					onMouseLeave={(e) => {
-						e.currentTarget.style.opacity = "0.6";
-					}}
-				>
-					<Reply size={10} />
-				</button>
-				{/* Feature: save/favorite button */}
-				<button
-					type="button"
-					onClick={handleToggleSave}
-					title={isSaved ? "Quitar de guardados" : "Guardar mensaje"}
-					style={{
-						background: "none",
-						border: "none",
-						color: isSaved ? "var(--warning)" : "var(--text-muted)",
-						cursor: "pointer",
-						padding: "2px",
-						display: "flex",
-						opacity: isSaved ? 1 : 0.6,
-					}}
-					onMouseEnter={(e) => {
-						e.currentTarget.style.opacity = "1";
-					}}
-					onMouseLeave={(e) => {
-						e.currentTarget.style.opacity = isSaved ? "1" : "0.6";
-					}}
-				>
-					<Star size={10} fill={isSaved ? "var(--warning)" : "none"} />
-				</button>
-			</div>
-		</div>
-	);
-};

@@ -1,4 +1,4 @@
-import { getRuntimeContext } from "../runtime.js";
+﻿import { getRuntimeContext } from "../runtime.js";
 import { toolRegistry } from "./registry.js";
 
 export function registerKnowledgeSearchTool() {
@@ -37,13 +37,13 @@ export function registerKnowledgeSearchTool() {
 				return "Error: Debes proporcionar un término de búsqueda.";
 			}
 
+			let brain;
 			try {
-				const { brain } = getRuntimeContext();
+				const ctx = getRuntimeContext();
+				brain = ctx.brain;
 			} catch {
 				return "Error: El sistema de conocimiento no está disponible (Brain no conectado).";
 			}
-
-			const { brain } = getRuntimeContext();
 
 			try {
 				const results = await brain.searchMemories(query, limit, typeFilter || undefined);
@@ -52,7 +52,7 @@ export function registerKnowledgeSearchTool() {
 					return `No se encontraron resultados en la base de conocimiento para "${query}".\n\nPuedes usar 'memorize' para guardar información nueva.`;
 				}
 
-				let output = `## 📚 Resultados en la base de conocimiento\n\n`;
+				let output = `## Resultados en la base de conocimiento\n\n`;
 				output += `Búsqueda: "${query}" | ${results.length} resultado(s)\n\n`;
 
 				for (let i = 0; i < results.length; i++) {
@@ -63,8 +63,8 @@ export function registerKnowledgeSearchTool() {
 						: "";
 
 					output += `### ${i + 1}. ${type} ${r.title || "Sin título"}\n`;
-					if (date) output += `📅 ${date}`;
-					if (r.tags) output += ` | 🏷️ ${r.tags}`;
+					if (date) output += `Fecha: ${date}`;
+					if (r.tags) output += ` | Tags: ${r.tags}`;
 					output += `\n\n${r.content?.substring(0, 500)}${(r.content?.length || 0) > 500 ? "..." : ""}\n\n`;
 					if (r.id) output += `ID: \`${r.id}\`\n`;
 					output += `\n`;

@@ -1,8 +1,7 @@
 import axios from "axios";
 import type { WebSocket } from "ws";
 import { createMessage } from "../gateway/protocol.js";
-import { runAgent } from "../services/agent/runAgent.js";
-import { pushSessionMessages, resetSession } from "../services/agent/runAgentCore.js";
+import { runAgentCore, pushSessionMessages, resetSession } from "../services/agent/runAgentCore.js";
 import { generateSuggestions } from "../services/agent/suggestions.js";
 import type { BrainClient } from "../services/brain/client.js";
 import { loadConfig } from "../services/config.js";
@@ -33,7 +32,9 @@ import {
 	saveMessageToFavorites,
 	unsaveMessage,
 } from "../services/db/savedMessages.js";
-import { deleteUser, listAllUsers, type UserProfile, upsertUser } from "../services/db/users.js";
+import { saveFeedback } from "../services/db/feedback.js";
+import { searchMessages, countSearchResults } from "../services/db/messages.js";
+import { deleteUser, listAllUsers, type UserProfile, updateUserPreferences, upsertUser } from "../services/db/users.js";
 import { getDockerInfo } from "../services/runtime.js";
 import { getBot, getTelegramConfig, initTelegramDeps, setTelegramConfig, startTelegram, stopTelegram } from "../services/telegram/bot.js";
 import {
@@ -248,6 +249,65 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					deleteUser(dId);
 					logger.info("User deleted: " + dId);
 					ws.send(createMessage("list_users", { users: listAllUsers() }));
+					break;
+				}
+				case "search_messages": {
+					const sqUserId = (payload?.userId || userMap.get(clientId)) as string | undefined;
+					const sq = payload?.query as string;
+					const sqLimit = (payload?.limit as number) || 20;
+					const sqOffset = (payload?.offset as number) || 0;
+					if (!sq?.trim()) {
+						ws.send(createMessage("error", { message: "query is required", code: "NO_QUERY" }));
+						break;
+					}
+					const results = searchMessages(sq, sqUserId, sqLimit, sqOffset);
+					const total = countSearchResults(sq, sqUserId);
+					ws.send(createMessage("search_messages", { results, total, query: sq }));
+					break;
+				}
+				case "message_feedback": {
+					const mfUserId = (payload?.userId || userMap.get(clientId)) as string;
+					const mfChatId = (payload?.chatId || mfUserId) as string;
+					const mfRating = payload?.rating as string;
+					if (!mfUserId || !mfRating || !["up", "down"].includes(mfRating)) {
+						ws.send(createMessage("error", { message: "userId and rating (up/down) required", code: "INVALID_FEEDBACK" }));
+						break;
+					}
+					saveFeedback(
+						mfUserId,
+						mfChatId,
+						mfRating as "up" | "down",
+						payload?.reason as string | undefined,
+						payload?.messageId as number | undefined
+					);
+					logger.info(`Feedback ${mfRating} from ${mfUserId}`);
+					ws.send(createMessage("message_feedback", { status: "ok" }));
+					break;
+				}
+				case "user_feedback": {
+					const fbUserId = (payload?.userId || userMap.get(clientId)) as string;
+					if (!fbUserId) {
+						ws.send(createMessage("error", { message: "userId required", code: "NO_USER" }));
+						break;
+					}
+					const prefs: Record<string, unknown> = {};
+					const FEEDBACK_FIELDS = [
+						"persona", "language", "interests", "dislikes",
+						"communication_style", "tone_preference", "model_preference", "metadata",
+					] as const;
+					for (const field of FEEDBACK_FIELDS) {
+						if (payload?.[field] !== undefined) {
+							prefs[field] = payload[field];
+						}
+					}
+					if (Object.keys(prefs).length > 0) {
+						updateUserPreferences(fbUserId, prefs as Parameters<typeof updateUserPreferences>[1]);
+						// Also save as brain memory for long-term recall
+						const summary = Object.entries(prefs).map(([k, v]) => `${k}: ${v}`).join(", ");
+						brain.saveMemory("user_profile", `Feedback de ${fbUserId}`, summary, "user-feedback").catch(() => {});
+						logger.info(`User feedback saved for ${fbUserId}: ${summary}`);
+					}
+					ws.send(createMessage("user_feedback", { status: "ok", userId: fbUserId }));
 					break;
 				}
 
@@ -838,13 +898,14 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 			logger.agent("[" + chatId + "] Received: \"" + text.substring(0, 100) + "...\"");
 
 			try {
-				const result = await runAgent({
+				const result = await runAgentCore({
 					chatId,
 					userText: text,
 					config,
 					brain,
 					attachments,
 					quotedMessage,
+					origin: "web",
 					onChunk: (chunk: string) => wsServer.sendToAll("assistant_chunk", { chatId, text: chunk }),
 					onToolCall: (toolName: string, args: Record<string, unknown>) =>
 						wsServer.sendToAll("tool_call", { chatId, toolName, args }),

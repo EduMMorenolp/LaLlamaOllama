@@ -7,7 +7,7 @@ export class BrainClient {
 	private http: AxiosInstance;
 	private project: string;
 
-	constructor(config: AppConfig, project = "lallamaollama") {
+	constructor(config: AppConfig, project?: string) {
 		this.http = axios.create({
 			baseURL: config.brainUrl,
 			timeout: 30000,
@@ -16,7 +16,7 @@ export class BrainClient {
 				...(config.apiKey ? { "X-API-Key": config.apiKey } : {}),
 			},
 		});
-		this.project = project;
+		this.project = project || config.brainProject;
 	}
 
 	async saveMemory(
@@ -142,6 +142,58 @@ export class BrainClient {
 			return res.data;
 		} catch {
 			return {};
+		}
+	}
+
+	// ─── Conversation History ────────────────────────────────────────────────
+
+	async appendConversationMessage(
+		sessionId: string,
+		role: "system" | "user" | "assistant" | "tool",
+		content: string | null,
+		tokenCount?: number
+	): Promise<boolean> {
+		try {
+			await this.http.post("/api/conversation/append", {
+				sessionId,
+				role,
+				content,
+				tokenCount: tokenCount || 0,
+			});
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	async getConversationHistory(
+		sessionId: string,
+		limit: number = 50
+	): Promise<Array<{ role: string; content: string | null }>> {
+		try {
+			const res = await this.http.get("/api/conversation/history", {
+				params: { session_id: sessionId, limit },
+			});
+			return (res.data.messages || []).map((m: { role: string; content: string | null }) => ({
+				role: m.role,
+				content: m.content,
+			}));
+		} catch {
+			return [];
+		}
+	}
+
+	async summarizeConversation(sessionId: string): Promise<boolean> {
+		try {
+			await this.http.post("/api/conversation/summarize", {
+				sessionId,
+				model: process.env.DEFAULT_MODEL || "qwen3.5:4b",
+				maxMessages: 20,
+				keepRecent: 5,
+			});
+			return true;
+		} catch {
+			return false;
 		}
 	}
 }

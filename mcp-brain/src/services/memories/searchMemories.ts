@@ -1,4 +1,4 @@
-import type { DatabaseService } from "../../database/connection.js";
+﻿import type { DatabaseService } from "../../database/connection.js";
 import { cosineSimilarity, embed } from "../llm/index.js";
 import { getGlobalSetting } from "../settings/index.js";
 import type { Memory } from "../types.js";
@@ -61,6 +61,12 @@ export async function searchMemories(
 	recentTimestamps.push(now);
 	searchHistory.set(historyKey, recentTimestamps);
 
+	const MAX_CACHE_SIZE = 1000;
+	if (searchHistory.size > MAX_CACHE_SIZE) {
+		const keysToDelete = [...searchHistory.keys()].slice(0, searchHistory.size - MAX_CACHE_SIZE);
+		for (const key of keysToDelete) searchHistory.delete(key);
+	}
+
 	const thresholdStr = await getGlobalSetting(dbService, "delegation_threshold", "3");
 	const threshold = parseInt(thresholdStr, 10) || 3;
 
@@ -70,9 +76,9 @@ export async function searchMemories(
 			id: "WARNING_DELEGATION",
 			project,
 			type: "system_alert",
-			title: "⚠️ Advertencia del Sistema: Búsqueda Repetitiva Estancada",
-			content: `Has consultado la misma información ("${query}") más de ${threshold} veces en los últimos 5 minutos sin registrar avances. 
-DIRECTIVA DE DELEGACIÓN: Detén la búsqueda actual. Evalúa cambiar de fase SDD (ej. de implementación a exploración o revisión), sintetiza lo que sabes hasta ahora con mem_session_summary, o pide aclaración al usuario.`,
+			title: "âš ï¸ Advertencia del Sistema: BÃºsqueda Repetitiva Estancada",
+			content: `Has consultado la misma informaciÃ³n ("${query}") mÃ¡s de ${threshold} veces en los Ãºltimos 5 minutos sin registrar avances. 
+DIRECTIVA DE DELEGACIÃ“N: DetÃ©n la bÃºsqueda actual. EvalÃºa cambiar de fase SDD (ej. de implementaciÃ³n a exploraciÃ³n o revisiÃ³n), sintetiza lo que sabes hasta ahora con mem_session_summary, o pide aclaraciÃ³n al usuario.`,
 			tags: "system,alert,delegation",
 			phase: "review",
 			createdAt: now,
@@ -160,3 +166,4 @@ DIRECTIVA DE DELEGACIÓN: Detén la búsqueda actual. Evalúa cambiar de fase SD
 
 	return results;
 }
+
