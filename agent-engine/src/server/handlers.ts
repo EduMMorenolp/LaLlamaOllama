@@ -1,8 +1,7 @@
 import axios from "axios";
 import type { WebSocket } from "ws";
 import { createMessage } from "../gateway/protocol.js";
-import { runAgent } from "../services/agent/runAgent.js";
-import { pushSessionMessages, resetSession } from "../services/agent/runAgentCore.js";
+import { runAgentCore, pushSessionMessages, resetSession } from "../services/agent/runAgentCore.js";
 import { generateSuggestions } from "../services/agent/suggestions.js";
 import type { BrainClient } from "../services/brain/client.js";
 import { loadConfig } from "../services/config.js";
@@ -899,13 +898,14 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 			logger.agent("[" + chatId + "] Received: \"" + text.substring(0, 100) + "...\"");
 
 			try {
-				const result = await runAgent({
+				const result = await runAgentCore({
 					chatId,
 					userText: text,
 					config,
 					brain,
 					attachments,
 					quotedMessage,
+					origin: "web",
 					onChunk: (chunk: string) => wsServer.sendToAll("assistant_chunk", { chatId, text: chunk }),
 					onToolCall: (toolName: string, args: Record<string, unknown>) =>
 						wsServer.sendToAll("tool_call", { chatId, toolName, args }),

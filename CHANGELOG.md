@@ -47,6 +47,10 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 #### Performance
 - **⚡ Warm-up del modelo en startup (agent-engine)** - Agregado bloque de warm-up en `index.ts` que precarga el modelo LLM al iniciar. Elimina el cold start de ~256s en la primera interacción.
 
+#### Bug Fixes
+- **🔧 Chat ya no crea tareas automáticamente (agent-engine)** - `handleUserMessage` ahora llama a `runAgentCore()` directamente en lugar de `runAgent()`. Los mensajes de chat ya no pasan por el orquestador/cola BullMQ, evitando la creación automática de runs y la emisión de `task_created`.
+- **🔧 Mensajes duplicados al cambiar de pestaña (agent-frontend)** - Se agregaron flags `pendingModelList`/`pendingToolsList` en AgentChat para ignorar eventos no solicitados. Se eliminaron envíos automáticos de `list_ollama_models`/`list_tools` en Agentes.tsx y SubAgentesList.tsx.
+
 ### 🐛 Corrección 429 + 401 + Mejoras en Tareas y contexto programado (2026-06-12)
 
 #### Agent Engine
