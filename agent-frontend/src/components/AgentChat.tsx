@@ -530,7 +530,7 @@ export const AgentChat: React.FC = () => {
 						...prev,
 						{
 							role: "system",
-							content: `âœ… Cambiando modelo activo a: **${modelName}**`,
+							content: `✓ Cambiando modelo activo a: **${modelName}**`,
 
 							timestamp: new Date(),
 						},
@@ -1294,7 +1294,7 @@ export const AgentChat: React.FC = () => {
 															marginTop: "2px",
 														}}
 													>
-														âœ… Completado
+														✓ Completado
 													</div>
 												)}
 												{tc.status === "error" && (
