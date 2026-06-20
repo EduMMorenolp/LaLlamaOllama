@@ -37,7 +37,6 @@ services:
     networks:
       - mcp-network
     restart: unless-stopped
-  
   backend:
     build:
       context: ./backend
@@ -69,7 +68,6 @@ services:
     networks:
       - mcp-network
     restart: unless-stopped
-
   ngrok:
     image: ngrok/ngrok:latest
     container_name: mcp-ngrok-tunnel
@@ -84,7 +82,6 @@ services:
     networks:
       - mcp-network
     restart: unless-stopped
-
   frontend:
     build:
       context: ./frontend
@@ -108,7 +105,6 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
-
   agent-frontend:
     build:
       context: ./agent-frontend
@@ -128,7 +124,6 @@ services:
     depends_on:
       - agent-engine
     restart: unless-stopped
-
   mcp-brain:
     build:
       context: ./mcp-brain
@@ -157,7 +152,6 @@ services:
     networks:
       - mcp-network
     restart: unless-stopped
-
   redis:
     image: redis:7-alpine
     container_name: agent-engine-redis
@@ -167,7 +161,6 @@ services:
     networks:
       - mcp-network
     restart: unless-stopped
-
   agent-engine:
     build:
       context: ./agent-engine

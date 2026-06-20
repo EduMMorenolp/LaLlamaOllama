@@ -100,6 +100,8 @@ export const Agentes: React.FC = () => {
             requestRef.current = true;
             sendWs("list_modes", {});
             sendWs("get_active_mode", {});
+            sendWs("list_tools", {});
+            sendWs("list_ollama_models", {});
         }
         if (!connected) {
             requestRef.current = false;
