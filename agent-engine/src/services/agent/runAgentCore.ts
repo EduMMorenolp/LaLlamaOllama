@@ -420,6 +420,7 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 				stream: true,
 				max_tokens: 4096,
 				temperature: generalTemperature,
+				...(opts.options || {}),
 			});
 
 			let fullContent = "";

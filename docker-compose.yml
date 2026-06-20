@@ -4,6 +4,7 @@ services:
   ollama:
     image: ollama/ollama:latest
     container_name: ollama-motor
+    mem_limit: ${OLLAMA_MEM_LIMIT:-6g}
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
@@ -16,9 +17,14 @@ services:
     environment:
       - OLLAMA_CONTEXT_LENGTH=16384
       - OLLAMA_NUM_PARALLEL=1
-      - OLLAMA_LLM_LIBRARY=cuda_v13
+      - OLLAMA_LLM_LIBRARY=cuda_v12
       - OLLAMA_KEEP_ALIVE=30m
-      - OLLAMA_LOAD_TIMEOUT=10m
+      - OLLAMA_LOAD_TIMEOUT=15m
+      - CUDA_VISIBLE_DEVICES=0
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - OLLAMA_VULKAN=false
+      - OLLAMA_DEBUG=1
     deploy:
       resources:
         reservations:
@@ -37,6 +43,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: backend
+    mem_limit: ${BACKEND_MEM_LIMIT:-256m}
     volumes:
       - ollama_data:/root/.ollama:ro
       - /var/run/docker.sock:/var/run/docker.sock
@@ -66,6 +73,7 @@ services:
   ngrok:
     image: ngrok/ngrok:latest
     container_name: mcp-ngrok-tunnel
+    mem_limit: ${NGROK_MEM_LIMIT:-128m}
     depends_on:
       - backend
     environment:
@@ -87,6 +95,7 @@ services:
         - VITE_BRAIN_API_URL=http://localhost:${BRAIN_PORT:-3015}
         - VITE_ENGINE_URL=http://localhost:${ENGINE_PORT:-3020}
     container_name: frontend
+    mem_limit: ${FRONTEND_MEM_LIMIT:-256m}
     ports:
       - "8080:80"
     environment:
@@ -108,6 +117,7 @@ services:
         - VITE_ENGINE_URL=http://localhost:${ENGINE_PORT:-3020}
         - VITE_API_KEY=${API_KEY:-super-secret-mcp-key}
     container_name: agent-frontend
+    mem_limit: ${AGENT_FRONTEND_MEM_LIMIT:-256m}
     ports:
       - "8081:80"
     environment:
@@ -124,11 +134,13 @@ services:
       context: ./mcp-brain
       dockerfile: Dockerfile
     container_name: brain
+    mem_limit: ${BRAIN_MEM_LIMIT:-256m}
     ports:
       - "${BRAIN_PORT:-3015}:${BRAIN_PORT:-3015}"
     environment:
       - BRAIN_PORT=${BRAIN_PORT:-3015}
       - OLLAMA_API_URL=http://ollama:11434
+      - BACKEND_URL=http://backend:${APP_PORT:-3016}
       - API_KEY=${API_KEY:-super-secret-mcp-key}
     volumes:
       # OPCIÓN A (Recomendada - Bind Mount al Host):
@@ -149,6 +161,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: agent-engine-redis
+    mem_limit: ${REDIS_MEM_LIMIT:-128m}
     ports:
       - "6379:6379"
     networks:
@@ -160,6 +173,7 @@ services:
       context: ./agent-engine
       dockerfile: Dockerfile
     container_name: agent-engine
+    mem_limit: ${ENGINE_MEM_LIMIT:-512m}
     ports:
       - "${ENGINE_PORT:-3020}:${ENGINE_PORT:-3020}"
       - "3021:3021"

@@ -18,6 +18,7 @@ export interface QueueAgentRunPayload {
 	skipPersistUserMsg?: boolean;
 	modeId?: string;
 	preferredModel?: string;
+	options?: Record<string, unknown>;
 }
 
 const queueName = "agent-engine-runs";
@@ -83,6 +84,7 @@ async function processQueuedRun(payload: QueueAgentRunPayload): Promise<AgentRes
 		skipPersistUserMsg: payload.skipPersistUserMsg,
 		modeId: payload.modeId,
 		preferredModel,
+		options: payload.options,
 		onStatus: (text: string) => forwardRunEvent(payload.runId, "status", { text }),
 		onTyping: (isTyping: boolean) => forwardRunEvent(payload.runId, "typing", { isTyping }),
 		onChunk: (text: string) => forwardRunEvent(payload.runId, "chunk", { text }),

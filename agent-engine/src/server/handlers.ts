@@ -89,6 +89,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					const quotedMessage = payload?.quotedMessage as
 						| { content: string; role: string; timestamp?: string }
 						| undefined;
+					const llmOptions = payload?.options as Record<string, unknown> | undefined;
 					if (!text.trim()) {
 						ws.send(createMessage("error", { message: "Empty message", code: "EMPTY" }));
 						return;
@@ -108,7 +109,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 						);
 					}
 
-					this.handleUserMessage(chatId, text, clientId, attachments, quotedMessage);
+					this.handleUserMessage(chatId, text, clientId, attachments, quotedMessage, llmOptions);
 					break;
 				}
 				case "cancel": {
@@ -893,7 +894,8 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 			text: string,
 			clientId: string,
 			attachments?: Array<{ name: string; type: string; data: string }>,
-			quotedMessage?: { content: string; role: string; timestamp?: string }
+			quotedMessage?: { content: string; role: string; timestamp?: string },
+			llmOptions?: Record<string, unknown>
 		) {
 			logger.agent("[" + chatId + "] Received: \"" + text.substring(0, 100) + "...\"");
 
@@ -905,6 +907,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					brain,
 					attachments,
 					quotedMessage,
+					options: llmOptions,
 					origin: "web",
 					onChunk: (chunk: string) => wsServer.sendToAll("assistant_chunk", { chatId, text: chunk }),
 					onToolCall: (toolName: string, args: Record<string, unknown>) =>

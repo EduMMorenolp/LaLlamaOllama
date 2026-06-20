@@ -102,6 +102,7 @@ export interface UserMessagePayload {
 	chatId: string;
 	text: string;
 	attachments?: Array<{ name: string; type: string; data: string }>;
+	options?: Record<string, unknown>;
 }
 
 export interface AssistantChunkPayload {
