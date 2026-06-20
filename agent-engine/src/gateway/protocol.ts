@@ -70,6 +70,11 @@ export type WsMessageType =
 	| "get_general_config"
 	| "general_config_update"
 	| "general_config"
+	// Custom tools management
+	| "save_custom_tool"
+	| "delete_custom_tool"
+	| "list_custom_tools_db"
+	| "custom_tools_db_list"
 	// Docker info
 	| "get_docker_info"
 	// Ollama models

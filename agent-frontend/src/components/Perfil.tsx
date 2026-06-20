@@ -1,5 +1,7 @@
+import { Bookmark, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useWs } from "../contexts/WebSocketContext";
+import { MensajesGuardados } from "./MensajesGuardados";
 
 interface UserProfileData {
 	userId: string;
@@ -105,8 +107,11 @@ const toneMap: Record<string, string> = {
 	professional: "Profesional",
 };
 
+type PerfilSubTab = "perfil" | "guardados";
+
 export const Perfil: React.FC = () => {
 	const { connected, send: sendWs, subscribe } = useWs();
+	const [subTab, setSubTab] = useState<PerfilSubTab>("perfil");
 	const [profile, setProfile] = useState<UserProfileData | null>(null);
 	const [editing, setEditing] = useState(false);
 	const [saving, setSaving] = useState(false);
@@ -181,11 +186,32 @@ export const Perfil: React.FC = () => {
 	if (!profile) {
 		return (
 			<div style={{ padding: "24px" }}>
-				<div style={{ ...sectionCard, textAlign: "center", padding: "48px" }}>
-					<p style={{ color: "var(--text-dim)" }}>
-						{connected ? "Cargando perfil..." : "Conectando al servidor..."}
-					</p>
+				<div className="sub-tabs" style={{ marginBottom: "16px" }}>
+					<button
+						type="button"
+						className={`sub-tab-btn ${subTab === "perfil" ? "active" : ""}`}
+						onClick={() => setSubTab("perfil")}
+					>
+						<User size={14} />
+						Mi Perfil
+					</button>
+					<button
+						type="button"
+						className={`sub-tab-btn ${subTab === "guardados" ? "active" : ""}`}
+						onClick={() => setSubTab("guardados")}
+					>
+						<Bookmark size={14} />
+						Guardados
+					</button>
 				</div>
+				{subTab === "guardados" && <MensajesGuardados />}
+				{subTab === "perfil" && (
+					<div style={{ ...sectionCard, textAlign: "center", padding: "48px" }}>
+						<p style={{ color: "var(--text-dim)" }}>
+							{connected ? "Cargando perfil..." : "Conectando al servidor..."}
+						</p>
+					</div>
+				)}
 			</div>
 		);
 	}
@@ -200,6 +226,29 @@ export const Perfil: React.FC = () => {
 
 	return (
 		<div style={{ padding: "24px" }}>
+			<div className="sub-tabs" style={{ marginBottom: "16px" }}>
+				<button
+					type="button"
+					className={`sub-tab-btn ${subTab === "perfil" ? "active" : ""}`}
+					onClick={() => setSubTab("perfil")}
+				>
+					<User size={14} />
+					Mi Perfil
+				</button>
+				<button
+					type="button"
+					className={`sub-tab-btn ${subTab === "guardados" ? "active" : ""}`}
+					onClick={() => setSubTab("guardados")}
+				>
+					<Bookmark size={14} />
+					Guardados
+				</button>
+			</div>
+
+			{subTab === "guardados" && <MensajesGuardados />}
+
+			{subTab === "perfil" && (
+			<>
 			{/* Stats row */}
 			<div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "16px" }}>
 				<div style={statCardStyle}>
@@ -444,15 +493,17 @@ export const Perfil: React.FC = () => {
 			)}
 
 			{/* Auto-learning info */}
-			<div style={sectionCard}>
-				<div style={sectionTitle}>Acerca del aprendizaje automático</div>
-				<p style={{ fontSize: "13px", color: "var(--text-dim)", lineHeight: 1.6 }}>
-					LaLlamaOllama aprende de cada conversación. El estilo de comunicación, los temas de interés
-					y el tono se detectan automáticamente después de cada interacción. Podés ver y corregir
-					esta información editando tu perfil más arriba. También podés pedirle al asistente
-					que recuerde información específica durante la conversación.
-				</p>
-			</div>
+				<div style={sectionCard}>
+					<div style={sectionTitle}>Acerca del aprendizaje automático</div>
+					<p style={{ fontSize: "13px", color: "var(--text-dim)", lineHeight: 1.6 }}>
+						LaLlamaOllama aprende de cada conversación. El estilo de comunicación, los temas de interés
+						y el tono se detectan automáticamente después de cada interacción. Podés ver y corregir
+						esta información editando tu perfil más arriba. También podés pedirle al asistente
+						que recuerde información específica durante la conversación.
+					</p>
+				</div>
+			</>
+			)}
 		</div>
 	);
 };

@@ -60,6 +60,12 @@ import {
 	deleteScheduledTask,
 	toggleScheduledTask,
 } from "../services/db/scheduled-tasks.js";
+import {
+	listCustomTools as listCustomToolsDb,
+	upsertCustomTool,
+	deleteCustomTool as deleteCustomToolDb,
+} from "../services/db/custom-tools.js";
+import { executeCustomTool } from "../services/tools/custom-tool-handler.js";
 
 export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 	const config = loadConfig();
@@ -816,6 +822,50 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					if (isNaN(id)) { ws.send(createMessage("error", { message: "Invalid id" })); break; }
 					toggleScheduledTask(id);
 					ws.send(createMessage("scheduled_tasks_list", { tasks: listScheduledTasks() }));
+					break;
+				}
+
+				// Custom tools management
+				case "save_custom_tool": {
+					const name = payload?.name as string;
+					const description = payload?.description as string;
+					const handlerType = payload?.handler_type as "bash" | "http" | "prompt";
+					const handlerConfig = payload?.handler_config as Record<string, unknown>;
+					const parameters = payload?.parameters as Record<string, unknown>;
+					if (!name || !description || !handlerType || !handlerConfig) {
+						ws.send(createMessage("error", { message: "Missing required fields" }));
+						break;
+					}
+					try {
+						upsertCustomTool({ name, description, parameters: parameters || {}, handler_type: handlerType, handler_config: handlerConfig });
+						const handlerDef = {
+							spec: {
+								type: "function" as const,
+								function: { name, description, parameters: parameters || {} },
+							},
+							handler: async (args: Record<string, unknown>, ctx: any) => {
+								return executeCustomTool(handlerType, handlerConfig, args, ctx);
+							},
+							enabled: true,
+						};
+						toolRegistry.registerCustomTool(name, handlerDef);
+						ws.send(createMessage("custom_tools_db_list", { tools: listCustomToolsDb() }));
+					} catch (err: unknown) {
+						const msg = err instanceof Error ? err.message : String(err);
+						ws.send(createMessage("error", { message: msg }));
+					}
+					break;
+				}
+				case "delete_custom_tool": {
+					const delName = payload?.name as string;
+					if (!delName) { ws.send(createMessage("error", { message: "Missing name" })); break; }
+					deleteCustomToolDb(delName);
+					toolRegistry.unregisterCustomTool(delName);
+					ws.send(createMessage("custom_tools_db_list", { tools: listCustomToolsDb() }));
+					break;
+				}
+				case "list_custom_tools_db": {
+					ws.send(createMessage("custom_tools_db_list", { tools: listCustomToolsDb() }));
 					break;
 				}
 
