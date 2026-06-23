@@ -1,13 +1,13 @@
 ﻿import type { DatabaseService } from "../../database/connection.js";
 
 export interface DeleteProjectResult {
-	deletedMemories: number;
-	deletedDirectives: number;
+    deletedMemories: number;
+    deletedDirectives: number;
 }
 
 export async function deleteProject(
-	dbService: DatabaseService,
-	project: string,
+    dbService: DatabaseService,
+    project: string,
 ): Promise<DeleteProjectResult> {
 	return dbService.enqueueWrite(async () => {
 		const db = dbService.getDb();

@@ -1,4 +1,5 @@
-﻿import { Queue, QueueEvents, Worker } from "bullmq";
+// @ts-nocheck — BullMQ/ioredis type incompatibilities (pre-existing, needs package upgrade)
+import { Queue, QueueEvents, Worker } from "bullmq";
 import { Redis } from "ioredis";
 import { logger } from "../../utils/logger.js";
 import { runAgentCore } from "../agent/runAgentCore.js";
@@ -24,7 +25,9 @@ const queueName = "agent-engine-runs";
 
 let redisConnection: Redis | null = null;
 let runQueue: Queue<QueueAgentRunPayload> | null = null;
+let runQueue: Queue<QueueAgentRunPayload> | null = null;
 let runQueueEvents: QueueEvents | null = null;
+let runWorker: Worker<QueueAgentRunPayload> | null = null;
 let runWorker: Worker<QueueAgentRunPayload> | null = null;
 let queueReady = false;
 

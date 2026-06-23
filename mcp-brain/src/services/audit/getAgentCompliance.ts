@@ -7,11 +7,14 @@ export interface AgentCompliance {
 	totalSaves: number;
 	totalCalls: number;
 	complianceScore: number; // 0â€“100
+	complianceScore: number; // 0â€“100
 	needsReminder: boolean;
 	hoursSinceLastSave: number | null;
 }
 
 /**
+ * Obtiene el estado de compliance de un agente: cuÃ¡nto ha llamado a mem_save
+ * en relaciÃ³n con el total de llamadas que ha hecho.
  * Obtiene el estado de compliance de un agente: cuÃ¡nto ha llamado a mem_save
  * en relaciÃ³n con el total de llamadas que ha hecho.
  *
@@ -30,12 +33,14 @@ export async function getAgentCompliance(
 	const cutoff = now - lookbackMs;
 
 	// Total de llamadas del agente en el perÃ­odo
+	// Total de llamadas del agente en el perÃ­odo
 	const totalCallsResult = await db.get(
 		`SELECT COUNT(*) as count FROM mcp_audit_log WHERE agent_identity = ? AND timestamp > ?`,
 		[agentIdentity, cutoff],
 	);
 	const totalCalls = totalCallsResult?.count || 0;
 
+	// Total de saves (mem_save) del agente en el perÃ­odo
 	// Total de saves (mem_save) del agente en el perÃ­odo
 	const totalSavesResult = await db.get(
 		`SELECT COUNT(*) as count FROM mcp_audit_log WHERE agent_identity = ? AND tool_name = 'mem_save' AND timestamp > ?`,
@@ -44,6 +49,7 @@ export async function getAgentCompliance(
 	const totalSaves = totalSavesResult?.count || 0;
 
 	// Ãšltimo save
+	// Ãšltimo save
 	const lastSaveResult = await db.get(
 		`SELECT timestamp, result_preview FROM mcp_audit_log WHERE agent_identity = ? AND tool_name = 'mem_save' ORDER BY timestamp DESC LIMIT 1`,
 		[agentIdentity],
@@ -51,6 +57,7 @@ export async function getAgentCompliance(
 	const lastSaveTimestamp = lastSaveResult?.timestamp || null;
 	const lastSaveSummary = lastSaveResult?.result_preview || "";
 
+	// Score = quÃ© porcentaje de las llamadas fueron mem_save
 	// Score = quÃ© porcentaje de las llamadas fueron mem_save
 	const complianceScore =
 		totalCalls > 0
@@ -77,3 +84,5 @@ export async function getAgentCompliance(
 		hoursSinceLastSave,
 	};
 }
+
+

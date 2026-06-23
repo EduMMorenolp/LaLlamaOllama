@@ -8,9 +8,9 @@ import { updateMemory } from "./updateMemory.js";
 const log = logger.child({ component: "memory-service" });
 
 interface MemoryCandidate {
-	judgment_id: string;
-	score: number;
-	memory: Record<string, unknown>;
+    judgment_id: string;
+    score: number;
+    memory: Record<string, unknown>;
 }
 
 const MAX_CONTENT_LENGTH = 1000;
@@ -62,20 +62,20 @@ export async function saveMemory(
 		}
 	}
 
-	const id = `mem_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-	const now = Date.now();
+    const id = `mem_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const now = Date.now();
 
-	let vectorJson: string | null = null;
-	let queryVector: number[] = [];
-	try {
-		const embeddings = await embed(`${title}\n${content}`);
-		if (embeddings && embeddings.length > 0) {
-			queryVector = embeddings[0];
-			vectorJson = JSON.stringify(queryVector);
-		}
-	} catch (_err) {
-		log.warn("Could not generate embeddings");
-	}
+    let vectorJson: string | null = null;
+    let queryVector: number[] = [];
+    try {
+        const embeddings = await embed(`${title}\n${content}`);
+        if (embeddings && embeddings.length > 0) {
+            queryVector = embeddings[0];
+            vectorJson = JSON.stringify(queryVector);
+        }
+    } catch (_err) {
+        log.warn("Could not generate embeddings");
+    }
 
 	await dbService.enqueueWrite(async () => {
 		await db.run(
@@ -99,8 +99,8 @@ export async function saveMemory(
 		);
 	});
 
-	let judgment_required = false;
-	const candidates: MemoryCandidate[] = [];
+    let judgment_required = false;
+    const candidates: MemoryCandidate[] = [];
 
 	if (queryVector.length > 0 && type !== "prompt") {
 		// Load only the most recent 200 memories for similarity check to prevent OOM
@@ -129,18 +129,18 @@ export async function saveMemory(
 		}
 	}
 
-	const memory = {
-		id,
-		project,
-		type,
-		title,
-		content,
-		tags: tags || "",
-		sessionId,
-		phase,
-		agent,
-		createdAt: now,
-		updatedAt: now,
-	};
-	return { memory, judgment_required, candidates };
+    const memory = {
+        id,
+        project,
+        type,
+        title,
+        content,
+        tags: tags || "",
+        sessionId,
+        phase,
+        agent,
+        createdAt: now,
+        updatedAt: now,
+    };
+    return { memory, judgment_required, candidates };
 }
