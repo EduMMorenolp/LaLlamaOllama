@@ -76,7 +76,7 @@ export function getMode(name: string): AgentMode | null {
  * Resuelve un modo aplicando herencia si extiende otro modo.
  * Combina system_prompt fusionando secciones XML (<tag>...</tag>).
  * Las secciones del hijo reemplazan a las del padre con el mismo tag.
- * Si el modo padre no est� en la DB, intenta resolver desde las definiciones
+ * Si el modo padre no esta en la DB, intenta resolver desde las definiciones
  * en memoria (e.g., __base__).
  */
 export function resolveMode(mode: AgentMode): AgentMode {
@@ -180,7 +180,7 @@ export function deleteMode(name: string): void {
 		throw new Error(`Cannot delete default mode '${DEFAULT_MODE}'`);
 	}
 
-	// Verificar que ning�n otro modo lo extiende
+	// Verificar que ningun otro modo lo extiende
 	const db = getDb();
 	const dependents = db
 		.prepare("SELECT name FROM agent_modes WHERE extends = ?")
@@ -210,7 +210,7 @@ export function getActiveMode(): AgentMode {
 		logger.warn(`[Modes] Active mode '${name}' not found, falling back to '${DEFAULT_MODE}'`);
 		const fallback = getMode(DEFAULT_MODE);
 		if (fallback) return fallback;
-		// Si no existe el default, devolvemos un modo gen�rico
+		// Si no existe el default, devolvemos un modo generico
 		return {
 			name: DEFAULT_MODE,
 			label: "🛠 Asistente General",

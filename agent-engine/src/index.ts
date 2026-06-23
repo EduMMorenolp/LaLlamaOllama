@@ -17,7 +17,7 @@ import { logger } from "./utils/logger.js";
 
 async function bootstrap() {
 	logger.info("+-----------------------------------------------------------+");
-	logger.info("�     Agent Engine - Autonomous Coding Agent   �");
+	logger.info("     Agent Engine - Autonomous Coding Agent   ");
 	logger.info("+-----------------------------------------------------------+");
 
 	// 1. Validate environment
@@ -75,7 +75,7 @@ async function bootstrap() {
 
 	// 8. Load Telegram config from DB (persists frontend settings across restarts)
 	try {
-		// Token solo se carga de DB si el .env no trae uno v�lido
+		// Token solo se carga de DB si el .env no trae uno valido
 		if (!config.telegramBotToken || config.telegramBotToken === "123456:ABCDEF") {
 			const savedToken = getSetting("telegram_bot_token");
 			if (savedToken) {
