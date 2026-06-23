@@ -5,11 +5,9 @@ mode: subagent
 permission:
   read:
     "frontend/**": "allow"
-    "agent-frontend/**": "allow"
     "*": "deny"
   edit:
     "frontend/**": "allow"
-    "agent-frontend/**": "allow"
     "*": "deny"
   glob: "allow"
   grep: "allow"

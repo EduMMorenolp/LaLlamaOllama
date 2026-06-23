@@ -111,7 +111,7 @@ response = { content: [{ type: "text", text: "mensaje" }], isError: true };
 
 ## PROYECTO PROTEGIDO
 
-El proyecto `"lallamasollama"` es el proyecto raíz protegido.
+El proyecto `"lallamaollama"` es el proyecto raíz protegido.
 La API devuelve 403 si se intenta eliminarlo.
 Esta protección DEBE mantenerse en cualquier endpoint de borrado.
 
