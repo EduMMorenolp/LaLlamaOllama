@@ -1,21 +1,31 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import cors from "cors";
 import express from "express";
-import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import type { DatabaseService } from "../database/connection.js";
-import { analysis, conversation, memories, sessions, settings, templates } from "../services/index.js";
-import { normalizeProject } from "../services/normalizeProject.js";
-import { mergeProjects } from "../services/memories/mergeProjects.js";
-import { createMcpServer } from "./mcp.js";
-import logger from "../utils/logger.js";
 import { brainAuthMiddleware } from "../middleware/auth.middleware.js";
+import {
+	analysis,
+	conversation,
+	memories,
+	sessions,
+	settings,
+	templates,
+} from "../services/index.js";
+import { mergeProjects } from "../services/memories/mergeProjects.js";
+import { normalizeProject } from "../services/normalizeProject.js";
+import logger from "../utils/logger.js";
+import { createMcpServer } from "./mcp.js";
 
 const log = logger.child({ component: "api" });
 const PORT = process.env.BRAIN_PORT || 3015;
 
-export function startApiServer(dbService: DatabaseService, directives?: string) {
+export function startApiServer(
+	dbService: DatabaseService,
+	directives?: string,
+) {
 	const app = express();
 	app.use(cors());
 	app.use(express.json());
@@ -24,7 +34,15 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 	app.use((req, res, next) => {
 		const start = Date.now();
 		res.on("finish", () => {
-			log.info({ method: req.method, path: req.path, status: res.statusCode, durationMs: Date.now() - start }, "HTTP request");
+			log.info(
+				{
+					method: req.method,
+					path: req.path,
+					status: res.statusCode,
+					durationMs: Date.now() - start,
+				},
+				"HTTP request",
+			);
 		});
 		next();
 	});
@@ -46,7 +64,10 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 	// Returns true if running inside a Docker container
 	function isRunningInDocker(): boolean {
 		try {
-			return fs.existsSync("/.dockerenv") || fs.readFileSync("/proc/1/cgroup", "utf8").includes("docker");
+			return (
+				fs.existsSync("/.dockerenv") ||
+				fs.readFileSync("/proc/1/cgroup", "utf8").includes("docker")
+			);
 		} catch {
 			return false;
 		}
@@ -77,7 +98,11 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 
 			const dockerEnv = isRunningInDocker();
 
-			const updateMcpFile = (filePath: string, serverKey: string, configObj: Record<string, unknown>) => {
+			const updateMcpFile = (
+				filePath: string,
+				serverKey: string,
+				configObj: Record<string, unknown>,
+			) => {
 				if (dockerEnv) {
 					// In Docker, return config as downloadable JSON instead of writing to host
 					const configBlock = { mcpServers: { [serverKey]: configObj } };
@@ -105,7 +130,8 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 			};
 
 			// Antigravity usa Docker stdio para evitar problemas de certificados/HTTPS
-			const hostProjectPath = process.env.HOST_PROJECT_PATH || "C:/path/to/project";
+			const hostProjectPath =
+				process.env.HOST_PROJECT_PATH || "C:/path/to/project";
 			const antigravityConfig = {
 				command: "docker",
 				args: [
@@ -129,41 +155,68 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 					const configData = JSON.parse(fs.readFileSync(openCodePath, "utf8"));
 					configData.mcp = configData.mcp || {};
 					configData.mcp["lallamaollama-brain"] = openCodeSseConfig;
-					fs.writeFileSync(openCodePath, JSON.stringify(configData, null, 2), "utf8");
+					fs.writeFileSync(
+						openCodePath,
+						JSON.stringify(configData, null, 2),
+						"utf8",
+					);
 					return res.json({
 						success: true,
-						message: "¡Configuración de OpenCode AI sincronizada con éxito! (SSE remoto)",
+						message:
+							"¡Configuración de OpenCode AI sincronizada con éxito! (SSE remoto)",
 					});
 				} else {
-					return res
-						.status(404)
-						.json({ error: "No se encontró el archivo opencode.json en la raíz del proyecto." });
+					return res.status(404).json({
+						error:
+							"No se encontró el archivo opencode.json en la raíz del proyecto.",
+					});
 				}
 			} else if (target === "antigravity") {
-				const agPath = path.join(os.homedir(), ".gemini/antigravity/mcp_config.json");
+				const agPath = path.join(
+					os.homedir(),
+					".gemini/antigravity/mcp_config.json",
+				);
 				updateMcpFile(agPath, "lallamaollama-brain", antigravityConfig);
 				return res.json({
 					success: true,
 					message: `¡Motor Antigravity AI sincronizado con éxito! (Docker MCP en ${hostProjectPath})`,
 				});
 			} else if (target === "claudedesktop") {
-				const claudeConfigPath = process.env.CLAUDE_CONFIG_PATH || path.join(os.homedir(), "AppData", "Roaming", "Claude", "claude_desktop_config.json");
-					const cdPath = claudeConfigPath;
+				const claudeConfigPath =
+					process.env.CLAUDE_CONFIG_PATH ||
+					path.join(
+						os.homedir(),
+						"AppData",
+						"Roaming",
+						"Claude",
+						"claude_desktop_config.json",
+					);
+				const cdPath = claudeConfigPath;
 				updateMcpFile(cdPath, "lallamaollama-brain", claudeCompatSseConfig);
 				return res.json({
 					success: true,
 					message: "¡Claude Desktop sincronizado con éxito! (SSE remoto)",
 				});
 			} else if (target === "roocode") {
-				const rooConfigPath = process.env.ROOCODE_CONFIG_PATH || path.join(
+				const rooConfigPath =
+					process.env.ROOCODE_CONFIG_PATH ||
+					path.join(
 						os.homedir(),
-						"AppData", "Roaming", "Code", "User", "globalStorage", "saoudrizwan.claude-dev", "settings", "claude_desktop_config.json"
+						"AppData",
+						"Roaming",
+						"Code",
+						"User",
+						"globalStorage",
+						"saoudrizwan.claude-dev",
+						"settings",
+						"claude_desktop_config.json",
 					);
-					const rooPath = rooConfigPath;
+				const rooPath = rooConfigPath;
 				updateMcpFile(rooPath, "lallamaollama-brain", claudeCompatSseConfig);
 				return res.json({
 					success: true,
-					message: "¡RooCode / Cline sincronizado con éxito en VS Code! (SSE remoto)",
+					message:
+						"¡RooCode / Cline sincronizado con éxito en VS Code! (SSE remoto)",
 				});
 			} else if (target === "cursor" || target === "claudecode") {
 				return res.json({
@@ -181,68 +234,116 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 				return res.status(400).json({ error: "Destino no soportado." });
 			}
 		} catch (e: unknown) {
-			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+			res
+				.status(500)
+				.json({ error: e instanceof Error ? e.message : String(e) });
 		}
 	});
 
 	app.get("/api/memory/stats", async (req, res) => {
-		const project = normalizeProject((req.query.project as string) || "lallamaollama");
+		const project = normalizeProject(
+			(req.query.project as string) || "lallamaollama",
+		);
 		log.info({ project }, "GET /api/memory/stats");
 		try {
 			const stats = await memories.getStats(dbService, project);
 			res.json(stats);
 		} catch (e: unknown) {
-			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+			res
+				.status(500)
+				.json({ error: e instanceof Error ? e.message : String(e) });
 		}
 	});
 
 	app.get("/api/memory/search", async (req, res) => {
 		const q = (req.query.q as string) || "";
-		const project = normalizeProject((req.query.project as string) || "lallamaollama");
-		const mode = (req.query.mode as "lexical" | "semantic" | "hybrid") || "hybrid";
+		const project = normalizeProject(
+			(req.query.project as string) || "lallamaollama",
+		);
+		const mode =
+			(req.query.mode as "lexical" | "semantic" | "hybrid") || "hybrid";
 		const limit = parseInt((req.query.limit as string) || "50", 10);
 		const offset = parseInt((req.query.offset as string) || "0", 10);
 		const typeFilter = (req.query.type as string) || "";
-		log.info({ project, query: q.substring(0, 80), mode, limit, offset, type: typeFilter || undefined }, "GET /api/memory/search");
+		log.info(
+			{
+				project,
+				query: q.substring(0, 80),
+				mode,
+				limit,
+				offset,
+				type: typeFilter || undefined,
+			},
+			"GET /api/memory/search",
+		);
 		try {
 			const results =
 				q.trim() === ""
 					? await memories.getContext(dbService, project, limit, false, offset)
-					: await memories.searchMemories(dbService, q, project, mode, limit, offset, typeFilter);
+					: await memories.searchMemories(
+							dbService,
+							q,
+							project,
+							mode,
+							limit,
+							offset,
+							typeFilter,
+						);
 			res.json(results);
 		} catch (e: unknown) {
-			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+			res
+				.status(500)
+				.json({ error: e instanceof Error ? e.message : String(e) });
 		}
 	});
 
 	app.get("/api/memory/timeline", async (req, res) => {
-		const project = normalizeProject((req.query.project as string) || "lallamaollama");
+		const project = normalizeProject(
+			(req.query.project as string) || "lallamaollama",
+		);
 		const type = req.query.type as string | undefined;
 		const limit = parseInt((req.query.limit as string) || "100", 10);
 		const offset = parseInt((req.query.offset as string) || "0", 10);
 		log.info({ project, type, limit, offset }, "GET /api/memory/timeline");
 		try {
-			const results = await memories.getTimeline(dbService, project, limit, type, offset);
+			const results = await memories.getTimeline(
+				dbService,
+				project,
+				limit,
+				type,
+				offset,
+			);
 			res.json(results);
 		} catch (e: unknown) {
-			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+			res
+				.status(500)
+				.json({ error: e instanceof Error ? e.message : String(e) });
 		}
 	});
 
 	// Get recent context (for agent-engine integration)
 	app.get("/api/memory/context", async (req, res) => {
-		const project = normalizeProject((req.query.project as string) || "lallamaollama");
+		const project = normalizeProject(
+			(req.query.project as string) || "lallamaollama",
+		);
 		const limit = parseInt((req.query.limit as string) || "15", 10);
 		try {
 			const ctx = await memories.getContext(dbService, project, limit);
 			if (Array.isArray(ctx)) {
-				const text = ctx.map((m: Record<string, unknown>) => `[${m.type}] ${m.title}: ${String(m.content || "").substring(0, 500)}`).join("\n\n");
+				const text = ctx
+					.map(
+						(m: Record<string, unknown>) =>
+							`[${m.type}] ${m.title}: ${String(m.content || "").substring(0, 500)}`,
+					)
+					.join("\n\n");
 				res.json({ context: text });
 			} else {
 				res.json({ context: String(ctx) });
 			}
 		} catch (e: unknown) {
-			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+			res
+				.status(500)
+				.json({ error: e instanceof Error ? e.message : String(e) });
 		}
 	});
 
@@ -253,7 +354,9 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 			if (!memory) return res.status(404).json({ error: "Memory not found" });
 			res.json(memory);
 		} catch (e: unknown) {
-			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+			res
+				.status(500)
+				.json({ error: e instanceof Error ? e.message : String(e) });
 		}
 	});
 
@@ -261,11 +364,22 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 		const { title, content, tags, phase, type } = req.body;
 		log.info({ id: req.params.id, title, type }, "PUT /api/memory/:id");
 		try {
-			const success = await memories.updateMemory(dbService, req.params.id, title, content, tags, undefined, phase, type);
+			const success = await memories.updateMemory(
+				dbService,
+				req.params.id,
+				title,
+				content,
+				tags,
+				undefined,
+				phase,
+				type,
+			);
 			if (success) res.json({ message: "Memory updated" });
 			else res.status(404).json({ error: "Memory not found" });
 		} catch (e: unknown) {
-			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+			res
+				.status(500)
+				.json({ error: e instanceof Error ? e.message : String(e) });
 		}
 	});
 
@@ -276,7 +390,9 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 			if (success) res.json({ message: "Memory deleted" });
 			else res.status(404).json({ error: "Memory not found" });
 		} catch (e: unknown) {
-			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+			res
+				.status(500)
+				.json({ error: e instanceof Error ? e.message : String(e) });
 		}
 	});
 
@@ -291,11 +407,16 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 				SELECT DISTINCT project FROM core_directives
 			`);
 			const projects = Array.from(
-				new Set(["lallamaollama", ...rows.map((r: { project: string }) => normalizeProject(r.project))])
+				new Set([
+					"lallamaollama",
+					...rows.map((r: { project: string }) => normalizeProject(r.project)),
+				]),
 			);
 			res.json(projects);
 		} catch (e: unknown) {
-			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+			res
+				.status(500)
+				.json({ error: e instanceof Error ? e.message : String(e) });
 		}
 	});
 
@@ -303,7 +424,9 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 		const projectName = normalizeProject(req.params.name);
 		log.info({ project: projectName }, "DELETE /api/projects/:name");
 		if (projectName === "lallamaollama") {
-			return res.status(403).json({ error: "No se puede eliminar el proyecto principal." });
+			return res
+				.status(403)
+				.json({ error: "No se puede eliminar el proyecto principal." });
 		}
 		try {
 			const result = await memories.deleteProject(dbService, projectName);
@@ -314,7 +437,9 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 				deletedDirectives: result.deletedDirectives,
 			});
 		} catch (e: unknown) {
-			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+			res
+				.status(500)
+				.json({ error: e instanceof Error ? e.message : String(e) });
 		}
 	});
 
@@ -335,7 +460,7 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 					UNION
 					SELECT project FROM core_directives WHERE project = ?
 				) LIMIT 1`,
-				[projectName, projectName]
+				[projectName, projectName],
 			);
 			if (existing) {
 				return res.json({ created: false, project: projectName });
@@ -356,52 +481,66 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 						"auto-generated",
 						now,
 						now,
-					]
+					],
 				);
 			});
 			return res.status(201).json({ created: true, project: projectName });
 		} catch (e: unknown) {
-			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+			res
+				.status(500)
+				.json({ error: e instanceof Error ? e.message : String(e) });
 		}
 	});
 
 	// Merge projects
 	app.post("/api/projects/merge", async (req, res) => {
-	try {
-		const source = normalizeProject(req.body.source as string);
-		const target = normalizeProject(req.body.target as string);
-		if (!source || !target) {
-			return res.status(400).json({ error: "source and target are required" });
+		try {
+			const source = normalizeProject(req.body.source as string);
+			const target = normalizeProject(req.body.target as string);
+			if (!source || !target) {
+				return res
+					.status(400)
+					.json({ error: "source and target are required" });
+			}
+			if (source === target) {
+				return res
+					.status(400)
+					.json({ error: "source and target must be different projects" });
+			}
+			const result = await mergeProjects(dbService, source, target);
+			res.json(result);
+		} catch (e: unknown) {
+			res
+				.status(500)
+				.json({ error: e instanceof Error ? e.message : String(e) });
 		}
-		if (source === target) {
-			return res.status(400).json({ error: "source and target must be different projects" });
-		}
-		const result = await mergeProjects(dbService, source, target);
-		res.json(result);
-	} catch (e: unknown) {
-		res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
-	}
-});
+	});
 
-		// Directives
+	// Directives
 	app.get("/api/directives", async (req, res) => {
-		const project = normalizeProject((req.query.project as string) || "lallamaollama");
+		const project = normalizeProject(
+			(req.query.project as string) || "lallamaollama",
+		);
 		try {
 			const content = await settings.getCoreDirectives(dbService, project);
 			res.json({ project, content });
 		} catch (e: unknown) {
-			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+			res
+				.status(500)
+				.json({ error: e instanceof Error ? e.message : String(e) });
 		}
 	});
 
 	app.post("/api/directives", async (req, res) => {
 		let { project = "lallamaollama", content } = req.body;
-			project = normalizeProject(project);
+		project = normalizeProject(project);
 		try {
 			await settings.updateCoreDirectives(dbService, project, content || "");
 			res.json({ success: true });
 		} catch (e: unknown) {
-			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+			res
+				.status(500)
+				.json({ error: e instanceof Error ? e.message : String(e) });
 		}
 	});
 
@@ -411,7 +550,9 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 			const value = await settings.getGlobalSetting(dbService, req.params.key);
 			res.json({ key: req.params.key, value });
 		} catch (e: unknown) {
-			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+			res
+				.status(500)
+				.json({ error: e instanceof Error ? e.message : String(e) });
 		}
 	});
 
@@ -421,16 +562,30 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 			await settings.updateGlobalSetting(dbService, key, value);
 			res.json({ success: true });
 		} catch (e: unknown) {
-			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+			res
+				.status(500)
+				.json({ error: e instanceof Error ? e.message : String(e) });
 		}
 	});
 
-		// Save memory (for agent-engine integration)
+	// Save memory (for agent-engine integration)
 	app.post("/api/memory", async (req, res) => {
-		const { project = "lallamaollama", type, title, content, tags, agent } = req.body;
-		log.info({ project: normalizeProject(project), type, title, agent }, "POST /api/memory");
+		const {
+			project = "lallamaollama",
+			type,
+			title,
+			content,
+			tags,
+			agent,
+		} = req.body;
+		log.info(
+			{ project: normalizeProject(project), type, title, agent },
+			"POST /api/memory",
+		);
 		if (!type || !title || !content) {
-			return res.status(400).json({ error: "type, title y content son obligatorios" });
+			return res
+				.status(400)
+				.json({ error: "type, title y content son obligatorios" });
 		}
 		try {
 			const result = await memories.saveMemory(
@@ -443,35 +598,52 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 				undefined,
 				"",
 				undefined,
-				agent || "unknown"
+				agent || "unknown",
 			);
 			res.status(201).json(result);
 		} catch (e: unknown) {
-			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+			res
+				.status(500)
+				.json({ error: e instanceof Error ? e.message : String(e) });
 		}
 	});
 
 	// Session management
 	app.post("/api/sessions", async (req, res) => {
 		const { project = "lallamaollama", name } = req.body;
-		log.info({ project: normalizeProject(project), name }, "POST /api/sessions");
+		log.info(
+			{ project: normalizeProject(project), name },
+			"POST /api/sessions",
+		);
 		if (!name) return res.status(400).json({ error: "name is required" });
 		try {
-			const id = await sessions.startSession(dbService, normalizeProject(project), name);
+			const id = await sessions.startSession(
+				dbService,
+				normalizeProject(project),
+				name,
+			);
 			res.status(201).json({ id, project: normalizeProject(project), name });
 		} catch (e: unknown) {
-			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+			res
+				.status(500)
+				.json({ error: e instanceof Error ? e.message : String(e) });
 		}
 	});
 
 	app.put("/api/sessions/:id", async (req, res) => {
 		log.info({ id: req.params.id }, "PUT /api/sessions/:id");
 		try {
-			const success = await sessions.endSession(dbService, req.params.id, req.body.summary || "");
+			const success = await sessions.endSession(
+				dbService,
+				req.params.id,
+				req.body.summary || "",
+			);
 			if (success) res.json({ success: true });
 			else res.status(404).json({ error: "Session not found" });
 		} catch (e: unknown) {
-			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+			res
+				.status(500)
+				.json({ error: e instanceof Error ? e.message : String(e) });
 		}
 	});
 
@@ -479,7 +651,15 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 
 	// Append a message to conversation history
 	app.post("/api/conversation/append", async (req, res) => {
-		const { sessionId, role, content, toolCalls, toolCallId, name, tokenCount } = req.body;
+		const {
+			sessionId,
+			role,
+			content,
+			toolCalls,
+			toolCallId,
+			name,
+			tokenCount,
+		} = req.body;
 		if (!sessionId || !role) {
 			return res.status(400).json({ error: "sessionId and role are required" });
 		}
@@ -498,7 +678,9 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 			});
 			res.status(201).json(result);
 		} catch (e: unknown) {
-			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+			res
+				.status(500)
+				.json({ error: e instanceof Error ? e.message : String(e) });
 		}
 	});
 
@@ -506,15 +688,24 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 	app.get("/api/conversation/history", async (req, res) => {
 		const sessionId = req.query.session_id as string;
 		if (!sessionId) {
-			return res.status(400).json({ error: "session_id query param is required" });
+			return res
+				.status(400)
+				.json({ error: "session_id query param is required" });
 		}
 		const limit = parseInt((req.query.limit as string) || "50", 10);
 		const offset = parseInt((req.query.offset as string) || "0", 10);
 		try {
-			const result = await conversation.getHistory(dbService, sessionId, limit, offset);
+			const result = await conversation.getHistory(
+				dbService,
+				sessionId,
+				limit,
+				offset,
+			);
 			res.json(result);
 		} catch (e: unknown) {
-			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+			res
+				.status(500)
+				.json({ error: e instanceof Error ? e.message : String(e) });
 		}
 	});
 
@@ -530,34 +721,45 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 				sessionId,
 				model || process.env.OLLAMA_MODEL || "qwen3.5:4b",
 				maxMessages || 20,
-				keepRecent || 5
+				keepRecent || 5,
 			);
 			res.json(result);
 		} catch (e: unknown) {
-			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+			res
+				.status(500)
+				.json({ error: e instanceof Error ? e.message : String(e) });
 		}
 	});
 
 	// Delete conversation history for a session
 	app.delete("/api/conversation/:sessionId", async (req, res) => {
 		try {
-			const success = await conversation.deleteSession(dbService, req.params.sessionId);
+			const success = await conversation.deleteSession(
+				dbService,
+				req.params.sessionId,
+			);
 			if (success) res.json({ success: true });
 			else res.status(404).json({ error: "Session not found" });
 		} catch (e: unknown) {
-			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+			res
+				.status(500)
+				.json({ error: e instanceof Error ? e.message : String(e) });
 		}
 	});
 
 	// Consolidation
 	app.post("/api/memory/consolidate", async (req, res) => {
-		const project = normalizeProject((req.body.project as string) || "lallamaollama");
+		const project = normalizeProject(
+			(req.body.project as string) || "lallamaollama",
+		);
 		log.info({ project }, "POST /api/memory/consolidate");
 		try {
 			const result = await analysis.consolidateMemories(dbService, project);
 			res.json(result);
 		} catch (e: unknown) {
-			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+			res
+				.status(500)
+				.json({ error: e instanceof Error ? e.message : String(e) });
 		}
 	});
 
@@ -570,7 +772,9 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 			const list = await templates.listTemplates(dbService, tool, type);
 			res.json(list);
 		} catch (e: unknown) {
-			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+			res
+				.status(500)
+				.json({ error: e instanceof Error ? e.message : String(e) });
 		}
 	});
 
@@ -580,43 +784,68 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 			if (!tpl) return res.status(404).json({ error: "Template not found" });
 			res.json(tpl);
 		} catch (e: unknown) {
-			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+			res
+				.status(500)
+				.json({ error: e instanceof Error ? e.message : String(e) });
 		}
 	});
 
 	app.post("/api/templates", async (req, res) => {
-		const { tool, type, name, description, content, variables, output_path } = req.body;
+		const { tool, type, name, description, content, variables, output_path } =
+			req.body;
 		if (!tool || !type || !name || !content) {
-			return res.status(400).json({ error: "tool, type, name y content son obligatorios" });
+			return res
+				.status(400)
+				.json({ error: "tool, type, name y content son obligatorios" });
 		}
 		try {
 			const tpl = await templates.saveTemplate(dbService, {
-				tool, type, name, description, content, variables, output_path,
+				tool,
+				type,
+				name,
+				description,
+				content,
+				variables,
+				output_path,
 			});
 			res.status(201).json(tpl);
 		} catch (e: unknown) {
-			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+			res
+				.status(500)
+				.json({ error: e instanceof Error ? e.message : String(e) });
 		}
 	});
 
 	app.put("/api/templates/:id", async (req, res) => {
 		try {
-			const tpl = await templates.updateTemplate(dbService, req.params.id, req.body);
+			const tpl = await templates.updateTemplate(
+				dbService,
+				req.params.id,
+				req.body,
+			);
 			if (!tpl) return res.status(404).json({ error: "Template not found" });
 			res.json(tpl);
 		} catch (e: unknown) {
-			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+			res
+				.status(500)
+				.json({ error: e instanceof Error ? e.message : String(e) });
 		}
 	});
 
 	app.delete("/api/templates/:id", async (req, res) => {
 		try {
 			const result = await templates.deleteTemplate(dbService, req.params.id);
-			if (result.protected) return res.status(403).json({ error: "Los templates del sistema no pueden eliminarse." });
-			if (!result.deleted) return res.status(404).json({ error: "Template not found" });
+			if (result.protected)
+				return res
+					.status(403)
+					.json({ error: "Los templates del sistema no pueden eliminarse." });
+			if (!result.deleted)
+				return res.status(404).json({ error: "Template not found" });
 			res.json({ success: true });
 		} catch (e: unknown) {
-			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+			res
+				.status(500)
+				.json({ error: e instanceof Error ? e.message : String(e) });
 		}
 	});
 
@@ -627,13 +856,19 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 			const result = templates.renderTemplate(tpl, req.body.variables || {});
 			res.json(result);
 		} catch (e: unknown) {
-			res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+			res
+				.status(500)
+				.json({ error: e instanceof Error ? e.message : String(e) });
 		}
 	});
 
 	// Endpoint para acceso remoto vía HTTP/SSE
 	app.get("/mcp", (_req, res) => {
-		res.json({ status: "ok", message: "LaLlamaOllama Brain MCP Server", timestamp: new Date().toISOString() });
+		res.json({
+			status: "ok",
+			message: "LaLlamaOllama Brain MCP Server",
+			timestamp: new Date().toISOString(),
+		});
 	});
 
 	// --- MCP SSE Transport ---
@@ -645,18 +880,29 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 	let currentSessionId: string | null = null;
 
 	app.get("/sse", async (req, res) => {
-		const ip = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "unknown";
+		const ip =
+			(req.headers["x-forwarded-for"] as string) ||
+			req.socket.remoteAddress ||
+			"unknown";
 		log.info({ ip }, "SSE client connecting");
 
 		// Close previous SSE transport if any (graceful reconnection)
 		if (currentSessionId) {
 			const prev = sseTransports.get(currentSessionId);
 			if (prev) {
-				try { await prev.close(); } catch { /* ignore */ }
+				try {
+					await prev.close();
+				} catch {
+					/* ignore */
+				}
 				sseTransports.delete(currentSessionId);
 			}
 			// Also disconnect from the Server so we can reconnect
-			try { await sseServer.close(); } catch { /* not connected */ }
+			try {
+				await sseServer.close();
+			} catch {
+				/* not connected */
+			}
 		}
 
 		const transport = new SSEServerTransport("/messages", res);
@@ -684,13 +930,19 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 
 	const serverInstance = app.listen(PORT, () => {
 		log.info({ port: PORT }, `Brain API listening on port ${PORT}`);
-		log.info({ url: `http://localhost:${PORT}/mcp` }, "MCP accessible remotely");
+		log.info(
+			{ url: `http://localhost:${PORT}/mcp` },
+			"MCP accessible remotely",
+		);
 		log.info({ url: `http://localhost:${PORT}/sse` }, "SSE endpoint");
 	});
 
 	serverInstance.on("error", (err: NodeJS.ErrnoException) => {
 		if (err.code === "EADDRINUSE") {
-			log.warn({ port: PORT }, "Port already in use, running in Stdio-only mode");
+			log.warn(
+				{ port: PORT },
+				"Port already in use, running in Stdio-only mode",
+			);
 		} else {
 			log.error({ err }, "Server error");
 		}

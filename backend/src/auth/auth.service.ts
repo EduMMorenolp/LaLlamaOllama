@@ -7,8 +7,12 @@ export class AuthService {
 	constructor() {
 		const key = process.env.API_KEY;
 		if (!key || key.trim() === "") {
-			console.error("\n[FATAL] API_KEY environment variable is required and cannot be empty.");
-			console.error("Set API_KEY in your .env file or docker-compose.yml environment section.\n");
+			console.error(
+				"\n[FATAL] API_KEY environment variable is required and cannot be empty.",
+			);
+			console.error(
+				"Set API_KEY in your .env file or docker-compose.yml environment section.\n",
+			);
 			process.exit(1);
 		}
 		this.apiKey = key;
@@ -60,7 +64,9 @@ export class AuthService {
 	}
 
 	getMcpToolPermissions(): Array<{ name: string; enabled: boolean }> {
-		return Array.from(this.mcpToolPermissions.entries()).map(([name, enabled]) => ({ name, enabled }));
+		return Array.from(this.mcpToolPermissions.entries()).map(
+			([name, enabled]) => ({ name, enabled }),
+		);
 	}
 
 	getSettings() {

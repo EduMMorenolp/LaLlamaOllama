@@ -22,7 +22,7 @@ export interface AgentCompliance {
 export async function getAgentCompliance(
 	dbService: DatabaseService,
 	agentIdentity: string,
-	lookbackHours: number = 24
+	lookbackHours: number = 24,
 ): Promise<AgentCompliance> {
 	const db = dbService.getDb();
 	const now = Date.now();
@@ -32,28 +32,30 @@ export async function getAgentCompliance(
 	// Total de llamadas del agente en el perÃ­odo
 	const totalCallsResult = await db.get(
 		`SELECT COUNT(*) as count FROM mcp_audit_log WHERE agent_identity = ? AND timestamp > ?`,
-		[agentIdentity, cutoff]
+		[agentIdentity, cutoff],
 	);
 	const totalCalls = totalCallsResult?.count || 0;
 
 	// Total de saves (mem_save) del agente en el perÃ­odo
 	const totalSavesResult = await db.get(
 		`SELECT COUNT(*) as count FROM mcp_audit_log WHERE agent_identity = ? AND tool_name = 'mem_save' AND timestamp > ?`,
-		[agentIdentity, cutoff]
+		[agentIdentity, cutoff],
 	);
 	const totalSaves = totalSavesResult?.count || 0;
 
 	// Ãšltimo save
 	const lastSaveResult = await db.get(
 		`SELECT timestamp, result_preview FROM mcp_audit_log WHERE agent_identity = ? AND tool_name = 'mem_save' ORDER BY timestamp DESC LIMIT 1`,
-		[agentIdentity]
+		[agentIdentity],
 	);
 	const lastSaveTimestamp = lastSaveResult?.timestamp || null;
 	const lastSaveSummary = lastSaveResult?.result_preview || "";
 
 	// Score = quÃ© porcentaje de las llamadas fueron mem_save
 	const complianceScore =
-		totalCalls > 0 ? Math.min(100, Math.round((totalSaves / totalCalls) * 100)) : 0;
+		totalCalls > 0
+			? Math.min(100, Math.round((totalSaves / totalCalls) * 100))
+			: 0;
 
 	const hoursSinceLastSave =
 		lastSaveTimestamp !== null
@@ -61,7 +63,8 @@ export async function getAgentCompliance(
 			: null;
 
 	// Necesita recordatorio si nunca ha hecho save o si pasÃ³ mÃ¡s de lookbackHours
-	const needsReminder = lastSaveTimestamp === null || (hoursSinceLastSave ?? 0) > lookbackHours;
+	const needsReminder =
+		lastSaveTimestamp === null || (hoursSinceLastSave ?? 0) > lookbackHours;
 
 	return {
 		agentIdentity,
@@ -74,5 +77,3 @@ export async function getAgentCompliance(
 		hoursSinceLastSave,
 	};
 }
-
-

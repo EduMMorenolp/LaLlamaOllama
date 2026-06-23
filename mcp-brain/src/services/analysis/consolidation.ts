@@ -1,23 +1,25 @@
 import type { DatabaseService } from "../../database/connection.js";
+import logger from "../../utils/logger.js";
 import { generate } from "../llm/generate.js";
 import { deleteMemory } from "../memories/deleteMemory.js";
 import { saveMemory } from "../memories/saveMemory.js";
 import { getGlobalSetting } from "../settings/index.js";
-import logger from "../../utils/logger.js";
 
 const log = logger.child({ component: "consolidation" });
 
 export async function consolidateMemories(
 	dbService: DatabaseService,
 	project: string,
-	customModel?: string
+	customModel?: string,
 ): Promise<{ consolidatedGroups: number; deletedMemories: number }> {
 	const db = dbService.getDb();
-	const model = customModel || (await getGlobalSetting(dbService, "consolidation_model", "llama3.2"));
+	const model =
+		customModel ||
+		(await getGlobalSetting(dbService, "consolidation_model", "llama3.2"));
 
 	const allMemories = await db.all(
 		`SELECT id, title, content, tags, topic_key FROM memories WHERE project = ? ORDER BY createdAt ASC`,
-		[project]
+		[project],
 	);
 
 	interface MemoryRecord {
@@ -69,7 +71,7 @@ Devuelve únicamente el contenido consolidado en formato Markdown, listo para se
 						topic,
 						undefined,
 						topic,
-						"review"
+						"review",
 					);
 
 					// Delete old memories

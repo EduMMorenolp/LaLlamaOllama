@@ -16,13 +16,13 @@ export async function getHistory(
 	dbService: DatabaseService,
 	sessionId: string,
 	limit: number = 50,
-	offset: number = 0
+	offset: number = 0,
 ): Promise<{ messages: ConversationMessage[]; total: number }> {
 	const db = dbService.getDb();
 
 	const totalRow = await db.get<{ count: number }>(
 		`SELECT COUNT(*) as count FROM conversation_history WHERE session_id = ?`,
-		[sessionId]
+		[sessionId],
 	);
 	const total = totalRow?.count || 0;
 
@@ -33,7 +33,7 @@ export async function getHistory(
 		 WHERE session_id = ?
 		 ORDER BY created_at ASC
 		 LIMIT ? OFFSET ?`,
-		[sessionId, limit, offset]
+		[sessionId, limit, offset],
 	);
 
 	const messages: ConversationMessage[] = rows.map((r) => ({
@@ -41,7 +41,9 @@ export async function getHistory(
 		sessionId: r.sessionId as string,
 		role: r.role as string,
 		content: r.content as string | null,
-		toolCalls: r.toolCalls ? (JSON.parse(r.toolCalls as string) as Array<Record<string, unknown>>) : null,
+		toolCalls: r.toolCalls
+			? (JSON.parse(r.toolCalls as string) as Array<Record<string, unknown>>)
+			: null,
 		toolCallId: (r.toolCallId as string) || null,
 		name: (r.name as string) || null,
 		tokenCount: (r.tokenCount as number) || 0,

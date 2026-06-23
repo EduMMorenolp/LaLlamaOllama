@@ -1,8 +1,14 @@
 import type { DatabaseService } from "../../database/connection.js";
 
-export async function getCoreDirectives(dbService: DatabaseService, project: string): Promise<string> {
+export async function getCoreDirectives(
+	dbService: DatabaseService,
+	project: string,
+): Promise<string> {
 	const db = dbService.getDb();
-	const row = await db.get(`SELECT content FROM core_directives WHERE project = ?`, [project]);
+	const row = await db.get(
+		`SELECT content FROM core_directives WHERE project = ?`,
+		[project],
+	);
 
 	const criticalRule = `
 	# [!IMPORTANT]
@@ -21,7 +27,7 @@ export async function getCoreDirectives(dbService: DatabaseService, project: str
 export async function updateCoreDirectives(
 	dbService: DatabaseService,
 	project: string,
-	content: string
+	content: string,
 ): Promise<boolean> {
 	const db = dbService.getDb();
 	const now = Date.now();
@@ -29,7 +35,7 @@ export async function updateCoreDirectives(
 		await db.run(
 			`INSERT INTO core_directives (project, content, updatedAt) VALUES (?, ?, ?)
 			 ON CONFLICT(project) DO UPDATE SET content = ?, updatedAt = ?`,
-			[project, content, now, content, now]
+			[project, content, now, content, now],
 		);
 	});
 	return true;
@@ -38,21 +44,27 @@ export async function updateCoreDirectives(
 export async function getGlobalSetting(
 	dbService: DatabaseService,
 	key: string,
-	defaultValue: string = ""
+	defaultValue: string = "",
 ): Promise<string> {
 	const db = dbService.getDb();
-	const row = await db.get(`SELECT value FROM global_settings WHERE key = ?`, [key]);
+	const row = await db.get(`SELECT value FROM global_settings WHERE key = ?`, [
+		key,
+	]);
 	return row ? row.value : defaultValue;
 }
 
-export async function updateGlobalSetting(dbService: DatabaseService, key: string, value: string): Promise<boolean> {
+export async function updateGlobalSetting(
+	dbService: DatabaseService,
+	key: string,
+	value: string,
+): Promise<boolean> {
 	const db = dbService.getDb();
 	const now = Date.now();
 	await dbService.enqueueWrite(async () => {
 		await db.run(
 			`INSERT INTO global_settings (key, value, updatedAt) VALUES (?, ?, ?)
 			 ON CONFLICT(key) DO UPDATE SET value = ?, updatedAt = ?`,
-			[key, value, now, value, now]
+			[key, value, now, value, now],
 		);
 	});
 	return true;

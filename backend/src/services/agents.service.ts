@@ -36,7 +36,7 @@ export class AgentsService {
 		let result = `${indent}${prefix} ${node.name}\n`;
 		if (node.children) {
 			for (const child of node.children) {
-				result += this.treeToString(child, indent + "  ");
+				result += this.treeToString(child, `${indent}  `);
 			}
 		}
 		return result;
@@ -48,7 +48,7 @@ export class AgentsService {
 	private buildPrompt(
 		projectName: string,
 		structure: FileNode,
-		configFiles: Record<string, string>
+		configFiles: Record<string, string>,
 	): string {
 		const treeStr = this.treeToString(structure);
 
@@ -120,7 +120,7 @@ REGLAS PARA EL CONTENIDO DE CADA ARCHIVO:
 	private buildPromptCached(
 		projectName: string,
 		structure: FileNode,
-		configFiles: Record<string, string>
+		configFiles: Record<string, string>,
 	): string {
 		const input = projectName + JSON.stringify({ structure, configFiles });
 		const hash = crypto.createHash("md5").update(input).digest("hex");
@@ -141,12 +141,16 @@ REGLAS PARA EL CONTENIDO DE CADA ARCHIVO:
 		model: string,
 		projectName: string,
 		structure: FileNode,
-		configFiles: Record<string, string>
+		configFiles: Record<string, string>,
 	): Promise<AgentGenerationResponse> {
 		const prompt = this.buildPromptCached(projectName, structure, configFiles);
 
 		const response = await this.ollamaService.chat(model, [
-			{ role: "system", content: "Eres un arquitecto de agentes OpenCode AI. Siempre respondes con JSON válido." },
+			{
+				role: "system",
+				content:
+					"Eres un arquitecto de agentes OpenCode AI. Siempre respondes con JSON válido.",
+			},
 			{ role: "user", content: prompt },
 		]);
 
@@ -170,9 +174,14 @@ REGLAS PARA EL CONTENIDO DE CADA ARCHIVO:
 				workflows: parsed.workflows || [],
 			};
 		} catch (parseError) {
-			logger.child({ component: "agents" }).error({ err: parseError, rawContent: rawContent.substring(0, 500) }, "Error parsing LLM response");
+			logger
+				.child({ component: "agents" })
+				.error(
+					{ err: parseError, rawContent: rawContent.substring(0, 500) },
+					"Error parsing LLM response",
+				);
 			throw new Error(
-				`El modelo no generó una respuesta JSON válida. Respuesta cruda:\n${rawContent.substring(0, 500)}`
+				`El modelo no generó una respuesta JSON válida. Respuesta cruda:\n${rawContent.substring(0, 500)}`,
 			);
 		}
 	}

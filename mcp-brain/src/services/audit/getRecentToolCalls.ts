@@ -19,7 +19,7 @@ export interface AuditEntry {
 export async function getRecentToolCalls(
 	dbService: DatabaseService,
 	agentIdentity?: string,
-	limit: number = 20
+	limit: number = 20,
 ): Promise<AuditEntry[]> {
 	const db = dbService.getDb();
 
@@ -27,12 +27,12 @@ export async function getRecentToolCalls(
 	if (agentIdentity) {
 		rows = await db.all(
 			`SELECT * FROM mcp_audit_log WHERE agent_identity = ? ORDER BY timestamp DESC LIMIT ?`,
-			[agentIdentity, limit]
+			[agentIdentity, limit],
 		);
 	} else {
 		rows = await db.all(
 			`SELECT * FROM mcp_audit_log ORDER BY timestamp DESC LIMIT ?`,
-			[limit]
+			[limit],
 		);
 	}
 

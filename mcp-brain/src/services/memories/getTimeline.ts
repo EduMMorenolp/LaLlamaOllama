@@ -6,7 +6,7 @@ export async function getTimeline(
 	project: string,
 	limit: number = 20,
 	type?: string,
-	offset: number = 0
+	offset: number = 0,
 ): Promise<Memory[]> {
 	const db = dbService.getDb();
 	let query: string;

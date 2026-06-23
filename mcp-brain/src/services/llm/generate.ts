@@ -1,10 +1,14 @@
 import axios from "axios";
-import { config } from "../config.js";
 import logger from "../../utils/logger.js";
+import { config } from "../config.js";
 
 const log = logger.child({ component: "llm" });
 
-export async function generate(model: string, prompt: string, options: Record<string, unknown> = {}): Promise<string> {
+export async function generate(
+	model: string,
+	prompt: string,
+	options: Record<string, unknown> = {},
+): Promise<string> {
 	try {
 		const response = await axios.post(
 			`${config.backendUrl}/v1/chat/completions`,
@@ -16,7 +20,7 @@ export async function generate(model: string, prompt: string, options: Record<st
 			},
 			{
 				headers: { "x-api-key": config.apiKey },
-			}
+			},
 		);
 		return response.data?.choices?.[0]?.message?.content || "";
 	} catch (error) {

@@ -8,15 +8,42 @@ const SEED_TEMPLATES = [
 		tool: "antigravity",
 		type: "rule",
 		name: "Project Rule",
-		description: "Regla always_on para un proyecto — contiene estructura, servicios Docker, convenciones de código y tipos de memoria.",
+		description:
+			"Regla always_on para un proyecto — contiene estructura, servicios Docker, convenciones de código y tipos de memoria.",
 		output_path: ".agents/rules/{{project}}.md",
 		variables: JSON.stringify([
-			{ name: "project", description: "Nombre del proyecto (slug, ej: lallamaollama)", required: true },
-			{ name: "description", description: "Descripción corta del proyecto", required: true },
-			{ name: "mcp_server_name", description: "Nombre del servidor MCP (ej: lallamaollama-brain)", required: true },
-			{ name: "brain_url", description: "URL del servidor MCP (ej: http://192.168.0.236:3015/sse)", required: true },
-			{ name: "project_structure", description: "Árbol de directorios del proyecto", required: false, default: "└── (describir estructura)" },
-			{ name: "coding_rules", description: "Reglas de código específicas del proyecto", required: false, default: "1. Seguir convenciones del proyecto." },
+			{
+				name: "project",
+				description: "Nombre del proyecto (slug, ej: lallamaollama)",
+				required: true,
+			},
+			{
+				name: "description",
+				description: "Descripción corta del proyecto",
+				required: true,
+			},
+			{
+				name: "mcp_server_name",
+				description: "Nombre del servidor MCP (ej: lallamaollama-brain)",
+				required: true,
+			},
+			{
+				name: "brain_url",
+				description: "URL del servidor MCP (ej: http://192.168.0.236:3015/sse)",
+				required: true,
+			},
+			{
+				name: "project_structure",
+				description: "Árbol de directorios del proyecto",
+				required: false,
+				default: "└── (describir estructura)",
+			},
+			{
+				name: "coding_rules",
+				description: "Reglas de código específicas del proyecto",
+				required: false,
+				default: "1. Seguir convenciones del proyecto.",
+			},
 		]),
 		content: `---
 trigger: always_on
@@ -72,10 +99,15 @@ Siempre pasar \`project: "{{project}}"\` en toda llamada al cerebro.
 		tool: "antigravity",
 		type: "workflow",
 		name: "Session Start",
-		description: "Workflow de inicio de sesión — recupera contexto del cerebro MCP antes de comenzar a trabajar.",
+		description:
+			"Workflow de inicio de sesión — recupera contexto del cerebro MCP antes de comenzar a trabajar.",
 		output_path: ".agents/workflows/session-start.md",
 		variables: JSON.stringify([
-			{ name: "project", description: "Nombre del proyecto (slug)", required: true },
+			{
+				name: "project",
+				description: "Nombre del proyecto (slug)",
+				required: true,
+			},
 		]),
 		content: `---
 description: Workflow de inicio de sesión para {{project}}. Recupera contexto del cerebro antes de comenzar a trabajar.
@@ -122,16 +154,48 @@ Usar el contexto recuperado para:
 		tool: "opencode",
 		type: "agent",
 		name: "Subagent",
-		description: "Agente especializado (subagente) para OpenCode AI — enfocado en un dominio o directorio específico del proyecto.",
+		description:
+			"Agente especializado (subagente) para OpenCode AI — enfocado en un dominio o directorio específico del proyecto.",
 		output_path: ".opencode/agents/{{agent_name}}.md",
 		variables: JSON.stringify([
-			{ name: "agent_name", description: "Nombre del agente (slug, ej: backend-dev)", required: true },
-			{ name: "description", description: "Descripción de una línea del agente", required: true },
-			{ name: "directory", description: "Directorio principal del agente (ej: backend/)", required: true },
-			{ name: "stack", description: "Stack tecnológico (ej: Express 4 + TypeScript)", required: true },
-			{ name: "port", description: "Puerto del servicio (si aplica)", required: false, default: "" },
-			{ name: "entry_point", description: "Archivo de entrada (ej: src/main.ts)", required: false, default: "src/index.ts" },
-			{ name: "build_command", description: "Comando de build (ej: npm run build)", required: false, default: "npm run build" },
+			{
+				name: "agent_name",
+				description: "Nombre del agente (slug, ej: backend-dev)",
+				required: true,
+			},
+			{
+				name: "description",
+				description: "Descripción de una línea del agente",
+				required: true,
+			},
+			{
+				name: "directory",
+				description: "Directorio principal del agente (ej: backend/)",
+				required: true,
+			},
+			{
+				name: "stack",
+				description: "Stack tecnológico (ej: Express 4 + TypeScript)",
+				required: true,
+			},
+			{
+				name: "port",
+				description: "Puerto del servicio (si aplica)",
+				required: false,
+				default: "",
+			},
+			{
+				name: "entry_point",
+				description: "Archivo de entrada (ej: src/main.ts)",
+				required: false,
+				default: "src/index.ts",
+			},
+			{
+				name: "build_command",
+				description: "Comando de build (ej: npm run build)",
+				required: false,
+				default: "npm run build",
+			},
 		]),
 		content: `---
 name: {{agent_name}}
@@ -181,12 +245,28 @@ Eres un agente especializado en {{directory}} del proyecto.
 		tool: "opencode",
 		type: "agent",
 		name: "Orchestrator",
-		description: "Agente orquestador principal para OpenCode AI — punto de entrada único que delega a sub-agentes especializados.",
+		description:
+			"Agente orquestador principal para OpenCode AI — punto de entrada único que delega a sub-agentes especializados.",
 		output_path: ".opencode/agents/orchestrator.md",
 		variables: JSON.stringify([
-			{ name: "project_name", description: "Nombre del proyecto", required: true },
-			{ name: "project_description", description: "Descripción del proyecto", required: true },
-			{ name: "subagents", description: "Lista de sub-agentes disponibles (uno por línea: nombre | especialidad)", required: false, default: "- qa-verification | Control de calidad\n- documentation | Documentación" },
+			{
+				name: "project_name",
+				description: "Nombre del proyecto",
+				required: true,
+			},
+			{
+				name: "project_description",
+				description: "Descripción del proyecto",
+				required: true,
+			},
+			{
+				name: "subagents",
+				description:
+					"Lista de sub-agentes disponibles (uno por línea: nombre | especialidad)",
+				required: false,
+				default:
+					"- qa-verification | Control de calidad\n- documentation | Documentación",
+			},
 		]),
 		content: `---
 name: orchestrator
@@ -232,11 +312,20 @@ Eres el orquestador principal de **{{project_name}}**.
 		tool: "universal",
 		type: "workflow",
 		name: "Memory Save",
-		description: "Workflow universal para guardar memorias en cualquier servidor MCP compatible. Incluye los 3 pasos: suggest_topic_key → mem_save → mem_judge.",
+		description:
+			"Workflow universal para guardar memorias en cualquier servidor MCP compatible. Incluye los 3 pasos: suggest_topic_key → mem_save → mem_judge.",
 		output_path: ".agents/workflows/memory-save.md",
 		variables: JSON.stringify([
-			{ name: "project", description: "Nombre del proyecto por defecto", required: true },
-			{ name: "agent_identity", description: "Identidad del agente (ej: Antigravity / Claude Sonnet)", required: true },
+			{
+				name: "project",
+				description: "Nombre del proyecto por defecto",
+				required: true,
+			},
+			{
+				name: "agent_identity",
+				description: "Identidad del agente (ej: Antigravity / Claude Sonnet)",
+				required: true,
+			},
 		]),
 		content: `---
 description: Workflow para guardar memorias en el Cerebro MCP. Ejecutar después de completar trabajo significativo.
@@ -294,7 +383,9 @@ mem_judge(
 	},
 ];
 
-export async function createTemplatesTable(db: Database<sqlite3.Database, sqlite3.Statement>) {
+export async function createTemplatesTable(
+	db: Database<sqlite3.Database, sqlite3.Statement>,
+) {
 	await db.exec(`
 		CREATE TABLE IF NOT EXISTS templates (
 			id          TEXT PRIMARY KEY,
@@ -318,7 +409,16 @@ export async function createTemplatesTable(db: Database<sqlite3.Database, sqlite
 			`INSERT OR IGNORE INTO templates
 				(id, tool, type, name, description, content, variables, output_path, is_seed, created_at, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
-			t.id, t.tool, t.type, t.name, t.description, t.content, t.variables, t.output_path, now, now
+			t.id,
+			t.tool,
+			t.type,
+			t.name,
+			t.description,
+			t.content,
+			t.variables,
+			t.output_path,
+			now,
+			now,
 		);
 	}
 }

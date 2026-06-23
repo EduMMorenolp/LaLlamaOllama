@@ -1,9 +1,13 @@
-import type { Request, Response, NextFunction } from "express";
+import type { NextFunction, Request, Response } from "express";
 import logger from "../utils/logger.js";
 
 const BRAIN_API_KEY = process.env.API_KEY || "";
 
-export function brainAuthMiddleware(req: Request, res: Response, next: NextFunction) {
+export function brainAuthMiddleware(
+	req: Request,
+	res: Response,
+	next: NextFunction,
+) {
 	if (!BRAIN_API_KEY) {
 		return next();
 	}
@@ -12,7 +16,13 @@ export function brainAuthMiddleware(req: Request, res: Response, next: NextFunct
 		return next();
 	}
 
-	const apiKey = (req.headers["x-api-key"] as string || req.headers.authorization as string || "").replace(/^Bearer\s+/i, "").trim();
+	const apiKey = (
+		(req.headers["x-api-key"] as string) ||
+		(req.headers.authorization as string) ||
+		""
+	)
+		.replace(/^Bearer\s+/i, "")
+		.trim();
 
 	if (apiKey === BRAIN_API_KEY) {
 		return next();

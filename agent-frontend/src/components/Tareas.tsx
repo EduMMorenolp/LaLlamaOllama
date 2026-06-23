@@ -143,7 +143,7 @@ export const Tareas: React.FC = () => {
 			setHasMore(true);
 			try {
 				const params = new URLSearchParams({ limit: "50", offset: "0" });
-				const res = await fetch(`${engine}/api/runs?${params}`, { headers: apiHeaders });
+				const res = await fetch(`${config.engineUrl}/api/runs?${params}`, { headers: apiHeaders });
 				const data = await res.json();
 				setRuns(data.runs || []);
 				setHasMore(data.runs && data.runs.length >= 50);

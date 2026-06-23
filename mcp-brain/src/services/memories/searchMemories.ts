@@ -1,8 +1,8 @@
 ﻿import type { DatabaseService } from "../../database/connection.js";
+import logger from "../../utils/logger.js";
 import { cosineSimilarity, embed } from "../llm/index.js";
 import { getGlobalSetting } from "../settings/index.js";
 import type { Memory } from "../types.js";
-import logger from "../../utils/logger.js";
 
 const log = logger.child({ component: "memory-service" });
 
@@ -28,7 +28,7 @@ setInterval(() => {
 async function getEmbeddingWithCache(text: string): Promise<number[]> {
 	const now = Date.now();
 	const cached = embeddingCache.get(text);
-	if (cached && (now - cached.timestamp) < EMBEDDING_CACHE_TTL) {
+	if (cached && now - cached.timestamp < EMBEDDING_CACHE_TTL) {
 		return cached.vector;
 	}
 	const emb = await embed(text);
@@ -49,7 +49,7 @@ export async function searchMemories(
 	mode: "lexical" | "semantic" | "hybrid" = "hybrid",
 	limit: number = 10,
 	offset: number = 0,
-	typeFilter?: string
+	typeFilter?: string,
 ): Promise<Memory[]> {
 	const db = dbService.getDb();
 	const now = Date.now();
@@ -63,11 +63,18 @@ export async function searchMemories(
 
 	const MAX_CACHE_SIZE = 1000;
 	if (searchHistory.size > MAX_CACHE_SIZE) {
-		const keysToDelete = [...searchHistory.keys()].slice(0, searchHistory.size - MAX_CACHE_SIZE);
+		const keysToDelete = [...searchHistory.keys()].slice(
+			0,
+			searchHistory.size - MAX_CACHE_SIZE,
+		);
 		for (const key of keysToDelete) searchHistory.delete(key);
 	}
 
-	const thresholdStr = await getGlobalSetting(dbService, "delegation_threshold", "3");
+	const thresholdStr = await getGlobalSetting(
+		dbService,
+		"delegation_threshold",
+		"3",
+	);
 	const threshold = parseInt(thresholdStr, 10) || 3;
 
 	let warningMemory: Memory | null = null;
@@ -89,7 +96,11 @@ DIRECTIVA DE DELEGACIÃ“N: DetÃ©n la bÃºsqueda actual. EvalÃºa cambiar d
 	let results: Memory[] = [];
 
 	// Bounded candidate pool: never load all rows to avoid O(N) cosine similarity
-	const maxCandidatesStr = await getGlobalSetting(dbService, "max_candidates", "1000");
+	const maxCandidatesStr = await getGlobalSetting(
+		dbService,
+		"max_candidates",
+		"1000",
+	);
 	const maxCandidates = parseInt(maxCandidatesStr, 10) || 1000;
 
 	if (mode === "lexical") {
@@ -106,7 +117,7 @@ DIRECTIVA DE DELEGACIÃ“N: DetÃ©n la bÃºsqueda actual. EvalÃºa cambiar d
              JOIN memories m ON f.id = m.id 
              WHERE f.memories_fts MATCH ? AND m.project = ?${lexicalWhere}
              ORDER BY rank LIMIT ? OFFSET ?`,
-			lexicalParams
+			lexicalParams,
 		);
 		results = rows as Memory[];
 	} else if (mode === "semantic" || mode === "hybrid") {
@@ -114,8 +125,12 @@ DIRECTIVA DE DELEGACIÃ“N: DetÃ©n la bÃºsqueda actual. EvalÃºa cambiar d
 		try {
 			queryVector = await getEmbeddingWithCache(query);
 		} catch (err) {
-			log.error({ err, query: query.substring(0, 80) }, "Semantic search failed, falling back to lexical");
-			if (mode === "hybrid") return searchMemories(dbService, query, project, "lexical", limit);
+			log.error(
+				{ err, query: query.substring(0, 80) },
+				"Semantic search failed, falling back to lexical",
+			);
+			if (mode === "hybrid")
+				return searchMemories(dbService, query, project, "lexical", limit);
 			return [];
 		}
 
@@ -132,7 +147,7 @@ DIRECTIVA DE DELEGACIÃ“N: DetÃ©n la bÃºsqueda actual. EvalÃºa cambiar d
 				`SELECT id, project, type, title, content, tags, vector, phase, agent, createdAt, updatedAt 
                  FROM memories WHERE project = ? AND vector IS NOT NULL${semanticWhere}
                  ORDER BY createdAt DESC LIMIT ?`,
-				semanticParams
+				semanticParams,
 			);
 
 			const semanticResults = candidateRows.map(
@@ -152,7 +167,7 @@ DIRECTIVA DE DELEGACIÃ“N: DetÃ©n la bÃºsqueda actual. EvalÃºa cambiar d
 					const vec: number[] = JSON.parse(row.vector);
 					const score = cosineSimilarity(queryVector, vec);
 					return { ...row, vector: undefined, score } as Memory;
-				}
+				},
 			);
 
 			semanticResults.sort((a, b) => (b.score || 0) - (a.score || 0));
@@ -166,4 +181,3 @@ DIRECTIVA DE DELEGACIÃ“N: DetÃ©n la bÃºsqueda actual. EvalÃºa cambiar d
 
 	return results;
 }
-

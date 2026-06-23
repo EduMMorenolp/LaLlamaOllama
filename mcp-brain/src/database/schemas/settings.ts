@@ -1,7 +1,9 @@
 import type { Database } from "sqlite";
 import type sqlite3 from "sqlite3";
 
-export async function createSettingsTable(db: Database<sqlite3.Database, sqlite3.Statement>) {
+export async function createSettingsTable(
+	db: Database<sqlite3.Database, sqlite3.Statement>,
+) {
 	await db.exec(`
 		CREATE TABLE IF NOT EXISTS core_directives (
 			project TEXT PRIMARY KEY,
@@ -27,7 +29,7 @@ export async function createSettingsTable(db: Database<sqlite3.Database, sqlite3
 			`INSERT OR IGNORE INTO global_settings (key, value, updatedAt) VALUES (?, ?, ?)`,
 			setting.key,
 			setting.value,
-			Date.now()
+			Date.now(),
 		);
 	}
 }

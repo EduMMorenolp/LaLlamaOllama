@@ -1,7 +1,9 @@
 import type { Database } from "sqlite";
 import type sqlite3 from "sqlite3";
 
-export async function createAuditTable(db: Database<sqlite3.Database, sqlite3.Statement>) {
+export async function createAuditTable(
+	db: Database<sqlite3.Database, sqlite3.Statement>,
+) {
 	await db.exec(`
 		CREATE TABLE IF NOT EXISTS mcp_audit_log (
 			id TEXT PRIMARY KEY,
