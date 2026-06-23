@@ -1,8 +1,8 @@
 {
-	"name": "mcp-llm-local",
+	"name": "lallamaollama",
 	"version": "1.0.0",
 	"type": "module",
-	"description": "Este proyecto permite exponer tus modelos locales de **Ollama** a través de un túnel seguro de **ngrok** utilizando el protocolo **MCP (Model Context Protocol)**. Está diseñado con una arquitectura modular inspirada en NestJS y corre completamente en Docker.",
+	"description": "Plataforma de orquestación inteligente para LLMs locales. Dashboard glassmorphism + Agent Engine autónomo + Cerebro MCP con memoria persistente + Chat multi-agente.",
 	"main": "index.js",
 	"directories": {
 		"test": "test"

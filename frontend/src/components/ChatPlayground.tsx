@@ -37,7 +37,7 @@ interface ChatPlaygroundProps {
 	onSendMessage: (
 		model: string,
 		message: string,
-		options: Record<string, any>
+		options: Record<string, unknown>
 	) => Promise<any>;
 }
 

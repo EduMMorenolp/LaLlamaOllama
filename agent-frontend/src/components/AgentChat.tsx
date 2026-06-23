@@ -99,37 +99,6 @@ export const AgentChat: React.FC = () => {
 	const { connected, reconnecting, send: sendWs, subscribe } = useWs();
 	const { show: showToast } = useToast();
 
-	const scrollToBottom = useCallback(() => {
-		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-	}, []);
-
-	useEffect(() => {
-		scrollToBottom();
-	}, [messages, isProcessing, scrollToBottom]);
-
-	// Keep messageQueueRef in sync
-	useEffect(() => {
-		messageQueueRef.current = messageQueue;
-	}, [messageQueue]);
-
-	// Auto-dispatch next queued message when processing finishes
-	useEffect(() => {
-		if (!isProcessing && messageQueueRef.current.length > 0) {
-			const [nextText, ...rest] = messageQueueRef.current;
-			setMessageQueue(rest);
-			sendMessage(nextText);
-		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [isProcessing]);
-
-	// Subscribe to WS messages
-	useEffect(() => {
-		return subscribe((msg) => {
-			console.log("[Chat WS] Recibido:", msg.type, msg.payload);
-			handleWsMessage(msg);
-		});
-	}, [subscribe, currentChatId]);
-
 	const handleWsMessage = (msg: { type: string; payload?: Record<string, unknown> }) => {
 		console.log("[Chat WS] Recibido:", msg.type, msg.payload);
 		switch (msg.type) {
@@ -493,6 +462,37 @@ export const AgentChat: React.FC = () => {
 		},
 		[currentChatId, sendWs, attachments]
 	);
+
+	const scrollToBottom = useCallback(() => {
+		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+	}, []);
+
+	useEffect(() => {
+		scrollToBottom();
+	}, [messages, isProcessing, scrollToBottom]);
+
+	// Keep messageQueueRef in sync
+	useEffect(() => {
+		messageQueueRef.current = messageQueue;
+	}, [messageQueue]);
+
+	// Auto-dispatch next queued message when processing finishes
+	useEffect(() => {
+		if (!isProcessing && messageQueueRef.current.length > 0) {
+			const [nextText, ...rest] = messageQueueRef.current;
+			setMessageQueue(rest);
+			sendMessage(nextText);
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [isProcessing]);
+
+	// Subscribe to WS messages
+	useEffect(() => {
+		return subscribe((msg) => {
+			console.log("[Chat WS] Recibido:", msg.type, msg.payload);
+			handleWsMessage(msg);
+		});
+	}, [subscribe, currentChatId]);
 
 	const executeCommand = useCallback(
 		(cmdText: string) => {

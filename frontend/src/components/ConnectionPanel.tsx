@@ -105,8 +105,8 @@ export const ConnectionPanel: React.FC<ConnectionPanelProps> = ({
 
 	const mcpAuthEnabled = status?.auth?.mcpAuthEnabled ?? true;
 	const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
-	const mcpSseUrl = useMemo(() => `${baseUrl}/sse`, []);
-	const mcpMessagesUrl = useMemo(() => `${baseUrl}/messages`, []);
+	const mcpSseUrl = useMemo(() => `${baseUrl}/sse`, [baseUrl]);
+	const mcpMessagesUrl = useMemo(() => `${baseUrl}/messages`, [baseUrl]);
 
 	useEffect(() => {
 		setApiKeyInput(apiKeyValue);

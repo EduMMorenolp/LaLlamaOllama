@@ -121,7 +121,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 				case "cancel": {
 					const chatId = (payload?.chatId as string) || clientId;
 					logger.agent("[" + chatId + "] Cancel requested");
-					wsServer.sendToAll("assistant_done", {
+					wsServer.sendToClient(clientId, "assistant_done", {
 						chatId,
 						text: "Conversación cancelada.",
 						model: "system",
@@ -959,14 +959,14 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					quotedMessage,
 					options: llmOptions,
 					origin: "web",
-					onChunk: (chunk: string) => wsServer.sendToAll("assistant_chunk", { chatId, text: chunk }),
+					onChunk: (chunk: string) => wsServer.sendToClient(clientId, "assistant_chunk", { chatId, text: chunk }),
 					onToolCall: (toolName: string, args: Record<string, unknown>) =>
-						wsServer.sendToAll("tool_call", { chatId, toolName, args }),
+						wsServer.sendToClient(clientId, "tool_call", { chatId, toolName, args }),
 					onToolResult: (toolName: string, result: string) =>
-						wsServer.sendToAll("tool_result", { chatId, toolName, result }),
+						wsServer.sendToClient(clientId, "tool_result", { chatId, toolName, result }),
 				});
 
-				wsServer.sendToAll("assistant_done", {
+				wsServer.sendToClient(clientId, "assistant_done", {
 					chatId,
 					text: result.text,
 					model: result.model,
@@ -977,13 +977,13 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 				// Auto-suggestions: async, non-blocking
 				generateSuggestions(chatId, text, result.text, config, brain, (suggestions) => {
 					if (suggestions.length > 0) {
-						wsServer.sendToAll("suggestions", { chatId, suggestions });
+						wsServer.sendToClient(clientId, "suggestions", { chatId, suggestions });
 					}
 				}).catch(() => {});
 
-				// Send updated chat list to all clients so sidebar refreshes with lastMessage
+				// Send updated chat list to the requesting client so sidebar refreshes with lastMessage
 				const userId = userMap.get(clientId) ?? clientId;
-				wsServer.sendToAll("list_chats", {
+				wsServer.sendToClient(clientId, "list_chats", {
 					chats: listChats(userId, undefined),
 					channelChats: listChannelChats(userId),
 				});
@@ -1000,7 +1000,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err);
 				logger.error("[" + chatId + "] Agent error: " + msg);
-				wsServer.sendToAll("error", { chatId, message: "Error: " + msg });
+				wsServer.sendToClient(clientId, "error", { chatId, message: "Error: " + msg });
 			}
 		},
 	};

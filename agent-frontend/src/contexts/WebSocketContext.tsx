@@ -15,7 +15,7 @@ export function WsProvider({ children }: { children: ReactNode }) {
 	const [connected, setConnected] = useState(false);
 	const [reconnecting, setReconnecting] = useState(false);
 	const wsRef = useRef<WebSocket | null>(null);
-	const handlersRef = useRef<Set<(msg: any) => void>>(new Set());
+	const handlersRef = useRef<Set<(msg: { type: string; payload?: Record<string, unknown> }) => void>>(new Set());
 	const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const reconnectAttemptsRef = useRef(0);
 	const intentionalRef = useRef(false);
@@ -29,7 +29,7 @@ export function WsProvider({ children }: { children: ReactNode }) {
 		return false;
 	}, []);
 
-	const subscribe = useCallback((handler: (msg: any) => void) => {
+	const subscribe = useCallback((handler: (msg: { type: string; payload?: Record<string, unknown> }) => void) => {
 		handlersRef.current.add(handler);
 		return () => {
 			handlersRef.current.delete(handler);

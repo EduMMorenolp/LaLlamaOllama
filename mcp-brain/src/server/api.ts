@@ -43,6 +43,15 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 		});
 	});
 
+	// Returns true if running inside a Docker container
+	function isRunningInDocker(): boolean {
+		try {
+			return fs.existsSync("/.dockerenv") || fs.readFileSync("/proc/1/cgroup", "utf8").includes("docker");
+		} catch {
+			return false;
+		}
+	}
+
 	// Auto-Sync MCP (SSE / Docker-based)
 	app.post("/api/mcp/sync", async (req, res) => {
 		const { target } = req.body;
@@ -66,7 +75,20 @@ export function startApiServer(dbService: DatabaseService, directives?: string) 
 				url: sseUrl,
 			};
 
+			const dockerEnv = isRunningInDocker();
+
 			const updateMcpFile = (filePath: string, serverKey: string, configObj: Record<string, unknown>) => {
+				if (dockerEnv) {
+					// In Docker, return config as downloadable JSON instead of writing to host
+					const configBlock = { mcpServers: { [serverKey]: configObj } };
+					return res.json({
+						success: true,
+						dockerDownload: true,
+						message: `Como estás dentro de Docker, descarga este archivo JSON y colócalo en: ${filePath}`,
+						config: configBlock,
+						targetPath: filePath,
+					});
+				}
 				const dir = path.dirname(filePath);
 				if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 				let data: { mcpServers?: Record<string, unknown> } = { mcpServers: {} };

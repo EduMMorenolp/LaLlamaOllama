@@ -1,5 +1,4 @@
-﻿// @ts-nocheck — BullMQ/ioredis type incompatibilities (pre-existing, needs package upgrade)
-import { Queue, QueueEvents, Worker } from "bullmq";
+﻿import { Queue, QueueEvents, Worker } from "bullmq";
 import { Redis } from "ioredis";
 import { logger } from "../../utils/logger.js";
 import { runAgentCore } from "../agent/runAgentCore.js";

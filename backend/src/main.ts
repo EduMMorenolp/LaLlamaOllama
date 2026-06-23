@@ -47,8 +47,24 @@ const app = express();
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-// 2. CORS
-app.use(cors());
+// 2. CORS — whitelist de orígenes conocidos
+const corsWhitelist = [
+	"http://localhost:8080",
+	"http://localhost:8081",
+	"http://localhost:3016",
+	"http://127.0.0.1:8080",
+	"http://127.0.0.1:8081",
+	"http://127.0.0.1:3016",
+];
+app.use(cors({
+	origin: (origin, callback) => {
+		if (!origin || corsWhitelist.includes(origin) || origin.startsWith("http://localhost:")) {
+			callback(null, true);
+		} else {
+			callback(new Error("Origin not allowed by CORS"));
+		}
+	},
+}));
 
 // 3. Seguridad
 app.use(helmet());
@@ -155,7 +171,7 @@ app.use((req, res, next) => {
 // --- Rutas (Use Case Architecture) ---
 const NGROK_CONTAINER = process.env.NGROK_CONTAINER_NAME || "mcp-ngrok-tunnel";
 const BRAIN_CONTAINER = process.env.BRAIN_CONTAINER_NAME || "brain";
-const OLLAMA_CONTAINER = "mcp-ollama-motor";
+const OLLAMA_CONTAINER = "ollama-motor";
 const ngrokAuthtokenConfigured = Boolean(process.env.NGROK_AUTHTOKEN?.trim());
 
 const routers = createAllRoutes(

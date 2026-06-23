@@ -1,7 +1,7 @@
 {
 	"info": {
 		"name": "LaLlamaOllama - API Collection",
-		"description": "Coleccion completa de endpoints de LaLlamaOllama\n\nBase URL: http://localhost:3000\nAutenticacion: x-api-key header o Authorization: Bearer",
+		"description": "Coleccion completa de endpoints de LaLlamaOllama\n\nBase URL: http://localhost:3016\nAutenticacion: x-api-key header o Authorization: Bearer",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
 		"version": "1.0.0",
 		"exporter": {
@@ -12,7 +12,7 @@
 	"variable": [
 		{
 			"key": "base_url",
-			"value": "http://localhost:3000",
+			"value": "http://localhost:3016",
 			"type": "default"
 		},
 		{

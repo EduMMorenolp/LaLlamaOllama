@@ -25,13 +25,7 @@ services:
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
       - OLLAMA_VULKAN=false
       - OLLAMA_DEBUG=1
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+    runtime: nvidia
     volumes:
       - ollama_data:/root/.ollama
     networks:
@@ -44,7 +38,7 @@ services:
     container_name: backend
     mem_limit: ${BACKEND_MEM_LIMIT:-256m}
     volumes:
-      - ollama_data:/root/.ollama:ro
+      - ollama_data:/root/.ollama
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       - ollama
@@ -55,16 +49,6 @@ services:
       - NGROK_CONTAINER_NAME=mcp-ngrok-tunnel
     ports:
       - "${APP_PORT:-3016}:${APP_PORT:-3016}"
-    # habilita acceso a GPU si el host y Docker lo soportan
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    # alternativa simplificada en Compose 3.8+:
-    # gpus: all
     networks:
       - mcp-network
     restart: unless-stopped
@@ -72,6 +56,8 @@ services:
     image: ngrok/ngrok:latest
     container_name: mcp-ngrok-tunnel
     mem_limit: ${NGROK_MEM_LIMIT:-128m}
+    profiles:
+      - tunnel
     depends_on:
       - backend
     environment:
@@ -81,7 +67,7 @@ services:
       - backend:${APP_PORT:-3016}
     networks:
       - mcp-network
-    restart: unless-stopped
+    restart: "no"
   frontend:
     build:
       context: ./frontend
@@ -156,8 +142,11 @@ services:
     image: redis:7-alpine
     container_name: agent-engine-redis
     mem_limit: ${REDIS_MEM_LIMIT:-128m}
+    command: redis-server --requirepass ${REDIS_PASSWORD:-lallamaollama2026} --appendonly yes
     ports:
       - "6379:6379"
+    volumes:
+      - redis_data:/data
     networks:
       - mcp-network
     restart: unless-stopped
@@ -174,7 +163,7 @@ services:
       - ENGINE_PORT=${ENGINE_PORT:-3020}
       - BACKEND_URL=http://backend:3016
       - BRAIN_URL=http://brain:3015
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-lallamaollama2026}@redis:6379
       - API_KEY=${API_KEY:-super-secret-mcp-key}
       - DEFAULT_MODEL=${DEFAULT_MODEL:-llama3.2:3b}
       - LLM_TIMEOUT=${LLM_TIMEOUT:-600000}
@@ -203,3 +192,4 @@ networks:
 volumes:
   ollama_data:
   brain_data:
+  redis_data:
