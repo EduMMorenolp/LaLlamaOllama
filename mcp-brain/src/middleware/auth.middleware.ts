@@ -9,6 +9,11 @@ export function brainAuthMiddleware(
 	next: NextFunction,
 ) {
 	if (!BRAIN_API_KEY) {
+		logger.error("BRAIN_API_KEY not set — authentication disabled!");
+		const envKey = process.env.API_KEY;
+		if (envKey) {
+			logger.warn("API_KEY env var found but BRAIN_API_KEY is empty — likely auth misconfiguration");
+		}
 		return next();
 	}
 

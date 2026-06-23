@@ -1,7 +1,7 @@
 ﻿import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import TelegramBot from "node-telegram-bot-api";
+import TelegramBot, { type Message, type CallbackQuery } from "node-telegram-bot-api";
 import { logger } from "../../utils/logger.js";
 import { runAgentCore } from "../agent/runAgent.js";
 import type { BrainClient } from "../brain/client.js";
@@ -157,7 +157,7 @@ export async function startTelegram(): Promise<void> {
 	// ────────────────────────────────────────────────────────────────────────────────
 	// 💬 Message handler
 	// ────────────────────────────────────────────────────────────────────────────────
-	bot.on("message", async (msg: TelegramBot.Message) => {
+	bot.on("message", async (msg: Message) => {
 		const chatId = msg.chat.id;
 		const text = msg.caption ?? msg.text ?? "";
 		const username = msg.from?.username ?? "";
@@ -501,7 +501,7 @@ export async function startTelegram(): Promise<void> {
 	// ────────────────────────────────────────────────────────────────────────────────
 	// 🔘 Callback queries (inline buttons)
 	// ────────────────────────────────────────────────────────────────────────────────
-	bot.on("callback_query", async (query: TelegramBot.CallbackQuery) => {
+	bot.on("callback_query", async (query: CallbackQuery) => {
 		await handleCallbackQuery(query, resolveUserId, bot!, _brain);
 	});
 

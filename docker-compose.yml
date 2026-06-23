@@ -45,7 +45,7 @@ services:
     environment:
       - OLLAMA_URL=http://ollama:11434
       - APP_PORT=${APP_PORT:-3016}
-      - API_KEY=${API_KEY:-super-secret-mcp-key}
+      - API_KEY=${API_KEY:-McPOllama2026-V1-Home}
       - NGROK_CONTAINER_NAME=mcp-ngrok-tunnel
     ports:
       - "${APP_PORT:-3016}:${APP_PORT:-3016}"
@@ -97,14 +97,14 @@ services:
       dockerfile: Dockerfile
       args:
         - VITE_ENGINE_URL=http://localhost:${ENGINE_PORT:-3020}
-        - VITE_API_KEY=${API_KEY:-super-secret-mcp-key}
+        - VITE_API_KEY=${API_KEY:-McPOllama2026-V1-Home}
     container_name: agent-frontend
     mem_limit: ${AGENT_FRONTEND_MEM_LIMIT:-256m}
     ports:
       - "8081:80"
     environment:
       - VITE_ENGINE_URL=http://agent-engine:${ENGINE_PORT:-3020}
-      - VITE_API_KEY=${API_KEY:-super-secret-mcp-key}
+      - VITE_API_KEY=${API_KEY:-McPOllama2026-V1-Home}
     networks:
       - mcp-network
     depends_on:
@@ -122,7 +122,7 @@ services:
       - BRAIN_PORT=${BRAIN_PORT:-3015}
       - OLLAMA_API_URL=http://ollama:11434
       - BACKEND_URL=http://backend:${APP_PORT:-3016}
-      - API_KEY=${API_KEY:-super-secret-mcp-key}
+      - API_KEY=${API_KEY:-McPOllama2026-V1-Home}
     volumes:
       # OPCIÓN A (Recomendada - Bind Mount al Host):
       # Conecta la carpeta local de Windows './data' con '/app/data' dentro de Docker.
@@ -164,7 +164,7 @@ services:
       - BACKEND_URL=http://backend:3016
       - BRAIN_URL=http://brain:3015
       - REDIS_URL=redis://:${REDIS_PASSWORD:-lallamaollama2026}@redis:6379
-      - API_KEY=${API_KEY:-super-secret-mcp-key}
+      - API_KEY=${API_KEY:-McPOllama2026-V1-Home}
       - DEFAULT_MODEL=${DEFAULT_MODEL:-llama3.2:3b}
       - LLM_TIMEOUT=${LLM_TIMEOUT:-600000}
       - WORKSPACE_DIR=/workspace

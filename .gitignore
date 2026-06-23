@@ -32,6 +32,7 @@ agent-engine.db-shm
 agent-engine.db-wal
 knowledge/
 .playwright-mcp/
+/docsPrivados
 
 # IDEs
 .vscode/settings.json

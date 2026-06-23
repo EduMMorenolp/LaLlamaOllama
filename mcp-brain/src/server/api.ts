@@ -879,7 +879,7 @@ export function startApiServer(
 	const sseTransports = new Map<string, SSEServerTransport>();
 	let currentSessionId: string | null = null;
 
-	app.get("/sse", async (req, res) => {
+	app.get("/sse", brainAuthMiddleware, async (req, res) => {
 		const ip =
 			(req.headers["x-forwarded-for"] as string) ||
 			req.socket.remoteAddress ||
@@ -918,7 +918,7 @@ export function startApiServer(
 		await sseServer.connect(transport);
 	});
 
-	app.post("/messages", async (req, res) => {
+	app.post("/messages", brainAuthMiddleware, async (req, res) => {
 		const sessionId = req.query.sessionId as string;
 		const transport = sessionId ? sseTransports.get(sessionId) : null;
 		if (transport) {
