@@ -611,7 +611,7 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 
 			onTyping?.(false);
 			return {
-				text: `Lo siento, encontr� un error al procesar tu solicitud:\n\n${errorMsg}`,
+				text: `Lo siento, encontré un error al procesar tu solicitud:\n\n${errorMsg}`,
 				model: modelConfig.model,
 				latencyMs: latency,
 			};
