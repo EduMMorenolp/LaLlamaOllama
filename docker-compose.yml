@@ -47,6 +47,7 @@ services:
       - APP_PORT=${APP_PORT:-3016}
       - API_KEY=${API_KEY:-McPOllama2026-V1-Home}
       - NGROK_CONTAINER_NAME=mcp-ngrok-tunnel
+      - LLM_TIMEOUT=${LLM_TIMEOUT:-600000}
     ports:
       - "${APP_PORT:-3016}:${APP_PORT:-3016}"
     networks:

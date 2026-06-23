@@ -25,9 +25,7 @@ const queueName = "agent-engine-runs";
 
 let redisConnection: Redis | null = null;
 let runQueue: Queue<QueueAgentRunPayload> | null = null;
-let runQueue: Queue<QueueAgentRunPayload> | null = null;
 let runQueueEvents: QueueEvents | null = null;
-let runWorker: Worker<QueueAgentRunPayload> | null = null;
 let runWorker: Worker<QueueAgentRunPayload> | null = null;
 let queueReady = false;
 

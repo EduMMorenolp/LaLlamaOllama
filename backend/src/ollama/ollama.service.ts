@@ -161,7 +161,7 @@ export class OllamaService {
 		});
 
 		// Create axios client with keep-alive
-		const axiosTimeout = parseInt(process.env.OLLAMA_TIMEOUT || "300000", 10);
+		const axiosTimeout = parseInt(process.env.LLM_TIMEOUT || process.env.OLLAMA_TIMEOUT || "600000", 10);
 		this.axiosClient = axios.create({
 			httpAgent: this.httpAgent,
 			httpsAgent: this.httpsAgent,

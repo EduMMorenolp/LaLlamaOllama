@@ -26,8 +26,6 @@ import { useWs } from "../contexts/WebSocketContext";
 import { ConfirmModal } from "./ConfirmModal";
 import { MessageBubble } from "./MessageBubble";
 import type { ChatMessage, ChatEntry, ToolCallInfo, TokenUsage } from "../types/chat";
-import { MessageBubble } from "./MessageBubble";
-import type { ChatMessage, ChatEntry, ToolCallInfo, TokenUsage } from "../types/chat";
 
 // Main Component
 
@@ -79,7 +77,6 @@ export const AgentChat: React.FC = () => {
 	// Feature: saved/favorited messages
 	const [savedMessages, setSavedMessages] = useState<Set<string>>(new Set());
 	const [feedbackMap, setFeedbackMap] = useState<Map<string, "up" | "down">>(new Map());
-	const [feedbackMap, setFeedbackMap] = useState<Map<string, "up" | "down">>(new Map());
 
 	// Feature: auto suggestions
 	const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -99,7 +96,6 @@ export const AgentChat: React.FC = () => {
 	const [showNewTaskModal, setShowNewTaskModal] = useState(false);
 	const [newTaskText, setNewTaskText] = useState("");
 
-	const { connected, reconnecting, send: sendWs, subscribe } = useWs();
 	const { connected, reconnecting, send: sendWs, subscribe } = useWs();
 	const { show: showToast } = useToast();
 
@@ -683,16 +679,11 @@ export const AgentChat: React.FC = () => {
 		if (!files) return;
 
 		const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-		const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 		const newAttachments: Array<{ name: string; type: string; data: string }> = [];
 		let loaded = 0;
 
 		for (let i = 0; i < files.length; i++) {
 			const file = files[i];
-			if (file.size > MAX_FILE_SIZE) {
-				showToast(`Archivo demasiado grande: ${file.name} (máx 5MB)`, "error");
-				continue;
-			}
 			if (file.size > MAX_FILE_SIZE) {
 				showToast(`Archivo demasiado grande: ${file.name} (máx 5MB)`, "error");
 				continue;
@@ -748,20 +739,13 @@ export const AgentChat: React.FC = () => {
 		const date = new Date().toISOString().split("T")[0];
 		const chatId = currentChatId || "export";
 		const model = messages.find((m) => m.usage)?.usage?.model || "";
-		const model = messages.find((m) => m.usage)?.usage?.model || "";
 
-		let md = `# ${title}\n\n`;
-		md += `*Exportado el ${new Date().toLocaleString("es-AR")}*\n\n`;
-		if (model) md += `*Modelo: ${model}*\n\n`;
-		md += `---\n\n`;
 		let md = `# ${title}\n\n`;
 		md += `*Exportado el ${new Date().toLocaleString("es-AR")}*\n\n`;
 		if (model) md += `*Modelo: ${model}*\n\n`;
 		md += `---\n\n`;
 
 		messages.forEach((msg) => {
-			if (msg.role === "system") return;
-
 			if (msg.role === "system") return;
 
 			const roleLabel =
@@ -781,24 +765,9 @@ export const AgentChat: React.FC = () => {
 				md += `${msg.content}\n\n`;
 			}
 
-						: msg.role === "tool"
-							? "Herramienta"
-							: msg.role;
-			const time = new Date(msg.timestamp).toLocaleString("es-AR");
-			md += `## ${roleLabel} — ${time}\n\n`;
-
-			if (msg.role === "tool") {
-				md += "```\n" + msg.content.substring(0, 2000) + "\n```\n\n";
-			} else {
-				md += `${msg.content}\n\n`;
-			}
-
 			if (msg.usage) {
 				md += `> Tokens: ${msg.usage.promptTokens || "?"} ↑ / ${msg.usage.completionTokens || "?"} ↓\n\n`;
-				md += `> Tokens: ${msg.usage.promptTokens || "?"} ↑ / ${msg.usage.completionTokens || "?"} ↓\n\n`;
 			}
-
-			md += `---\n\n`;
 
 			md += `---\n\n`;
 		});
@@ -858,12 +827,9 @@ export const AgentChat: React.FC = () => {
 						flexShrink: 0,
 						background: connected ? "var(--success)" : reconnecting ? "var(--warning)" : "var(--error)",
 						animation: reconnecting ? "pulse 1.5s ease-in-out infinite" : "none",
-						background: connected ? "var(--success)" : reconnecting ? "var(--warning)" : "var(--error)",
-						animation: reconnecting ? "pulse 1.5s ease-in-out infinite" : "none",
 					}}
 				/>
 				<span style={{ fontSize: "11px", color: "var(--text-dim)", fontWeight: 500 }}>
-					{connected ? "Conectado" : reconnecting ? "Reconectando..." : "Desconectado"}
 					{connected ? "Conectado" : reconnecting ? "Reconectando..." : "Desconectado"}
 				</span>
 				{model && (
@@ -872,33 +838,6 @@ export const AgentChat: React.FC = () => {
 					</span>
 				)}
 				{(totalPromptTokens > 0 || totalCompletionTokens > 0) && (
-					<>
-						<span style={{ fontSize: "10px", color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
-							Tokens: {totalPromptTokens + totalCompletionTokens}
-						</span>
-						<div
-							style={{
-								width: "60px",
-								height: "4px",
-								background: "rgba(255,255,255,0.1)",
-								borderRadius: "2px",
-								overflow: "hidden",
-							}}
-							title={`${totalPromptTokens} prompt + ${totalCompletionTokens} completion`}
-						>
-							<div
-								style={{
-									width: `${Math.min(100, ((totalPromptTokens + totalCompletionTokens) / 8000) * 100)}%`,
-									height: "100%",
-									background: (totalPromptTokens + totalCompletionTokens) > 6000
-										? "var(--warning)"
-										: "var(--accent)",
-									borderRadius: "2px",
-									transition: "width 0.3s ease",
-								}}
-							/>
-						</div>
-					</>
 					<>
 						<span style={{ fontSize: "10px", color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
 							Tokens: {totalPromptTokens + totalCompletionTokens}
@@ -1273,26 +1212,6 @@ export const AgentChat: React.FC = () => {
 									onFeedback={(idx, rating) => {
 										const key = `${currentChatId}-${idx}`;
 										const prev = feedbackMap.get(key);
-										// If same rating clicked again, toggle off
-										const newRating = prev === rating ? null : rating;
-										setFeedbackMap((prev) => {
-											const next = new Map(prev);
-											if (newRating) next.set(key, newRating);
-											else next.delete(key);
-											return next;
-										});
-										if (newRating) {
-											sendWs("message_feedback", {
-												chatId: currentChatId,
-												rating: newRating,
-											});
-										}
-									}}
-									feedbackState={feedbackMap.get(`${currentChatId}-${i}`) || null}
-									onFeedback={(idx, rating) => {
-										const key = `${currentChatId}-${idx}`;
-										const prev = feedbackMap.get(key);
-										// If same rating clicked again, toggle off
 										const newRating = prev === rating ? null : rating;
 										setFeedbackMap((prev) => {
 											const next = new Map(prev);
