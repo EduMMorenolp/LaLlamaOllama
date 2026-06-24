@@ -194,25 +194,6 @@ async function bootstrap() {
 	} catch (err) {
 		logger.warn(`[Modes] Could not initialize: ${err instanceof Error ? err.message : String(err)}`);
 	}
-	// 14. Warm-up: preload model to avoid cold start latency on first user request
-	try {
-		const { default: OpenAI } = await import("openai");
-		const { getActiveMode } = await import("./services/db/modes.js");
-		const warmupClient = new OpenAI({ baseURL: `${config.backendUrl}/v1`, apiKey: config.apiKey });
-		const mode = getActiveMode();
-		const warmModel = mode?.model || config.defaultModel;
-		logger.info(`[Warmup] Pre-loading model '${warmModel}'...`);
-		await warmupClient.chat.completions.create({
-			model: warmModel,
-			messages: [{ role: "user", content: "Responde con una palabra: lista" }],
-			max_tokens: 10,
-			temperature: 0.1,
-		});
-		logger.info(`[Warmup] Model '${warmModel}' loaded successfully`);
-	} catch (err) {
-		logger.warn(`[Warmup] Could not pre-load model: ${err instanceof Error ? err.message : String(err)}`);
-	}
-
 
 	// 13. Background jobs
 	startCronJobs(brain);

@@ -84,6 +84,9 @@ export class OllamaService {
 		fanSpeed: null,
 		gpuUtil: null,
 	};
+	private gpuUnavailable = false;
+	private cachedPsResult: { models: unknown[]; timestamp: number } | null = null;
+	private readonly psCacheTtl = 10_000; // 10 seconds
 
 	// --- Request Concurrency Control ---
 	private async enqueueRequest<T>(fn: () => Promise<T>): Promise<T> {
@@ -194,12 +197,15 @@ export class OllamaService {
 	// --- GPU Metrics Watcher (async, non-blocking) ---
 	private startGpuMetricsWatcher() {
 		setInterval(() => {
+			if (this.gpuUnavailable) return;
 			const cmd =
 				"nvidia-smi --query-gpu=memory.total,memory.used,memory.free,power.draw,temperature.gpu,fan.speed,utilization.gpu --format=csv,noheader,nounits";
-			const timeoutHandle = setTimeout(() => {}, 2000);
 			exec(cmd, (err: Error | null, stdout: string) => {
-				clearTimeout(timeoutHandle);
-				if (err) return;
+				if (err) {
+					this.gpuUnavailable = true;
+					log.warn("nvidia-smi no disponible, desactivando monitoreo GPU");
+					return;
+				}
 				try {
 					const parts = stdout
 						.trim()
@@ -224,7 +230,7 @@ export class OllamaService {
 					// ignore parse errors
 				}
 			});
-		}, 3000);
+		}, 60_000);
 	}
 
 	// --- Auto-Unload Watcher ---
@@ -945,14 +951,21 @@ export class OllamaService {
 
 		let loadedModels = [];
 		let ollamaRunning = false;
-		try {
-			const psResponse = await this.axiosClient.get(`${this.baseUrl}/api/ps`, {
-				timeout: 3000,
-			});
-			loadedModels = psResponse.data.models || [];
+		const now = Date.now();
+		if (this.cachedPsResult && now - this.cachedPsResult.timestamp < this.psCacheTtl) {
+			loadedModels = this.cachedPsResult.models;
 			ollamaRunning = true;
-		} catch {
-			ollamaRunning = false;
+		} else {
+			try {
+				const psResponse = await this.axiosClient.get(`${this.baseUrl}/api/ps`, {
+					timeout: 3000,
+				});
+				loadedModels = psResponse.data.models || [];
+				ollamaRunning = true;
+				this.cachedPsResult = { models: loadedModels, timestamp: now };
+			} catch {
+				ollamaRunning = false;
+			}
 		}
 
 		const gpu = this.getGpuMetrics();

@@ -3,8 +3,6 @@ import { logger } from "../../utils/logger.js";
 import type { BrainClient } from "../brain/client.js";
 import { getGeneralConfig } from "../db/experts.js";
 import { getMessages, saveMessage } from "../db/messages.js";
-import { getUser, formatUserProfileForPrompt } from "../db/users.js";
-import { getWorkspaceContext, formatWorkspaceForPrompt } from "../db/workspace.js";
 import { toolRegistry } from "../tools/registry.js";
 import type { ToolSpec as RegistryToolSpec } from "../tools/types.js";
 import { buildSystemPrompt } from "./buildPrompt.js";
@@ -128,6 +126,8 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 		? `telegram-${opts.telegramChatId || chatId}`
 		: chatId;
 
+	session.toolContext.userId = userId;
+
 	const modeConfig = await resolveModeConfig(opts, chatId, config);
 	const { model: generalModel, temperature: generalTemperature, historyLimit: generalHistoryLimit, systemPrompt: modeSystemPrompt } = modeConfig;
 
@@ -149,17 +149,6 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 
 	if (session.messages.length === 0) {
 		logger.agent(`[${chatId}] New session, loading brain context...`);
-		const [directives, brainProfile] = await Promise.all([
-			brain.getDirectives().catch(() => ""),
-			brain.getUserProfile().catch(() => "")
-		]);
-
-		// Enrich with local DB profile
-		let dbProfile = "";
-		const dbUser = getUser(userId);
-		if (dbUser) {
-			dbProfile = formatUserProfileForPrompt(dbUser);
-		}
 
 		let systemPrompt: string;
 		if (modeSystemPrompt) {
@@ -173,39 +162,21 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 			}
 		}
 
-		// Consolidar toda la informacioón de sistema en UN solo mensaje system
-		// para que el LLM tenga contexto completo sin fragmentación
 		const assembly: string[] = [systemPrompt];
 
-		if (directives) {
-			assembly.push(`<project_directives>\n${directives}\n</project_directives>`);
-		}
-
-		// Combine brain profile + local DB profile
-		let fullProfile = "";
-		if (brainProfile) fullProfile += `Lo que sabes sobre este usuario/proyecto:\n${brainProfile}\n`;
-		if (dbProfile) fullProfile += `\nPerfil almacenado:\n${dbProfile}`;
-		if (fullProfile) {
-			assembly.push(`<user_profile>\n${fullProfile}\n</user_profile>`);
-		}
-
-		// Inform about available tools (only active/enabled ones)
 		const enabledTools = toolRegistry.getSpecs();
 		if (enabledTools.length > 0) {
 			const toolList = enabledTools.map((t) => `- ${t.function.name}`).join("\n");
 			assembly.push(`<available_tools>\nHerramientas disponibles:\n${toolList}\n</available_tools>`);
 		}
 
-		// Workspace context
-		try {
-			const wsCtx = getWorkspaceContext(userId);
-			if (wsCtx) {
-				const wsText = formatWorkspaceForPrompt(wsCtx);
-				if (wsText) {
-					assembly.push(`<workspace_context>\n${wsText}\n</workspace_context>`);
-				}
-			}
-		} catch { /* optional */ }
+		assembly.push(`<info_contextual>
+Puedes obtener información adicional bajo demanda usando estas herramientas:
+- get_brain_profile → perfil del usuario/proyecto desde memoria compartida
+- get_user_profile → perfil local del usuario (preferencias, intereses, estilo)
+- get_workspace_context → contexto del workspace (archivos, directorios, tags)
+- get_project_directives → directrices y reglas del proyecto
+</info_contextual>`);
 
 		if (session.summary) {
 			assembly.push(`<session_summary>\nResumen de la conversación anterior:\n${session.summary}\n</session_summary>`);
