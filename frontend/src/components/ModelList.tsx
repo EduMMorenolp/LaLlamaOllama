@@ -18,6 +18,14 @@ import { api } from "../services/api.service";
 import { ModelConfigModal } from "./ModelConfigModal";
 import type { OllamaModel, PullProgressData } from "../types/api";
 
+interface DiscoverModel {
+	name: string;
+	title: string;
+	desc: string;
+	tags?: string[];
+	pulls?: string;
+}
+
 interface ModelListProps {
 	models: OllamaModel[];
 	pullProgress: Record<string, PullProgressData>;
@@ -25,7 +33,7 @@ interface ModelListProps {
 	onDelete: (name: string) => void;
 }
 
-const FALLBACK_MODELS = [
+const FALLBACK_MODELS: Record<string, unknown>[] = [
 	{
 		name: "llama3.2",
 		title: "Llama 3.2",
@@ -75,11 +83,11 @@ const FALLBACK_MODELS = [
 export const ModelList: React.FC<ModelListProps> = ({ models, pullProgress, onPull, onDelete }) => {
 	const [searchTerm, setSearchTerm] = useState("");
 	const [directPullTerm, setDirectPullTerm] = useState("");
-	const [searchResults, setSearchResults] = useState<Record<string, any>[]>([]);
+	const [searchResults, setSearchResults] = useState<Record<string, unknown>[]>([]);
 	const [isSearching, setIsSearching] = useState(false);
 	const [searchError, setSearchError] = useState("");
 	const [hasSearched, setHasSearched] = useState(false);
-	const [verificationModel, setVerificationModel] = useState<Record<string, any> | null>(null);
+	const [verificationModel, setVerificationModel] = useState<DiscoverModel | null>(null);
 	const [selectedTag, setSelectedTag] = useState<string | null>(null);
 	const [configModel, setConfigModel] = useState<string | null>(null);
 
@@ -157,7 +165,7 @@ export const ModelList: React.FC<ModelListProps> = ({ models, pullProgress, onPu
 					<div style={{ display: "flex", flexDirection: "column", gap: "16px", marginBottom: "32px" }}>
 						{Object.values(pullProgress).map((progress) => (
 							<div
-								key={progress.model}
+								key={String(progress.model)}
 								className="card-glass"
 								style={{
 									padding: "20px",
@@ -615,29 +623,29 @@ export const ModelList: React.FC<ModelListProps> = ({ models, pullProgress, onPu
 							<p style={{ marginTop: "12px", fontSize: "12px" }}>Consultando ollama.com...</p>
 						</div>
 					) : (
-						displayModels.map((s: Record<string, any>) => {
-							const isInstalled = installedNames.some((n) => n.startsWith(s.name.split(":")[0]));
+						displayModels.map((s) => {
+							const model = s as unknown as DiscoverModel;
+							const isInstalled = installedNames.some((n) => n.startsWith(model.name.split(":")[0]));
 							return (
 								<button
 									type="button"
-									key={s.name as string}
+									key={model.name}
 									className="suggested-card"
 									onClick={() => {
-										setVerificationModel(s);
-										// Buscar el primer tag que NO esté instalado para ponerlo por defecto
-										const defaultTag = s.tags?.find(
-											(t: string) => !installedNames.some((n: string) => n.startsWith(s.name) && n.endsWith(`:${t.toLowerCase()}`))
-										) || s.tags?.[0] || null;
+										setVerificationModel(model);
+										const defaultTag = model.tags?.find(
+											(t: string) => !installedNames.some((n: string) => n.startsWith(model.name) && n.endsWith(`:${t.toLowerCase()}`))
+										) || model.tags?.[0] || null;
 										setSelectedTag(defaultTag);
 									}}
 								>
 									<div className="flex-between">
 										<span className={`model-tag ${isInstalled ? "" : "prime"}`}>
-											{s.tags?.[0] || "LLM"}
+											{model.tags?.[0] || "LLM"}
 										</span>
-										<span style={{ fontSize: "10px", opacity: 0.4 }}>{s.pulls || ""}</span>
+										<span style={{ fontSize: "10px", opacity: 0.4 }}>{model.pulls || ""}</span>
 									</div>
-									<h3 style={{ fontSize: "14px", fontWeight: 700 }}>{s.title || s.name}</h3>
+									<h3 style={{ fontSize: "14px", fontWeight: 700 }}>{model.title || model.name}</h3>
 									<p
 										style={{
 											fontSize: "11px",
@@ -646,11 +654,11 @@ export const ModelList: React.FC<ModelListProps> = ({ models, pullProgress, onPu
 											flex: 1,
 										}}
 									>
-										{s.desc || "Modelo de la librería oficial de Ollama."}
+										{model.desc || "Modelo de la librería oficial de Ollama."}
 									</p>
-									{s.tags?.length > 1 && (
+									{model.tags && model.tags.length > 1 && (
 										<div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
-											{s.tags.slice(1).map((t: string) => (
+											{model.tags.slice(1).map((t: string) => (
 												<span
 													key={t}
 													style={{

@@ -1,7 +1,18 @@
-# Agent Engine — Changelog
+﻿# Agent Engine — Changelog
 
 ## [Unreleased]
 
+
+### 🔧 npm audit fix — 0 vulnerabilidades
+
+#### Cambiado
+- **`node-telegram-bot-api` 0.66.0 → 1.1.1** — Migración a versión mayor que elimina 14 vulnerabilidades. Breaking change: callbacks → promises, tipos exportados directamente (se eliminó `@types/node-telegram-bot-api`).
+- **`@xenova/transformers` 2.17.2 → `@huggingface/transformers` 4.2.0** — Paquete renombrado por archivación del original (`@xenova/transformers` archivado). `quantized: true` reemplazado por `dtype: "q8"`.
+- **Código actualizado**: `bot.ts`, `callbacks.ts`, `commands.ts` (type imports), `transcriber.ts` (import path + opciones).
+
+#### Corregido
+- **14 vulnerabilidades npm audit** — Reducidas a 0 (7 moderate, 4 high, 3 critical).
+- **TypeScript compila con 0 errores** — Package-lock.json regenerado.
 ### 🧵 Retención de hilo: Sesiones persistentes y resúmenes de contexto
 
 #### Eliminado
@@ -210,3 +221,4 @@ Alineación de versión con el proyecto raíz LaLlamaOllama.
 - Gateway WebSocket + REST
 - Integración con mcp-brain (BrainClient)
 - Docker service en docker-compose.yml
+

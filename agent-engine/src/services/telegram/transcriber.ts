@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { spawn } from "node:child_process";
-import { pipeline } from "@xenova/transformers";
+import { pipeline } from "@huggingface/transformers";
 import { logger } from "../../utils/logger.js";
 
 export type TranscriptionCallback = (status: string) => void;
@@ -20,7 +20,7 @@ async function getWhisperPipeline(onStatus?: TranscriptionCallback) {
 		logger.info(`[Whisper] Loading model from cache: ${CACHE_MODEL_DIR}`);
 		whisperPipeline = await pipeline("automatic-speech-recognition", "Xenova/whisper-small", {
 			cache_dir: CACHE_MODEL_DIR,
-			quantized: true,
+			dtype: "q8",
 		});
 		logger.info("[Whisper] Model loaded successfully");
 	}

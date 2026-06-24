@@ -30,6 +30,8 @@ export interface AgentOptions {
 	modeId?: string;
 	/** Preferred model selected for this run */
 	preferredModel?: string;
+	/** LLM options (e.g. num_ctx) passed from frontend */
+	options?: Record<string, unknown>;
 }
 
 export interface AgentResult {

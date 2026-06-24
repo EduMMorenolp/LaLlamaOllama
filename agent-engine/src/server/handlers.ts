@@ -60,6 +60,12 @@ import {
 	deleteScheduledTask,
 	toggleScheduledTask,
 } from "../services/db/scheduled-tasks.js";
+import {
+	listCustomTools as listCustomToolsDb,
+	upsertCustomTool,
+	deleteCustomTool as deleteCustomToolDb,
+} from "../services/db/custom-tools.js";
+import { executeCustomTool } from "../services/tools/custom-tool-handler.js";
 
 export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 	const config = loadConfig();
@@ -89,6 +95,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					const quotedMessage = payload?.quotedMessage as
 						| { content: string; role: string; timestamp?: string }
 						| undefined;
+					const llmOptions = payload?.options as Record<string, unknown> | undefined;
 					if (!text.trim()) {
 						ws.send(createMessage("error", { message: "Empty message", code: "EMPTY" }));
 						return;
@@ -108,13 +115,13 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 						);
 					}
 
-					this.handleUserMessage(chatId, text, clientId, attachments, quotedMessage);
+					this.handleUserMessage(chatId, text, clientId, attachments, quotedMessage, llmOptions);
 					break;
 				}
 				case "cancel": {
 					const chatId = (payload?.chatId as string) || clientId;
 					logger.agent("[" + chatId + "] Cancel requested");
-					wsServer.sendToAll("assistant_done", {
+					wsServer.sendToClient(clientId, "assistant_done", {
 						chatId,
 						text: "Conversación cancelada.",
 						model: "system",
@@ -818,6 +825,50 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					break;
 				}
 
+				// Custom tools management
+				case "save_custom_tool": {
+					const name = payload?.name as string;
+					const description = payload?.description as string;
+					const handlerType = payload?.handler_type as "bash" | "http" | "prompt";
+					const handlerConfig = payload?.handler_config as Record<string, unknown>;
+					const parameters = payload?.parameters as Record<string, unknown>;
+					if (!name || !description || !handlerType || !handlerConfig) {
+						ws.send(createMessage("error", { message: "Missing required fields" }));
+						break;
+					}
+					try {
+						upsertCustomTool({ name, description, parameters: parameters || {}, handler_type: handlerType, handler_config: handlerConfig });
+						const handlerDef = {
+							spec: {
+								type: "function" as const,
+								function: { name, description, parameters: parameters || {} },
+							},
+							handler: async (args: Record<string, unknown>, ctx: any) => {
+								return executeCustomTool(handlerType, handlerConfig, args, ctx);
+							},
+							enabled: true,
+						};
+						toolRegistry.registerCustomTool(name, handlerDef);
+						ws.send(createMessage("custom_tools_db_list", { tools: listCustomToolsDb() }));
+					} catch (err: unknown) {
+						const msg = err instanceof Error ? err.message : String(err);
+						ws.send(createMessage("error", { message: msg }));
+					}
+					break;
+				}
+				case "delete_custom_tool": {
+					const delName = payload?.name as string;
+					if (!delName) { ws.send(createMessage("error", { message: "Missing name" })); break; }
+					deleteCustomToolDb(delName);
+					toolRegistry.unregisterCustomTool(delName);
+					ws.send(createMessage("custom_tools_db_list", { tools: listCustomToolsDb() }));
+					break;
+				}
+				case "list_custom_tools_db": {
+					ws.send(createMessage("custom_tools_db_list", { tools: listCustomToolsDb() }));
+					break;
+				}
+
 				// Favorites / Saved messages
 				case "save_message": {
 					const userId_sv = userMap.get(clientId) ?? clientId;
@@ -893,7 +944,8 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 			text: string,
 			clientId: string,
 			attachments?: Array<{ name: string; type: string; data: string }>,
-			quotedMessage?: { content: string; role: string; timestamp?: string }
+			quotedMessage?: { content: string; role: string; timestamp?: string },
+			llmOptions?: Record<string, unknown>
 		) {
 			logger.agent("[" + chatId + "] Received: \"" + text.substring(0, 100) + "...\"");
 
@@ -905,15 +957,16 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					brain,
 					attachments,
 					quotedMessage,
+					options: llmOptions,
 					origin: "web",
-					onChunk: (chunk: string) => wsServer.sendToAll("assistant_chunk", { chatId, text: chunk }),
+					onChunk: (chunk: string) => wsServer.sendToClient(clientId, "assistant_chunk", { chatId, text: chunk }),
 					onToolCall: (toolName: string, args: Record<string, unknown>) =>
-						wsServer.sendToAll("tool_call", { chatId, toolName, args }),
+						wsServer.sendToClient(clientId, "tool_call", { chatId, toolName, args }),
 					onToolResult: (toolName: string, result: string) =>
-						wsServer.sendToAll("tool_result", { chatId, toolName, result }),
+						wsServer.sendToClient(clientId, "tool_result", { chatId, toolName, result }),
 				});
 
-				wsServer.sendToAll("assistant_done", {
+				wsServer.sendToClient(clientId, "assistant_done", {
 					chatId,
 					text: result.text,
 					model: result.model,
@@ -924,13 +977,13 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 				// Auto-suggestions: async, non-blocking
 				generateSuggestions(chatId, text, result.text, config, brain, (suggestions) => {
 					if (suggestions.length > 0) {
-						wsServer.sendToAll("suggestions", { chatId, suggestions });
+						wsServer.sendToClient(clientId, "suggestions", { chatId, suggestions });
 					}
 				}).catch(() => {});
 
-				// Send updated chat list to all clients so sidebar refreshes with lastMessage
+				// Send updated chat list to the requesting client so sidebar refreshes with lastMessage
 				const userId = userMap.get(clientId) ?? clientId;
-				wsServer.sendToAll("list_chats", {
+				wsServer.sendToClient(clientId, "list_chats", {
 					chats: listChats(userId, undefined),
 					channelChats: listChannelChats(userId),
 				});
@@ -947,7 +1000,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err);
 				logger.error("[" + chatId + "] Agent error: " + msg);
-				wsServer.sendToAll("error", { chatId, message: "Error: " + msg });
+				wsServer.sendToClient(clientId, "error", { chatId, message: "Error: " + msg });
 			}
 		},
 	};

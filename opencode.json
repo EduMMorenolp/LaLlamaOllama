@@ -37,18 +37,23 @@
       "mode": "subagent"
     }
   },
-  "mcp": {
-    "lallamaollama-brain": {
-      "type": "remote",
-      "url": "http://localhost:3015/sse"
-    }
-  },
-  "mcpServers": {
-    "playwright": {
-      "command": "npx",
-      "args": [
-        "@playwright/mcp@latest"
-      ]
-    }
-  }
+	"mcp": {
+		"lallamaollama-brain": {
+			"type": "remote",
+			"url": "http://localhost:3015/sse"
+		},
+		"lallamaollama-backend": {
+			"type": "remote",
+			"url": "http://localhost:3016/sse",
+			"oauth": false,
+			"headers": {
+				"x-api-key": "McPOllama2026-V1-Home"
+			}
+		},
+		"playwright": {
+			"type": "local",
+			"command": ["npx", "-y", "@playwright/mcp@latest"],
+			"enabled": true
+		}
+	}
 }

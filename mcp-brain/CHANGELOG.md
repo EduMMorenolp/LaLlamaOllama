@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 Todos los cambios notables de este proyecto serán documentados en este archivo.
 
@@ -6,6 +6,13 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1
 
 ## [Unreleased]
 
+
+### Added
+- **➕ `brainAuthMiddleware` en `/sse` (GET) y `/messages` (POST)** — Protección agregada a los endpoints de transporte SSE/MCP que anteriormente estaban abiertos. Ahora requieren autenticación vía header `x-api-key`, consistente con las rutas `/api/*`.
+- **➕ Log warning cuando `BRAIN_API_KEY` no está configurada** — El middleware `auth.middleware.ts` ahora emite una advertencia en consola si la variable de entorno no está definida, facilitando el diagnóstico.
+
+### Changed
+- **🔧 Comportamiento de `/sse` y `/messages`** — Estos endpoints ya no aceptan conexiones anónimas. Clientes MCP (OpenCode AI, Claude Desktop, etc.) deben incluir `x-api-key` en los headers de conexión SSE.
 ### Added
 - **🧠 `updateMemory.ts` — Upsert por type+userId** — Ahora crea o actualiza memoria según `type` + `userId` en lugar de insertar siempre duplicados
 - **🧠 CRUD REST para memorias** — Nuevos endpoints: `GET /api/memory/:id` (obtener), `PUT /api/memory/:id` (actualizar), `GET /api/memory/timeline` (timeline cronológico)
@@ -67,3 +74,4 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1
 - Captura de información contextual: `mem_save_prompt` para historial de usuario puro y `mem_capture_passive` para la ingesta silenciosa.
 - **Delegación Cognitiva (Graceful Degradation):** Si el backend local LLM (Ollama) está desconectado, el servidor no falla abruptamente. En su lugar, instruye vía MCP al Agente LLM cliente para que asuma el procesamiento analítico (`mem_compare`, `mem_suggest_tags`).
 - Servidores duales y aislados lógicamente: Protocolo MCP por Standard IO (`stdio`) y Servidor REST para dashboards vía Express API.
+

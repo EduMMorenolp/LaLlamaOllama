@@ -7,10 +7,17 @@ interface SessionSummaryResult {
 	error?: string;
 }
 
-export async function getSessionSummary(dbService: DatabaseService, sessionId: string): Promise<SessionSummaryResult> {
+export async function getSessionSummary(
+	dbService: DatabaseService,
+	sessionId: string,
+): Promise<SessionSummaryResult> {
 	const db = dbService.getDb();
-	const session = await db.get(`SELECT * FROM sessions WHERE id = ?`, [sessionId]);
+	const session = await db.get(`SELECT * FROM sessions WHERE id = ?`, [
+		sessionId,
+	]);
 	if (!session) return { error: "Session not found" };
-	const memories = await db.all(`SELECT * FROM memories WHERE sessionId = ?`, [sessionId]);
+	const memories = await db.all(`SELECT * FROM memories WHERE sessionId = ?`, [
+		sessionId,
+	]);
 	return { session, memories_count: memories.length, memories };
 }

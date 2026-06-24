@@ -148,7 +148,7 @@ export const GpuSentinel: React.FC<GpuSentinelProps> = ({ status }) => {
 			]);
 			setSavedMsg("✓ Configuración guardada");
 			setTimeout(() => setSavedMsg(""), 3000);
-		} catch (_e: unknown) {
+		} catch {
 			setSavedMsg("✗ Error al guardar");
 		} finally {
 			setSaving(false);

@@ -38,7 +38,10 @@ export class SessionManager {
 			lastActivity: Date.now(),
 		};
 		this.sessions.set(sessionId, session);
-		log.agent({ ip, sessionId: sessionId.substring(0, 20) + "..." }, "Session created");
+		log.agent(
+			{ ip, sessionId: `${sessionId.substring(0, 20)}...` },
+			"Session created",
+		);
 		return sessionId;
 	}
 
@@ -58,10 +61,14 @@ export class SessionManager {
 		}
 	}
 
-	updateSessionSettings(sessionId: string, settings: { temperature?: number; context?: number }): void {
+	updateSessionSettings(
+		sessionId: string,
+		settings: { temperature?: number; context?: number },
+	): void {
 		const session = this.sessions.get(sessionId);
 		if (session) {
-			if (settings.temperature !== undefined) session.temperature = settings.temperature;
+			if (settings.temperature !== undefined)
+				session.temperature = settings.temperature;
 			if (settings.context !== undefined) session.context = settings.context;
 			session.lastActivity = Date.now();
 		}
@@ -69,7 +76,10 @@ export class SessionManager {
 
 	endSession(sessionId: string): void {
 		this.sessions.delete(sessionId);
-		log.agent({ sessionId: sessionId.substring(0, 20) + "..." }, "Session ended");
+		log.agent(
+			{ sessionId: `${sessionId.substring(0, 20)}...` },
+			"Session ended",
+		);
 	}
 
 	getSessions(): Session[] {

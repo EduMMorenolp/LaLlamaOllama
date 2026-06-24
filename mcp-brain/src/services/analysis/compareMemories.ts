@@ -12,7 +12,7 @@ export async function compareMemories(
 	dbService: DatabaseService,
 	model: string,
 	memAId: string,
-	memBId: string
+	memBId: string,
 ): Promise<CompareMemoriesResult> {
 	const memA = await getMemory(dbService, memAId);
 	const memB = await getMemory(dbService, memBId);
@@ -23,6 +23,9 @@ export async function compareMemories(
 Memory A: [${memA.type}] ${memA.title} - ${memA.content}
 Memory B: [${memB.type}] ${memB.title} - ${memB.content}
 Analysis:`;
-	const analysis = await generate(model, prompt, { temperature: 0.1, num_ctx: 2048 });
+	const analysis = await generate(model, prompt, {
+		temperature: 0.1,
+		num_ctx: 2048,
+	});
 	return { analysis, memA: memA.title, memB: memB.title };
 }

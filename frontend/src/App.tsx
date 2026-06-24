@@ -50,7 +50,7 @@ const App: React.FC = () => {
 		if (!isAuthorized || !apiKey) return;
 
 		const cleanupAccess = (data: AccessLogEntry) => {
-			setStatus((prevStatus: StatusResponse | null) => {
+			setStatus((prevStatus: StatusResponse | undefined) => {
 				if (!prevStatus) return prevStatus;
 				// Evitar duplicados considerando IP, Acción y Timestamp exacto
 				const isDuplicate = prevStatus.recentLogs?.some(
@@ -157,7 +157,7 @@ const App: React.FC = () => {
 										promptTokens = data.usage.prompt_tokens || 0;
 										completionTokens = data.usage.completion_tokens || 0;
 									}
-								} catch (_e : any) {
+								} catch {
 									// ignore JSON parse errors
 								}
 							}

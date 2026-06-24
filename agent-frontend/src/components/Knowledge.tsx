@@ -112,7 +112,19 @@ function ArchivosRag() {
 		}
 	}, []);
 
-	useEffect(() => { fetchFiles(); }, [fetchFiles]);
+	useEffect(() => {
+		(async () => {
+			try {
+				const res = await fetch(`${engine}/api/knowledge`, { headers: apiHeaders });
+				const data = await res.json();
+				setFiles(data.files || []);
+			} catch (err) {
+				console.error("Failed to fetch knowledge files", err);
+			} finally {
+				setLoading(false);
+			}
+		})();
+	}, []);
 
 	const handleUpload = async () => {
 		if (!fileName.trim() || !fileContent.trim()) return;
@@ -363,8 +375,34 @@ function Cerebro() {
 		} catch { /* ignore */ }
 	}, [activeProject]);
 
-	useEffect(() => { fetchStats(); }, [fetchStats]);
-	useEffect(() => { fetchMemories(); }, [fetchMemories]);
+	useEffect(() => {
+		(async () => {
+			try {
+				const res = await fetch(`${engine}/api/memory/stats?project=${encodeURIComponent(activeProject)}`, { headers: apiHeaders });
+				const data = await res.json();
+				setStats(data);
+			} catch { /* ignore */ }
+		})();
+	}, [activeProject]);
+	useEffect(() => {
+		(async () => {
+			setLoading(true);
+			offsetRef.current = 0;
+			try {
+				const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: "0", project: activeProject });
+				if (filterType) params.set("type", filterType);
+				const res = await fetch(`${engine}/api/memory/search?${params}`, { headers: apiHeaders });
+				const data = await res.json();
+				setMemories(Array.isArray(data) ? data : []);
+				setHasMore(Array.isArray(data) && data.length >= PAGE_SIZE);
+				offsetRef.current = Array.isArray(data) ? data.length : 0;
+			} catch (err) {
+				console.error("Failed to fetch memories", err);
+			} finally {
+				setLoading(false);
+			}
+		})();
+	}, [searchQuery, filterType, activeProject]);
 
 	// Infinite scroll via IntersectionObserver
 	useEffect(() => {
@@ -404,7 +442,7 @@ function Cerebro() {
 			setSelectedMemory(null);
 			fetchStats();
 			showToast("Memoria eliminada", "success");
-		} catch (err) {
+		} catch {
 			showToast("Error al eliminar memoria", "error");
 		}
 	};
@@ -447,7 +485,7 @@ function Cerebro() {
 				setEditingMemory(null);
 				showToast("Memoria actualizada", "success");
 			}
-		} catch (err) {
+		} catch {
 			showToast("Error al guardar memoria", "error");
 		} finally {
 			setSaving(false);
@@ -470,7 +508,7 @@ function Cerebro() {
 			fetchMemories();
 			fetchStats();
 			showToast("Memoria creada", "success");
-		} catch (err) {
+		} catch {
 			showToast("Error al crear memoria", "error");
 		} finally {
 			setCreating(false);
@@ -492,7 +530,7 @@ function Cerebro() {
 			showToast(`Consolidación: ${data.consolidatedGroups || 0} grupos consolidados`, "success");
 			fetchMemories();
 			fetchStats();
-		} catch (err) {
+		} catch {
 			setConsolidateResult("Error al consolidar");
 			showToast("Error al consolidar memorias", "error");
 		} finally {
@@ -829,7 +867,22 @@ function Timeline() {
 		}
 	}, [filterType]);
 
-	useEffect(() => { fetchTimeline(); }, [fetchTimeline]);
+	useEffect(() => {
+		(async () => {
+			setLoading(true);
+			try {
+				const params = new URLSearchParams({ limit: "100" });
+				if (filterType) params.set("type", filterType);
+				const res = await fetch(`${engine}/api/memory/timeline?${params}`, { headers: apiHeaders });
+				const data = await res.json();
+				setMemories(Array.isArray(data) ? data : []);
+			} catch (err) {
+				console.error("Failed to fetch timeline", err);
+			} finally {
+				setLoading(false);
+			}
+		})();
+	}, [filterType]);
 
 	const groupedByDay = memories.reduce<Record<string, Memory[]>>((acc, mem) => {
 		const day = new Date(mem.createdAt).toLocaleDateString("es-AR", { day: "2-digit", month: "long", year: "numeric" });
@@ -976,7 +1029,20 @@ function Documentos() {
 		}
 	}, []);
 
-	useEffect(() => { fetchFiles(); }, [fetchFiles]);
+	useEffect(() => {
+		(async () => {
+			setLoading(true);
+			try {
+				const res = await fetch(`${engine}/api/knowledge/all`, { headers: apiHeaders });
+				const data = await res.json();
+				setFiles(data.files || []);
+			} catch (err) {
+				console.error("Failed to fetch documents", err);
+			} finally {
+				setLoading(false);
+			}
+		})();
+	}, []);
 
 	const handleSelectFile = async (file: DocFile) => {
 		setSelectedFile(file);

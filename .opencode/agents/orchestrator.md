@@ -10,6 +10,24 @@ permission:
   mcp: allow
 ---
 
+## ESTRUCTURA DEL PROYECTO
+
+```
+LaLlamaOllama/
+├── backend/          → Express 4 + TypeScript, API REST, MCP Tools, Socket.IO
+├── frontend/         → React 19 + Vite 7, dashboard glassmorphism
+├── mcp-brain/        → Memoria compartida SQLite FTS5 (+vectores), MCP + REST
+├── agent-engine/     → Agente autónomo (Express, WS, BullMQ+Redis, SQLite, Telegram)
+├── agent-frontend/   → Frontend del agente (React + Vite + nginx)
+├── docs/             → Documentación global, Postman Collection
+├── .opencode/        → Agentes de OpenCode AI (8 definiciones)
+├── .agents/          → Reglas y workflows de Antigravity
+├── data/             → Bases SQLite compartidas (agent-engine.db, lallama-memory.db)
+├── docker-compose.yml → 7 servicios + redis en mcp-network
+├── biome.json        → Linter + formatter global
+└── package.json      → Raíz
+```
+
 ## PROPÓSITO
 
 1. **Analizar** requerimiento → determinar dominios afectados
@@ -58,6 +76,42 @@ permission:
 9. **Si hay cambios en docker-compose.yml o Dockerfiles**: `task(docker-ops, objetivo="Verificar y validar infraestructura Docker", context=<contexto>)`
 10. **Delegar documentación**: `task(documentation, objetivo="Actualizar documentación del cambio", context=<contexto + cambios realizados>)`
 11. Responde al usuario con resumen ejecutivo
+
+## SCRIPTS
+
+```
+# Verificación global (linter + formatter)
+npx biome check .
+
+# Backend
+cd backend && npm run build   → tsc
+cd backend && npm run dev     → tsx watch src/main.ts
+cd backend && npm run lint    → biome check .
+
+# Frontend dashboard
+cd frontend && npm run build  → tsc -b && vite build
+cd frontend && npm run dev    → vite
+cd frontend && npm run lint   → eslint .
+
+# mcp-brain
+cd mcp-brain && npm run build → tsc
+cd mcp-brain && npm run dev   → tsx watch src/index.ts
+cd mcp-brain && npm run lint  → biome check .
+
+# agent-engine
+cd agent-engine && npm run build → tsc
+cd agent-engine && npm run dev   → tsc && node dist/index.js
+
+# agent-frontend
+cd agent-frontend && npm run build → tsc -b && vite build
+cd agent-frontend && npm run dev   → vite
+cd agent-frontend && npm run lint  → eslint .
+
+# Docker
+docker compose config          → validar sintaxis YAML
+docker compose up -d           → levantar todos los servicios
+docker compose logs -f <svc>   → ver logs de un servicio
+```
 
 ## NOTAS
 

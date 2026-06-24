@@ -44,6 +44,16 @@ Stack: 7 servicios + redis (ollama, backend, ngrok, frontend, agent-frontend, mc
 └── redis                    # Imagen oficial redis:7-alpine, sin Dockerfile propio
 ```
 
+## PATRONES DE CÓDIGO
+
+1. **Multi-stage builds**: stage 1 (build con devDeps, tsc/vite), stage 2 (solo producción, node/nginx, copia dist + node_modules --production)
+2. **Imágenes oficiales**: siempre prefijar con `image:` oficial en compose (ej: `redis:7-alpine`, `ngrok/ngrok:latest`). No imágenes custom para servicios sin cambios.
+3. **Variables de entorno**: `${VAR:-default}` en compose, pasar valores sensibles vía environment (no hardcodear). Variables compartidas declaradas en `.env` raíz.
+4. **Red única**: todos los servicios en `mcp-network` (bridge), comunicación por hostname del servicio Docker.
+5. **Volúmenes nombrados**: declarar en `volumes:` del compose, montar rutas específicas. Bind mounts para datos compartidos (./data).
+6. **GPU NVIDIA**: `runtime: nvidia` + `NVIDIA_VISIBLE_DEVICES=all` + `NVIDIA_DRIVER_CAPABILITIES=compute,utility` en ollama.
+7. **Exposición de puertos**: solo los necesarios para acceso externo. Servicios internos (redis) no exponen puerto host.
+
 ## REGLAS
 
 1. **Nunca hardcodees IPs**: usar nombres de servicio Docker Compose.
@@ -59,6 +69,19 @@ Stack: 7 servicios + redis (ollama, backend, ngrok, frontend, agent-frontend, mc
 11. **agent-engine**: Express + TypeScript, puerto `${ENGINE_PORT:-3020}`, monta `/var/run/docker.sock` y el workspace raíz.
 12. **agent-frontend**: React + Vite build → nginx, puerto 8081:80, `VITE_ENGINE_URL` apunta a `agent-engine`.
 13. **Dockerfiles multi-stage**: stage 1 (build con devDeps), stage 2 (solo producción, copia dist + node_modules --production).
+
+## SCRIPTS
+
+```
+docker compose config              → validar sintaxis YAML del compose
+docker compose up -d               → levantar todos los servicios
+docker compose down                → detener todos los servicios
+docker compose logs -f <svc>       → ver logs en tiempo real
+docker compose ps                  → estado de los servicios
+docker compose build <svc>         → reconstruir imagen de un servicio
+docker system prune -f             → limpiar recursos no usados
+docker volume ls                   → listar volúmenes
+```
 
 ## AUTO-VERIFICACIÓN
 

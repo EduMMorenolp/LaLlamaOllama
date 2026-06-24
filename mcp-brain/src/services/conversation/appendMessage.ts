@@ -12,7 +12,7 @@ export interface AppendMessageInput {
 
 export async function appendMessage(
 	dbService: DatabaseService,
-	input: AppendMessageInput
+	input: AppendMessageInput,
 ): Promise<{ id: string }> {
 	const id = `conv_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 	const now = Date.now();
@@ -32,7 +32,7 @@ export async function appendMessage(
 				input.name || null,
 				input.tokenCount || 0,
 				now,
-			]
+			],
 		);
 	});
 

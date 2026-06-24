@@ -18,7 +18,10 @@ export async function startCronJobs(dbService: DatabaseService) {
 			log.agent("Running scheduled memory consolidation...");
 			const res = await consolidateMemories(dbService, "lallamaollama");
 			if (res.consolidatedGroups > 0) {
-				log.agent({ consolidated: res.consolidatedGroups }, "Consolidation complete");
+				log.agent(
+					{ consolidated: res.consolidatedGroups },
+					"Consolidation complete",
+				);
 			}
 		} catch (e: unknown) {
 			const message = e instanceof Error ? e.message : String(e);

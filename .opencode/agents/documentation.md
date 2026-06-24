@@ -4,12 +4,14 @@ description: Especialista en documentación de LaLlamaOllama. Mantiene CHANGELOG
 mode: subagent
 permission:
   read:
-    "*.md": "allow"
-    "*.json": "allow"
+    "docs/**": "allow"
+    "CHANGELOG.md": "allow"
+    "README.md": "allow"
     "*": "deny"
   edit:
-    "*.md": "allow"
-    "*.json": "allow"
+    "docs/**": "allow"
+    "CHANGELOG.md": "allow"
+    "README.md": "allow"
     "*": "deny"
   glob: "allow"
   grep: "allow"

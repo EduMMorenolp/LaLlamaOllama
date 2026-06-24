@@ -6,7 +6,7 @@ export async function getContext(
 	project: string,
 	limit: number = 10,
 	includeContent: boolean = false,
-	offset: number = 0
+	offset: number = 0,
 ): Promise<Partial<Memory>[]> {
 	const db = dbService.getDb();
 	const fields = includeContent
@@ -14,6 +14,6 @@ export async function getContext(
 		: "id, project, type, title, tags, phase, agent, createdAt, updatedAt";
 	return await db.all(
 		`SELECT ${fields} FROM memories WHERE project = ? ORDER BY createdAt DESC LIMIT ? OFFSET ?`,
-		[project, limit, offset]
+		[project, limit, offset],
 	);
 }

@@ -1,7 +1,10 @@
-import type { Template, RenderResult } from "./types.js";
+import type { RenderResult, Template } from "./types.js";
 
 function interpolate(text: string, variables: Record<string, string>): string {
-	return text.replace(/\{\{(\w+)\}\}/g, (_, key) => variables[key] ?? `{{${key}}}`);
+	return text.replace(
+		/\{\{(\w+)\}\}/g,
+		(_, key) => variables[key] ?? `{{${key}}}`,
+	);
 }
 
 export function renderTemplate(
@@ -24,7 +27,9 @@ export function renderTemplate(
 	}
 
 	const content = interpolate(template.content, merged);
-	const output_path = template.output_path ? interpolate(template.output_path, merged) : "";
+	const output_path = template.output_path
+		? interpolate(template.output_path, merged)
+		: "";
 
 	return {
 		content,

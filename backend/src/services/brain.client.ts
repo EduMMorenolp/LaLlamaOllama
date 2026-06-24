@@ -38,7 +38,10 @@ export class BrainClient {
 		log.info({ baseUrl: this.baseUrl }, "BrainClient initialized");
 	}
 
-	async appendMessage(sessionId: string, msg: BrainMessage): Promise<{ id: string } | null> {
+	async appendMessage(
+		sessionId: string,
+		msg: BrainMessage,
+	): Promise<{ id: string } | null> {
 		try {
 			const res = await this.api.post("/api/conversation/append", {
 				sessionId,
@@ -59,7 +62,7 @@ export class BrainClient {
 	async getHistory(
 		sessionId: string,
 		limit: number = 50,
-		offset: number = 0
+		offset: number = 0,
 	): Promise<{ messages: HistoryMessage[]; total: number } | null> {
 		try {
 			const res = await this.api.get("/api/conversation/history", {
@@ -76,8 +79,12 @@ export class BrainClient {
 		sessionId: string,
 		model?: string,
 		maxMessages?: number,
-		keepRecent?: number
-	): Promise<{ summary: string; keptCount: number; totalCount: number } | null> {
+		keepRecent?: number,
+	): Promise<{
+		summary: string;
+		keptCount: number;
+		totalCount: number;
+	} | null> {
 		try {
 			const res = await this.api.post("/api/conversation/summarize", {
 				sessionId,

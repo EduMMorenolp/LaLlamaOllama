@@ -1,9 +1,9 @@
 import type { AuthService } from "../../auth/auth.service.js";
 
 export class GetAuthSettingsUseCase {
-  constructor(private readonly authService: AuthService) {}
+	constructor(private readonly authService: AuthService) {}
 
-  execute() {
-    return this.authService.getSettings();
-  }
+	execute() {
+		return this.authService.getSettings();
+	}
 }

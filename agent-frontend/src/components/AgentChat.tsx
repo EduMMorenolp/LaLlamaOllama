@@ -99,37 +99,6 @@ export const AgentChat: React.FC = () => {
 	const { connected, reconnecting, send: sendWs, subscribe } = useWs();
 	const { show: showToast } = useToast();
 
-	const scrollToBottom = useCallback(() => {
-		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-	}, []);
-
-	useEffect(() => {
-		scrollToBottom();
-	}, [messages, isProcessing, scrollToBottom]);
-
-	// Keep messageQueueRef in sync
-	useEffect(() => {
-		messageQueueRef.current = messageQueue;
-	}, [messageQueue]);
-
-	// Auto-dispatch next queued message when processing finishes
-	useEffect(() => {
-		if (!isProcessing && messageQueueRef.current.length > 0) {
-			const [nextText, ...rest] = messageQueueRef.current;
-			setMessageQueue(rest);
-			sendMessage(nextText);
-		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [isProcessing]);
-
-	// Subscribe to WS messages
-	useEffect(() => {
-		return subscribe((msg) => {
-			console.log("[Chat WS] Recibido:", msg.type, msg.payload);
-			handleWsMessage(msg);
-		});
-	}, [subscribe, currentChatId]);
-
 	const handleWsMessage = (msg: { type: string; payload?: Record<string, unknown> }) => {
 		console.log("[Chat WS] Recibido:", msg.type, msg.payload);
 		switch (msg.type) {
@@ -494,6 +463,37 @@ export const AgentChat: React.FC = () => {
 		[currentChatId, sendWs, attachments]
 	);
 
+	const scrollToBottom = useCallback(() => {
+		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+	}, []);
+
+	useEffect(() => {
+		scrollToBottom();
+	}, [messages, isProcessing, scrollToBottom]);
+
+	// Keep messageQueueRef in sync
+	useEffect(() => {
+		messageQueueRef.current = messageQueue;
+	}, [messageQueue]);
+
+	// Auto-dispatch next queued message when processing finishes
+	useEffect(() => {
+		if (!isProcessing && messageQueueRef.current.length > 0) {
+			const [nextText, ...rest] = messageQueueRef.current;
+			setMessageQueue(rest);
+			sendMessage(nextText);
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [isProcessing]);
+
+	// Subscribe to WS messages
+	useEffect(() => {
+		return subscribe((msg) => {
+			console.log("[Chat WS] Recibido:", msg.type, msg.payload);
+			handleWsMessage(msg);
+		});
+	}, [subscribe, currentChatId]);
+
 	const executeCommand = useCallback(
 		(cmdText: string) => {
 			const cmd = COMMANDS.find((c) => cmdText.startsWith(c.cmd));
@@ -530,7 +530,7 @@ export const AgentChat: React.FC = () => {
 						...prev,
 						{
 							role: "system",
-							content: `âœ… Cambiando modelo activo a: **${modelName}**`,
+							content: `✅ Cambiando modelo activo a: **${modelName}**`,
 
 							timestamp: new Date(),
 						},
@@ -1212,7 +1212,6 @@ export const AgentChat: React.FC = () => {
 									onFeedback={(idx, rating) => {
 										const key = `${currentChatId}-${idx}`;
 										const prev = feedbackMap.get(key);
-										// If same rating clicked again, toggle off
 										const newRating = prev === rating ? null : rating;
 										setFeedbackMap((prev) => {
 											const next = new Map(prev);
@@ -1294,7 +1293,7 @@ export const AgentChat: React.FC = () => {
 															marginTop: "2px",
 														}}
 													>
-														âœ… Completado
+														✅ Completado
 													</div>
 												)}
 												{tc.status === "error" && (
@@ -2213,6 +2212,9 @@ export const AgentChat: React.FC = () => {
 		);
 	}
 };
+
+
+
 
 
 

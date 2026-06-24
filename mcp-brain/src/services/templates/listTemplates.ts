@@ -4,7 +4,9 @@ import type { Template, TemplateVariable } from "./types.js";
 function parseTemplate(row: Record<string, unknown>): Template {
 	return {
 		...row,
-		variables: JSON.parse((row.variables as string) || "[]") as TemplateVariable[],
+		variables: JSON.parse(
+			(row.variables as string) || "[]",
+		) as TemplateVariable[],
 		is_seed: Boolean(row.is_seed),
 	} as Template;
 }
@@ -27,7 +29,11 @@ export async function listTemplates(
 		params.push(type);
 	}
 
-	const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-	const rows = await db.all(`SELECT * FROM templates ${where} ORDER BY tool, type, name`, params);
+	const where =
+		conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+	const rows = await db.all(
+		`SELECT * FROM templates ${where} ORDER BY tool, type, name`,
+		params,
+	);
 	return rows.map(parseTemplate);
 }

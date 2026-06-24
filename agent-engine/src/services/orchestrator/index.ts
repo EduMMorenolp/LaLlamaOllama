@@ -14,6 +14,7 @@ function serializeOptions(opts: Omit<AgentOptions, "config" | "brain">) {
 		skipPersistUserMsg: opts.skipPersistUserMsg,
 		modeId: opts.modeId,
 		preferredModel: opts.preferredModel,
+		options: opts.options,
 	};
 }
 

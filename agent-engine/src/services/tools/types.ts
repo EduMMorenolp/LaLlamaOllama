@@ -11,6 +11,7 @@ export interface ToolContext {
 	sessionId: string;
 	workspaceDir: string;
 	chatId?: string;
+	userId?: string;
 }
 
 export type ToolHandler = (args: Record<string, unknown>, context: ToolContext) => Promise<string>;

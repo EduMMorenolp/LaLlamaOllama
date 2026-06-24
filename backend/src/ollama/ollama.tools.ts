@@ -1,9 +1,12 @@
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import {
+	CallToolRequestSchema,
+	ListToolsRequestSchema,
+} from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import type { AuthService } from "../auth/auth.service.js";
-import type { OllamaService } from "./ollama.service.js";
 import logger from "../utils/logger.js";
+import type { OllamaService } from "./ollama.service.js";
 
 const log = logger.child({ component: "mcp-tools" });
 
@@ -16,15 +19,29 @@ const InferenceOptionsSchema = z.object({
 
 export const MCP_TOOL_CATALOG = [
 	{ name: "list_models", description: "List installed Ollama models" },
-	{ name: "pull_model", description: "Download a new model from Ollama library" },
+	{
+		name: "pull_model",
+		description: "Download a new model from Ollama library",
+	},
 	{ name: "generate", description: "Generate a response for a prompt" },
 	{ name: "chat", description: "Send a chat message to a model" },
-	{ name: "unload_models", description: "Unload all models from VRAM (Free GPU)" },
-	{ name: "get_server_status", description: "Get Ollama server telemetry (VRAM, Disk, Ngrok)" },
-	{ name: "delete_model", description: "Delete a model from disk to free space" },
+	{
+		name: "unload_models",
+		description: "Unload all models from VRAM (Free GPU)",
+	},
+	{
+		name: "get_server_status",
+		description: "Get Ollama server telemetry (VRAM, Disk, Ngrok)",
+	},
+	{
+		name: "delete_model",
+		description: "Delete a model from disk to free space",
+	},
 ] as const;
 
-export const MCP_TOOL_NAMES = new Set(MCP_TOOL_CATALOG.map((tool) => tool.name));
+export const MCP_TOOL_NAMES = new Set(
+	MCP_TOOL_CATALOG.map((tool) => tool.name),
+);
 
 interface ChatMessage {
 	role: string;
@@ -35,7 +52,7 @@ interface ChatMessage {
 export class OllamaTools {
 	constructor(
 		private readonly ollamaService: OllamaService,
-		private readonly authService: AuthService
+		private readonly authService: AuthService,
 	) {}
 
 	/**
@@ -106,12 +123,15 @@ export class OllamaTools {
 							num_ctx: { type: "number", minimum: 128 },
 							keep_alive: { type: "string" },
 						},
-						required: requireApiKey ? ["model", "prompt", "apiKey"] : ["model", "prompt"],
+						required: requireApiKey
+							? ["model", "prompt", "apiKey"]
+							: ["model", "prompt"],
 					},
 				},
 				{
 					name: "chat",
-					description: "Send a chat message to a model. Optionally pass tools for function calling support.",
+					description:
+						"Send a chat message to a model. Optionally pass tools for function calling support.",
 					inputSchema: {
 						type: "object",
 						properties: {
@@ -128,7 +148,8 @@ export class OllamaTools {
 							},
 							tools: {
 								type: "array",
-								description: "Optional list of tool definitions for function calling",
+								description:
+									"Optional list of tool definitions for function calling",
 								items: { type: "object" },
 							},
 							...authProps,
@@ -137,7 +158,9 @@ export class OllamaTools {
 							session_id: { type: "string" },
 							keep_alive: { type: "string" },
 						},
-						required: requireApiKey ? ["model", "messages", "apiKey"] : ["model", "messages"],
+						required: requireApiKey
+							? ["model", "messages", "apiKey"]
+							: ["model", "messages"],
 					},
 				},
 				{
@@ -177,11 +200,15 @@ export class OllamaTools {
 			];
 
 			return {
-				tools: availableTools.filter((tool) => authService.isMcpToolEnabled(tool.name)),
+				tools: availableTools.filter((tool) =>
+					authService.isMcpToolEnabled(tool.name),
+				),
 			};
 		};
 
-		const callToolHandler = async (request: { params: { name: string; arguments?: Record<string, unknown> } }) => {
+		const callToolHandler = async (request: {
+			params: { name: string; arguments?: Record<string, unknown> };
+		}) => {
 			const params = request.params;
 			const { name, arguments: args } = params;
 			const ip = "MCP-Client";
@@ -195,13 +222,18 @@ export class OllamaTools {
 
 			if (!authService.isMcpToolEnabled(name)) {
 				return {
-					content: [{ type: "text", text: `Tool ${name} is disabled by administrator` }],
+					content: [
+						{ type: "text", text: `Tool ${name} is disabled by administrator` },
+					],
 					isError: true,
 				};
 			}
 
 			// Global Auth Check (solo cuando MCP auth esta activa)
-			if (authService.isMcpAuthEnabled() && !authService.validate(args?.apiKey as string)) {
+			if (
+				authService.isMcpAuthEnabled() &&
+				!authService.validate(args?.apiKey as string)
+			) {
 				ollamaService.logRequest(ip, `Tool: ${name}`, "Unauthorized");
 				ollamaService.reportFailedAuth(ip);
 				return {
@@ -211,7 +243,10 @@ export class OllamaTools {
 			}
 
 			ollamaService.logRequest(ip, `Tool: ${name}`, "Success");
-			log.tool({ tool: name, args: args ? Object.keys(args) : [] }, `Tool call: ${name}`);
+			log.tool(
+				{ tool: name, args: args ? Object.keys(args) : [] },
+				`Tool call: ${name}`,
+			);
 
 			try {
 				switch (name) {
@@ -219,7 +254,9 @@ export class OllamaTools {
 						const models = await ollamaService.listModels();
 						log.tool({ tool: name, count: models.length }, "Tool success");
 						return {
-							content: [{ type: "text", text: JSON.stringify(models, null, 2) }],
+							content: [
+								{ type: "text", text: JSON.stringify(models, null, 2) },
+							],
 						};
 					}
 
@@ -244,7 +281,7 @@ export class OllamaTools {
 							args?.model as string,
 							args?.prompt as string,
 							options,
-							args?.keep_alive as string | number
+							args?.keep_alive as string | number,
 						);
 						log.tool({ tool: name, model: args?.model }, "Tool success");
 						return {
@@ -263,11 +300,13 @@ export class OllamaTools {
 							options,
 							args?.keep_alive as string | number,
 							args?.session_id as string,
-							args?.tools as Record<string, unknown>[]
+							args?.tools as Record<string, unknown>[],
 						);
 						log.tool({ tool: name, model: args?.model }, "Tool success");
 						return {
-							content: [{ type: "text", text: chatResponse?.message?.content || "" }],
+							content: [
+								{ type: "text", text: chatResponse?.message?.content || "" },
+							],
 						};
 					}
 
@@ -275,14 +314,21 @@ export class OllamaTools {
 						await ollamaService.unloadModels();
 						log.tool({ tool: name }, "Tool success");
 						return {
-							content: [{ type: "text", text: "All models unloaded from VRAM successfully." }],
+							content: [
+								{
+									type: "text",
+									text: "All models unloaded from VRAM successfully.",
+								},
+							],
 						};
 
 					case "get_server_status": {
 						const status = await ollamaService.getServerStatus();
 						log.tool({ tool: name }, "Tool success");
 						return {
-							content: [{ type: "text", text: JSON.stringify(status, null, 2) }],
+							content: [
+								{ type: "text", text: JSON.stringify(status, null, 2) },
+							],
 						};
 					}
 
@@ -290,7 +336,12 @@ export class OllamaTools {
 						await ollamaService.deleteModel(args?.model as string);
 						log.tool({ tool: name, model: args?.model }, "Tool success");
 						return {
-							content: [{ type: "text", text: `Model ${args?.model} deleted successfully.` }],
+							content: [
+								{
+									type: "text",
+									text: `Model ${args?.model} deleted successfully.`,
+								},
+							],
 						};
 
 					default:
@@ -300,7 +351,8 @@ export class OllamaTools {
 						};
 				}
 			} catch (error: unknown) {
-				const message = error instanceof Error ? error.message : "Unknown error";
+				const message =
+					error instanceof Error ? error.message : "Unknown error";
 				log.tool({ tool: name, error: message }, "Tool failed");
 				return {
 					content: [{ type: "text", text: `Error: ${message}` }],

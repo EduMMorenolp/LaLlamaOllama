@@ -8,6 +8,8 @@ El proyecto está compuesto por múltiples microservicios interconectados a trav
 
 | Servicio / Contenedor | Puerto | Stack Principal | Descripción |
 |-----------------------|--------|-----------------|-------------|
+| `ollama-motor` | `11434` | Ollama | Motor de Inferencia LLM. |
+| `backend` | `3016` | Express 4 + TypeScript | API principal, middleware de seguridad y WebSocket. |
 | `mcp-ollama-motor` | `11434` | Ollama | Motor de Inferencia LLM. |
 | `backend` | `3016` | Express 4 + TypeScript | API principal, middleware de seguridad y Socket.IO. |
 | `mcp-brain` | `3015` | MCP + REST | Cerebro (Model Context Protocol), base de datos SQLite y Use Cases. |

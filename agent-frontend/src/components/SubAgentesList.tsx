@@ -73,6 +73,8 @@ export const SubAgentesList: React.FC = () => {
 			sendWs("get_general_config", {});
 			sendWs("get_status", {});
 			sendWs("list_experts", {});
+			sendWs("list_tools", {});
+			sendWs("list_ollama_models", {});
 		}
 	}, [connected, sendWs]);
 

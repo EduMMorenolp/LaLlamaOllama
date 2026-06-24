@@ -137,11 +137,24 @@ export const Tareas: React.FC = () => {
 	);
 
 	useEffect(() => {
-		setLoading(true);
-		offsetRef.current = 0;
-		setHasMore(true);
-		fetchRuns(false);
-	}, [fetchRuns]);
+		(async () => {
+			setLoading(true);
+			offsetRef.current = 0;
+			setHasMore(true);
+			try {
+				const params = new URLSearchParams({ limit: "50", offset: "0" });
+				const res = await fetch(`${config.engineUrl}/api/runs?${params}`, { headers: apiHeaders });
+				const data = await res.json();
+				setRuns(data.runs || []);
+				setHasMore(data.runs && data.runs.length >= 50);
+				offsetRef.current = data.runs ? data.runs.length : 0;
+			} catch (err) {
+				console.error("Failed to fetch runs", err);
+			} finally {
+				setLoading(false);
+			}
+		})();
+	}, []);
 
 	useEffect(() => {
 		if (connected) {

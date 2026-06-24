@@ -1,4 +1,4 @@
-﻿// @ts-nocheck — BullMQ/ioredis type incompatibilities (pre-existing, needs package upgrade)
+// @ts-nocheck — BullMQ/ioredis type incompatibilities (pre-existing, needs package upgrade)
 import { Queue, QueueEvents, Worker } from "bullmq";
 import { Redis } from "ioredis";
 import { logger } from "../../utils/logger.js";
@@ -18,6 +18,7 @@ export interface QueueAgentRunPayload {
 	skipPersistUserMsg?: boolean;
 	modeId?: string;
 	preferredModel?: string;
+	options?: Record<string, unknown>;
 }
 
 const queueName = "agent-engine-runs";
@@ -39,7 +40,7 @@ function forwardRunEvent(
 	payload: Record<string, unknown>
 ): void {
 	appendRunEvent({ runId, type, payload: JSON.stringify(payload) });
-	publishRunEvent(runId, type, payload as Parameters<typeof publishRunEvent>[2]);
+	publishRunEvent(runId, type, payload as any);
 }
 
 async function broadcastWs(type: string, payload: Record<string, unknown>) {
@@ -83,6 +84,7 @@ async function processQueuedRun(payload: QueueAgentRunPayload): Promise<AgentRes
 		skipPersistUserMsg: payload.skipPersistUserMsg,
 		modeId: payload.modeId,
 		preferredModel,
+		options: payload.options,
 		onStatus: (text: string) => forwardRunEvent(payload.runId, "status", { text }),
 		onTyping: (isTyping: boolean) => forwardRunEvent(payload.runId, "typing", { isTyping }),
 		onChunk: (text: string) => forwardRunEvent(payload.runId, "chunk", { text }),
@@ -124,18 +126,18 @@ export function ensureRunQueue(): boolean {
 	try {
 		redisConnection = createConnection();
 		runQueue = new Queue<QueueAgentRunPayload>(queueName, {
-			connection: redisConnection,
+			connection: redisConnection as any,
 			defaultJobOptions: {
 				removeOnComplete: 50,
 				removeOnFail: 50,
 			},
 		});
-		runQueueEvents = new QueueEvents(queueName, { connection: redisConnection });
+		runQueueEvents = new QueueEvents(queueName, { connection: redisConnection as any });
 		runWorker = new Worker<QueueAgentRunPayload>(
 			queueName,
 			async (job) => processQueuedRun(job.data),
 			{
-				connection: redisConnection,
+				connection: redisConnection as any,
 				concurrency: 1,
 			}
 		);

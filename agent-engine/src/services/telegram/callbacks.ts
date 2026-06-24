@@ -1,4 +1,4 @@
-﻿import type TelegramBot from "node-telegram-bot-api";
+﻿import TelegramBot, { type CallbackQuery } from "node-telegram-bot-api";
 import { logger } from "../../utils/logger.js";
 import { runAgentCore } from "../agent/runAgent.js";
 import { loadConfig } from "../config.js";
@@ -6,7 +6,7 @@ import { getOrCreateChannelChat } from "../db/chats.js";
 import type { BrainClient } from "../brain/client.js";
 
 export async function handleCallbackQuery(
-	query: TelegramBot.CallbackQuery,
+	query: CallbackQuery,
 	userIdResolver: (chatId: number, username: string) => string,
 	bot: TelegramBot,
 	brain: BrainClient | null

@@ -11,14 +11,14 @@
                 ┌──────────────┐  ┌──────────────┐
                 │ agent-engine │  │   frontend   │
                 │  (Express)   │  │ (React+Vite) │
-                │  :3020/3021  │  │   :3016      │
+                │  :3020/3021  │  │   :8080      │
                 └──────┬───────┘  └──────┬───────┘
                        │ HTTP            │ HTTP
                        ▼                 ▼
                 ┌──────────────┐  ┌──────────────┐
                 │  mcp-brain   │  │   backend    │
                 │  (Express)   │  │  (Express)   │
-                │   :3015      │  │   :3000      │
+                │   :3015      │  │   :3016      │
                 └──────┬───────┘  └──────┬───────┘
                        │ HTTP            │ HTTP
                        ▼                 ▼
@@ -28,7 +28,7 @@
                 └──────────────┘  └──────────────┘
 
 agent-engine ──WS──▶ agent-frontend :8081 (React+Vite+nginx)
-backend ──────WS──▶ frontend :3016 (Socket.IO)
+backend ──────WS──▶ frontend :8080 (WebSocket nativo)
 ```
 
 ---
@@ -56,7 +56,7 @@ Usuario ──TG Message──▶ agent-engine (Telegram bot)
                     │                    │
                     └─────────┬──────────┘
                               ▼
-                   LLM call via backend:3000/v1/chat/completions
+                   LLM call via backend:3016/v1/chat/completions
                               │
                     ┌─────────┴──────────┐
                     ▼                    ▼
@@ -121,7 +121,7 @@ Browser ──WS connect──▶ agent-frontend :8081
 ## 3. Flujo de Dashboard (Frontend Web)
 
 ```
-Browser ──HTTP──▶ frontend :3016 (nginx)
+Browser ──HTTP──▶ frontend :8080 (nginx)
                               │
                               ▼
                    React 19 + Vite 7
@@ -129,7 +129,7 @@ Browser ──HTTP──▶ frontend :3016 (nginx)
                     ┌─────────┴──────────┐
                     ▼                    ▼
               API calls              Socket.IO
-              (:3000)                (:3000)
+              (:3016)                (:3016)
                     │                    │
                     ▼                    ▼
               backend (Express)     backend (Socket.IO)
@@ -341,7 +341,7 @@ switch_mode tool ──▶ setActiveMode(name)
 
 ### Servidor MCP en backend
 ```
-IDE (Claude/RooCode) ──SSE──▶ backend :3000/sse
+IDE (Claude/RooCode) ──SSE──▶ backend :3016/sse
                                     │
                                     ▼
                            SSEServerTransport("/messages")
@@ -437,10 +437,10 @@ docker-compose.yml (version obsoleta eliminada)
 Servicios:
   ollama       → mcp-ollama-motor    :11434  (GPU passthrough config)
   redis        → agent-engine-redis  :6379
-  backend      → backend             :3000
+  backend      → backend             :3016
   mcp-brain    → brain               :3015
   agent-engine → agent-engine        :3020/3021
-  frontend     → frontend            :3016
+  frontend     → frontend            :8080
   agent-frontend → agent-frontend    :8081
   ngrok        → mcp-ngrok-tunnel    (túnel externo)
 

@@ -2,6 +2,8 @@
  * Tipos compartidos para API responses y componentes
  */
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 export interface StatusResponse {
 	gpuMemoryTotal?: number;
 	gpuMemoryUsed?: number;

@@ -1,7 +1,9 @@
-import { Palette, User, Users } from "lucide-react";
+import { Palette, Settings, User, Users, Wrench } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useWs } from "../contexts/WebSocketContext";
 import { AgentePrincipal } from "./AgentePrincipal";
+import { Config } from "./Config";
+import { HerramientasList } from "./HerramientasList";
 import { ModosList } from "./ModosList";
 import { SubAgentesList } from "./SubAgentesList";
 
@@ -31,7 +33,7 @@ interface ToolInfo {
     enabled: boolean;
 }
 
-type AgentesSubTab = "main" | "modos" | "subs";
+type AgentesSubTab = "main" | "modos" | "subs" | "herramientas" | "config";
 
 export const Agentes: React.FC = () => {
     const { connected, send: sendWs, subscribe } = useWs();
@@ -145,6 +147,22 @@ export const Agentes: React.FC = () => {
                 >
                     <Users size={14} />
                     Sub Agentes
+                </button>
+                <button
+                    type="button"
+                    className={`sub-tab-btn ${subTab === "herramientas" ? "active" : ""}`}
+                    onClick={() => setSubTab("herramientas")}
+                >
+                    <Wrench size={14} />
+                    Herramientas
+                </button>
+                <button
+                    type="button"
+                    className={`sub-tab-btn ${subTab === "config" ? "active" : ""}`}
+                    onClick={() => setSubTab("config")}
+                >
+                    <Settings size={14} />
+                    Config
                 </button>
             </div>
 
@@ -270,6 +288,18 @@ export const Agentes: React.FC = () => {
             )}
 
             {subTab === "subs" && <SubAgentesList />}
+
+            {subTab === "herramientas" && (
+                <div style={sectionCard}>
+                    <HerramientasList />
+                </div>
+            )}
+
+            {subTab === "config" && (
+                <div style={sectionCard}>
+                    <Config />
+                </div>
+            )}
         </div>
     );
 };

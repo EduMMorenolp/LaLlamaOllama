@@ -38,23 +38,27 @@ export class DatabaseService {
         this.isWriting = false;
     }
 
-    public async initialize(): Promise<void> {
-        // Determinamos la ruta absoluta de forma infalible analizando si estamos corriendo desde 'dist' (Docker/Prod) o 'src' (Desarrollo/MCP)
-        const dbDir = process.env.DATA_DIR || (__dirname.includes("dist") ? path.resolve(__dirname, "../../data") : path.resolve(__dirname, "../../../data"));
-        if (!fs.existsSync(dbDir)) {
-            fs.mkdirSync(dbDir, { recursive: true });
-        }
-        const dbPath = path.join(dbDir, "lallama-memory.db");
+	public async initialize(): Promise<void> {
+		// Determinamos la ruta absoluta de forma infalible analizando si estamos corriendo desde 'dist' (Docker/Prod) o 'src' (Desarrollo/MCP)
+		const dbDir =
+			process.env.DATA_DIR ||
+			(__dirname.includes("dist")
+				? path.resolve(__dirname, "../../data")
+				: path.resolve(__dirname, "../../../data"));
+		if (!fs.existsSync(dbDir)) {
+			fs.mkdirSync(dbDir, { recursive: true });
+		}
+		const dbPath = path.join(dbDir, "lallama-memory.db");
 
         this.db = await open({
             filename: dbPath,
             driver: sqlite3.Database,
         });
 
-        await this.db.exec("PRAGMA foreign_keys = ON;");
-        await this.db.exec("PRAGMA journal_mode = WAL;");
-        await applySchemas(this.db);
-    }
+		await this.db.exec("PRAGMA foreign_keys = ON;");
+		await this.db.exec("PRAGMA journal_mode = WAL;");
+		await applySchemas(this.db);
+	}
 
     public getDb(): Database<sqlite3.Database, sqlite3.Statement> {
         if (!this.db) throw new Error("Database not initialized");

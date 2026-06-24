@@ -14,14 +14,17 @@ export const brainApi = axios.create({
 	baseURL: BRAIN_API_URL,
 });
 
-api.interceptors.request.use((config) => {
+const authInterceptor = (config: any) => {
 	const key = runtimeApiKey || (typeof window !== "undefined" ? localStorage.getItem(API_KEY_STORAGE) || "" : "");
 	if (key) {
 		config.headers = config.headers || {};
 		config.headers["x-api-key"] = key;
 	}
 	return config;
-});
+};
+
+api.interceptors.request.use(authInterceptor);
+brainApi.interceptors.request.use(authInterceptor);
 
 export const setApiKey = (apiKey: string) => {
 	runtimeApiKey = apiKey.trim();

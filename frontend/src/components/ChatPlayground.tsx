@@ -37,7 +37,7 @@ interface ChatPlaygroundProps {
 	onSendMessage: (
 		model: string,
 		message: string,
-		options: Record<string, any>
+		options: Record<string, unknown>
 	) => Promise<any>;
 }
 
@@ -59,6 +59,7 @@ interface ChatState {
     temperature: number;
     numCtx: number;
     loading: boolean;
+    chatEnabled: boolean;
     showSettings: boolean;
     totalTokensSession: number;
     totalTimeSession: number;
@@ -74,6 +75,7 @@ type ChatAction =
     | { type: "SET_TEMPERATURE"; payload: number }
     | { type: "SET_NUM_CTX"; payload: number }
     | { type: "SET_LOADING"; payload: boolean }
+    | { type: "SET_CHAT_ENABLED"; payload: boolean }
     | { type: "SET_SHOW_SETTINGS"; payload: boolean }
     | { type: "ADD_TOKENS"; payload: number }
     | { type: "ADD_TIME"; payload: number }
@@ -97,6 +99,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
         case "SET_TEMPERATURE": return { ...state, temperature: action.payload };
         case "SET_NUM_CTX": return { ...state, numCtx: action.payload };
         case "SET_LOADING": return { ...state, loading: action.payload };
+        case "SET_CHAT_ENABLED": return { ...state, chatEnabled: action.payload };
         case "SET_SHOW_SETTINGS": return { ...state, showSettings: action.payload };
         case "ADD_TOKENS": return { ...state, totalTokensSession: state.totalTokensSession + action.payload };
         case "ADD_TIME": return { ...state, totalTimeSession: state.totalTimeSession + action.payload };
@@ -200,6 +203,7 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 		temperature: persistedState.temperature ?? 0.7,
 		numCtx: persistedState.numCtx ?? 4096,
 		loading: false,
+		chatEnabled: true,
 		showSettings: false,
 		totalTokensSession: persistedState.totalTokensSession ?? 0,
 		totalTimeSession: persistedState.totalTimeSession ?? 0,
@@ -244,7 +248,7 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 	};
 
 	const handleSend = useCallback(async () => {
-		if ((!state.message.trim() && state.attachments.length === 0) || state.loading || !state.selectedModel) return;
+		if ((!state.message.trim() && state.attachments.length === 0) || state.loading || !state.selectedModel || !state.chatEnabled) return;
 
 		const attachmentSummary = state.attachments.length
 			? `\n\n[Adjuntos: ${state.attachments.map((f) => f.name).join(", ")}]`
@@ -355,7 +359,7 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 		} finally {
 			dispatch({ type: "SET_LOADING", payload: false });
 		}
-	}, [state.message, state.attachments, state.loading, state.selectedModel, state.temperature, state.numCtx, onSendMessage]);
+	}, [state.message, state.attachments, state.loading, state.selectedModel, state.temperature, state.numCtx, state.chatEnabled, onSendMessage]);
 
 	const handlePickFiles = () => {
 		fileInputRef.current?.click();
@@ -686,6 +690,23 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 					</div>
 				)}
 
+				{/* Toggle ON/OFF */}
+				<button
+					type="button"
+					className="btn-icon"
+					onClick={() => dispatch({ type: "SET_CHAT_ENABLED", payload: !state.chatEnabled })}
+					title={state.chatEnabled ? "Pausar chat" : "Activar chat"}
+					style={{
+						color: state.chatEnabled ? "var(--success)" : "var(--text-muted)",
+						opacity: state.chatEnabled ? 1 : 0.5,
+						transition: "all 0.2s ease",
+					}}
+				>
+					<span style={{ fontSize: "11px", fontWeight: 800, letterSpacing: "0.5px" }}>
+						{state.chatEnabled ? "ON" : "OFF"}
+					</span>
+				</button>
+
 				{/* Acciones */}
 				<div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
 					{state.history.length > 0 && (
@@ -842,8 +863,31 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 					gap: "4px",
 				}}
 			>
+				{/* Disabled overlay */}
+				{!state.chatEnabled && (
+					<div
+						style={{
+							display: "flex",
+							flexDirection: "column",
+							alignItems: "center",
+							justifyContent: "center",
+							height: "100%",
+							gap: "12px",
+							opacity: 0.4,
+						}}
+					>
+						<div style={{ fontSize: "32px" }}>⏸</div>
+						<p style={{ fontSize: "13px", fontWeight: 700, letterSpacing: "1px", textTransform: "uppercase" }}>
+							Chat pausado
+						</p>
+						<p style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+							Activa el chat para enviar mensajes
+						</p>
+					</div>
+				)}
+
 				{/* Empty state */}
-				{state.history.length === 0 && !state.loading && (
+				{state.history.length === 0 && !state.loading && state.chatEnabled && (
 					<div
 						style={{
 							display: "flex",
@@ -1095,12 +1139,12 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 						onChange={handleTextareaChange}
 						onKeyDown={handleKeyDown}
 						rows={1}
-						disabled={state.loading || models.length === 0}
+						disabled={state.loading || models.length === 0 || !state.chatEnabled}
 					/>
 					<button
 						type="button"
 						onClick={handlePickFiles}
-						disabled={state.loading || models.length === 0 || state.attachments.length >= MAX_ATTACHMENTS}
+						disabled={state.loading || models.length === 0 || !state.chatEnabled || state.attachments.length >= MAX_ATTACHMENTS}
 						title={
 							state.attachments.length >= MAX_ATTACHMENTS
 								? `Maximo ${MAX_ATTACHMENTS} adjuntos por mensaje`
@@ -1129,7 +1173,7 @@ export const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ models, onSendMe
 					<button
 						type="button"
 						onClick={handleSend}
-						disabled={state.loading || (!state.message.trim() && state.attachments.length === 0) || models.length === 0}
+						disabled={state.loading || (!state.message.trim() && state.attachments.length === 0) || models.length === 0 || !state.chatEnabled}
 						style={{
 							width: "36px",
 							height: "36px",

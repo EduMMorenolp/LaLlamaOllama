@@ -74,6 +74,17 @@ LaLlamaOllama es un **ecosistema completo** para ejecutar, gestionar y orquestar
 
 ---
 
+## Requisitos
+
+- **Node.js 18+**
+- **OpenCode** instalado ([opencode.ai](https://opencode.ai))
+- **Playwright Chromium** — necesario para usar el servidor MCP de Playwright en opencode:
+  ```bash
+  npx playwright install chromium
+  ```
+
+---
+
 ## ¿Para quién?
 
 - **Desarrolladores** que necesitan un agente de código local con herramientas reales (bash, grep, glob, read/write)

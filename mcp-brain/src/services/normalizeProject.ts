@@ -6,10 +6,10 @@
  * - Es genérico: funciona para CUALQUIER nombre de proyecto
  */
 export function normalizeProject(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9-]+/g, '-')   // reemplaza especiales con guión
-    .replace(/-+/g, '-')              // guiones múltiples → uno solo
-    .replace(/^-+|-+$/g, '')          // quita leading/trailing
-    .trim();
+	return name
+		.toLowerCase()
+		.replace(/[^a-z0-9-]+/g, "-") // reemplaza especiales con guión
+		.replace(/-+/g, "-") // guiones múltiples → uno solo
+		.replace(/^-+|-+$/g, "") // quita leading/trailing
+		.trim();
 }

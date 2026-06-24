@@ -7,6 +7,31 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 
 ## [Unreleased]
 
+
+### 🔧 MCP Brain: Autenticación en endpoints SSE/MCP
+
+#### MCP Brain
+- **`brainAuthMiddleware` en `/sse` (GET) y `/messages` (POST)** — Protección agregada a los endpoints de transporte SSE/MCP que anteriormente estaban abiertos. Ahora requieren autenticación vía `x-api-key` consistente con las rutas `/api/*`.
+- **Log warning si `BRAIN_API_KEY` no está configurada** — El middleware emite una advertencia en consola para facilitar el diagnóstico cuando la variable de entorno no está definida.
+- **Archivos modificados**: `mcp-brain/src/server/api.ts` (2 líneas), `mcp-brain/src/middleware/auth.middleware.ts` (warning log).
+
+### 🔧 Centralización de API Keys
+
+#### Configuración global
+- **Valor único `McPOllama2026-V1-Home`** — Unificadas 4 valores distintos de API key en el proyecto a un único valor consistente como fuente única de verdad.
+- **`.env.example`** — Actualizado de `API_KEY=mcp_clave_segura_123` a `API_KEY=McPOllama2026-V1-Home` con comentario sobre fuente única de verdad.
+- **`docker-compose.yml`** — Las 7 ocurrencias de `super-secret-mcp-key` cambiadas a `McPOllama2026-V1-Home`.
+- **`agent-frontend/.env.example`** — `VITE_API_KEY=super-secret-mcp-key` cambiado a `VITE_API_KEY=McPOllama2026-V1-Home`.
+- **`opencode.json`** — Ya tenía el valor correcto, sin cambios.
+
+### 🔧 Agent Engine: npm audit fix — 0 vulnerabilidades
+
+#### Agent Engine
+- **`node-telegram-bot-api` 0.66.0 → 1.1.1** — Migración a versión mayor que elimina 14 vulnerabilidades. Breaking change: callbacks → promises, tipos exportados directamente (se eliminó `@types/node-telegram-bot-api`).
+- **`@xenova/transformers` 2.17.2 → `@huggingface/transformers` 4.2.0** — Paquete renombrado por archivación del original. `quantized: true` reemplazado por `dtype: "q8"`.
+- **Código actualizado** — `bot.ts`, `callbacks.ts`, `commands.ts` (type imports), `transcriber.ts` (import path + opciones).
+- **0 vulnerabilidades npm audit** — Reducidas de 14 (7 moderate, 4 high, 3 critical).
+- **TypeScript compila con 0 errores** — Package-lock.json regenerado.
 ### 🧵 Retención de hilo: Sesiones persistentes, resúmenes de contexto y streaming largo (2026-06-18)
 
 #### Agent Engine
@@ -1142,3 +1167,4 @@ Todos los módulos del proyecto se unifican en **v1.0.0**: root, backend, agent-
 - **Playground**: terminal de inferencia directa con selección de modelo
 - **Docker Compose**: stack completo (Ollama + MCP Server + Frontend + Ngrok)
 - **Compatibilidad OpenAI**: endpoints `/v1/models` y `/v1/chat/completions`
+

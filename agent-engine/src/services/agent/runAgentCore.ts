@@ -3,8 +3,6 @@ import { logger } from "../../utils/logger.js";
 import type { BrainClient } from "../brain/client.js";
 import { getGeneralConfig } from "../db/experts.js";
 import { getMessages, saveMessage } from "../db/messages.js";
-import { getUser, formatUserProfileForPrompt } from "../db/users.js";
-import { getWorkspaceContext, formatWorkspaceForPrompt } from "../db/workspace.js";
 import { toolRegistry } from "../tools/registry.js";
 import type { ToolSpec as RegistryToolSpec } from "../tools/types.js";
 import { buildSystemPrompt } from "./buildPrompt.js";
@@ -128,6 +126,8 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 		? `telegram-${opts.telegramChatId || chatId}`
 		: chatId;
 
+	session.toolContext.userId = userId;
+
 	const modeConfig = await resolveModeConfig(opts, chatId, config);
 	const { model: generalModel, temperature: generalTemperature, historyLimit: generalHistoryLimit, systemPrompt: modeSystemPrompt } = modeConfig;
 
@@ -149,17 +149,6 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 
 	if (session.messages.length === 0) {
 		logger.agent(`[${chatId}] New session, loading brain context...`);
-		const [directives, brainProfile] = await Promise.all([
-			brain.getDirectives().catch(() => ""),
-			brain.getUserProfile().catch(() => "")
-		]);
-
-		// Enrich with local DB profile
-		let dbProfile = "";
-		const dbUser = getUser(userId);
-		if (dbUser) {
-			dbProfile = formatUserProfileForPrompt(dbUser);
-		}
 
 		let systemPrompt: string;
 		if (modeSystemPrompt) {
@@ -173,46 +162,28 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 			}
 		}
 
-		// Consolidar toda la informaci�n de sistema en UN solo mensaje system
-		// para que el LLM tenga contexto completo sin fragmentaci�n
 		const assembly: string[] = [systemPrompt];
 
-		if (directives) {
-			assembly.push(`<project_directives>\n${directives}\n</project_directives>`);
-		}
-
-		// Combine brain profile + local DB profile
-		let fullProfile = "";
-		if (brainProfile) fullProfile += `Lo que sabes sobre este usuario/proyecto:\n${brainProfile}\n`;
-		if (dbProfile) fullProfile += `\nPerfil almacenado:\n${dbProfile}`;
-		if (fullProfile) {
-			assembly.push(`<user_profile>\n${fullProfile}\n</user_profile>`);
-		}
-
-		// Inform about available tools (only active/enabled ones)
 		const enabledTools = toolRegistry.getSpecs();
 		if (enabledTools.length > 0) {
 			const toolList = enabledTools.map((t) => `- ${t.function.name}`).join("\n");
 			assembly.push(`<available_tools>\nHerramientas disponibles:\n${toolList}\n</available_tools>`);
 		}
 
-		// Workspace context
-		try {
-			const wsCtx = getWorkspaceContext(userId);
-			if (wsCtx) {
-				const wsText = formatWorkspaceForPrompt(wsCtx);
-				if (wsText) {
-					assembly.push(`<workspace_context>\n${wsText}\n</workspace_context>`);
-				}
-			}
-		} catch { /* optional */ }
+		assembly.push(`<info_contextual>
+Puedes obtener información adicional bajo demanda usando estas herramientas:
+- get_brain_profile → perfil del usuario/proyecto desde memoria compartida
+- get_user_profile → perfil local del usuario (preferencias, intereses, estilo)
+- get_workspace_context → contexto del workspace (archivos, directorios, tags)
+- get_project_directives → directrices y reglas del proyecto
+</info_contextual>`);
 
 		if (session.summary) {
-			assembly.push(`<session_summary>\nResumen de la conversaci�n anterior:\n${session.summary}\n</session_summary>`);
+			assembly.push(`<session_summary>\nResumen de la conversación anterior:\n${session.summary}\n</session_summary>`);
 		}
 
 		if (opts.origin === "scheduler") {
-			assembly.push(`<context>\nEsta consulta proviene de una tarea programada autom�ticamente. No esperes respuesta del usuario; completa la tarea y reporta los resultados sin solicitar confirmaci�n.\n</context>`);
+			assembly.push(`<context>\nEsta consulta proviene de una tarea programada automáticamente. No esperes respuesta del usuario; completa la tarea y reporta los resultados sin solicitar confirmación.\n</context>`);
 		}
 
 		session.messages.push({
@@ -268,9 +239,9 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 	//   - Audio transcripts    ? inline text
 	const hasImages = opts.attachments?.some((a) => a.type.startsWith("image/")) ?? false;
 
-	// Enviar im�genes como multi-modal siempre que el backend proxy lo soporte.
-	// El backend (puerto 3016) ahora convierte autom�ticamente image_url a Ollama images[].
-	// Si el modelo de Ollama no soporta visi�n, Ollama ignorar� las im�genes silenciosamente.
+	// Enviar imágenes como multi-modal siempre que el backend proxy lo soporte.
+	// El backend (puerto 3016) ahora convierte automáticamente image_url a Ollama images[].
+	// Si el modelo de Ollama no soporta visión, Ollama ignorará las imágenes silenciosamente.
 	const shouldUseMultiModal = hasImages;
 
 	let userContent: string | OpenAI.Chat.Completions.ChatCompletionContentPart[] = userText;
@@ -282,13 +253,13 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 		for (const att of opts.attachments) {
 			if (att.type.startsWith("image/") && att.data) {
 				if (shouldUseMultiModal) {
-					// Modelo con visi�n ? enviar como image_url multi-modal
+					// Modelo con visión ? enviar como image_url multi-modal
 					imageParts.push({
 						type: "image_url",
 						image_url: { url: att.data, detail: "auto" },
 					});
 				} else {
-					// Modelo sin visi�n ? solo mencionar como texto
+					// Modelo sin visión ? solo mencionar como texto
 					textParts.push(`\n[Imagen adjunta: ${att.name}]`);
 				}
 			} else if (att.type.startsWith("text/") || att.type === "application/json") {
@@ -299,13 +270,13 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 					if (decoded.trim()) {
 						textParts.push(`\n--- ${att.name} ---\n${decoded}\n---`);
 					} else {
-						textParts.push(`\n[${att.name}: archivo vac�o]`);
+						textParts.push(`\n[${att.name}: archivo vacío]`);
 					}
 				} catch {
 					textParts.push(`\n[No se pudo leer: ${att.name}]`);
 				}
 			} else if (att.type.startsWith("audio/")) {
-				// Audio ? metadata (la transcripci�n ya viene como text/plain aparte)
+				// Audio ? metadata (la transcripción ya viene como text/plain aparte)
 				textParts.push(`\n[Mensaje de audio: ${att.name}]`);
 			} else {
 				// Otros tipos (video, binarios, etc.) ? metadata
@@ -314,22 +285,22 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 		}
 
 		if (shouldUseMultiModal) {
-			// -- Caso multi-modal: texto + im�genes (solo modelos con visi�n) --
+			// -- Caso multi-modal: texto + imágenes (solo modelos con visión) --
 			const parts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
 
 			// Texto del usuario + documentos de texto como primer content part
-			let combinedText = userText || "�Qu� hay en esta imagen?";
+			let combinedText = userText || "¿Qué hay en esta imagen?";
 			if (textParts.length > 0) {
 				combinedText += `\n\n--- Documentos adjuntos ---${textParts.join("\n")}`;
 			}
 			parts.push({ type: "text", text: combinedText });
 
-			// Agregar todas las im�genes
+			// Agregar todas las imágenes
 			parts.push(...imageParts);
 
 			userContent = parts;
 		} else if (textParts.length > 0) {
-			// -- Solo texto (modelo sin visi�n o sin im�genes) --
+			// -- Solo texto (modelo sin visión o sin imágenes) --
 			userContent = `${userText || ""}\n\n--- Archivos adjuntos ---${textParts.join("\n")}`;
 		}
 	}
@@ -420,6 +391,7 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 				stream: true,
 				max_tokens: 4096,
 				temperature: generalTemperature,
+				...(opts.options || {}),
 			});
 
 			let fullContent = "";
@@ -610,7 +582,7 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 
 			onTyping?.(false);
 			return {
-				text: `Lo siento, encontr� un error al procesar tu solicitud:\n\n${errorMsg}`,
+				text: `Lo siento, encontré un error al procesar tu solicitud:\n\n${errorMsg}`,
 				model: modelConfig.model,
 				latencyMs: latency,
 			};
@@ -619,7 +591,7 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 
 	const latency = Date.now() - startTime;
 	finalContent =
-		finalContent || "He llegado al l�mite de iteraciones. Considera dividir la tarea en partes m�s peque�as.";
+		finalContent || "He llegado al límite de iteraciones. Considera dividir la tarea en partes más pequeñas.";
 	session.messages.push({ role: "assistant", content: finalContent });
 	onTyping?.(false);
 

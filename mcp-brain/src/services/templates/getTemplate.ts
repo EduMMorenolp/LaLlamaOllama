@@ -4,7 +4,9 @@ import type { Template, TemplateVariable } from "./types.js";
 function parseTemplate(row: Record<string, unknown>): Template {
 	return {
 		...row,
-		variables: JSON.parse((row.variables as string) || "[]") as TemplateVariable[],
+		variables: JSON.parse(
+			(row.variables as string) || "[]",
+		) as TemplateVariable[],
 		is_seed: Boolean(row.is_seed),
 	} as Template;
 }

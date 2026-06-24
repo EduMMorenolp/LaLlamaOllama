@@ -20,11 +20,26 @@ export async function updateTemplate(
 	const fields: string[] = [];
 	const params: unknown[] = [];
 
-	if (input.name !== undefined) { fields.push("name = ?"); params.push(input.name); }
-	if (input.description !== undefined) { fields.push("description = ?"); params.push(input.description); }
-	if (input.content !== undefined) { fields.push("content = ?"); params.push(input.content); }
-	if (input.variables !== undefined) { fields.push("variables = ?"); params.push(JSON.stringify(input.variables)); }
-	if (input.output_path !== undefined) { fields.push("output_path = ?"); params.push(input.output_path); }
+	if (input.name !== undefined) {
+		fields.push("name = ?");
+		params.push(input.name);
+	}
+	if (input.description !== undefined) {
+		fields.push("description = ?");
+		params.push(input.description);
+	}
+	if (input.content !== undefined) {
+		fields.push("content = ?");
+		params.push(input.content);
+	}
+	if (input.variables !== undefined) {
+		fields.push("variables = ?");
+		params.push(JSON.stringify(input.variables));
+	}
+	if (input.output_path !== undefined) {
+		fields.push("output_path = ?");
+		params.push(input.output_path);
+	}
 
 	if (fields.length === 0) return null;
 
@@ -43,7 +58,9 @@ export async function updateTemplate(
 	if (!row) return null;
 	return {
 		...row,
-		variables: JSON.parse((row.variables as string) || "[]") as TemplateVariable[],
+		variables: JSON.parse(
+			(row.variables as string) || "[]",
+		) as TemplateVariable[],
 		is_seed: Boolean(row.is_seed),
 	} as Template;
 }

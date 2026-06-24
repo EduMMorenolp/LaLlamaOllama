@@ -60,7 +60,10 @@ export class OllamaService {
 	private readonly sessionCache: Map<string, SessionMessage[]> = new Map();
 	private readonly modelDeletePending: Set<string> = new Set();
 	private io?: SocketServer;
-	private readonly pullStates: Map<string, { percent: number; status: string; lastUpdate: number }> = new Map();
+	private readonly pullStates: Map<
+		string,
+		{ percent: number; status: string; lastUpdate: number }
+	> = new Map();
 	private readonly startTime: number = Date.now();
 	private readonly httpAgent: http.Agent;
 	private readonly httpsAgent: https.Agent;
@@ -81,6 +84,9 @@ export class OllamaService {
 		fanSpeed: null,
 		gpuUtil: null,
 	};
+	private gpuUnavailable = false;
+	private cachedPsResult: { models: unknown[]; timestamp: number } | null = null;
+	private readonly psCacheTtl = 10_000; // 10 seconds
 
 	// --- Request Concurrency Control ---
 	private async enqueueRequest<T>(fn: () => Promise<T>): Promise<T> {
@@ -94,7 +100,9 @@ export class OllamaService {
 				// Process next queued request
 				const nextFn = this.requestQueue.shift();
 				if (nextFn) {
-					this.enqueueRequest(nextFn).catch((err: unknown) => log.error(err, "enqueueRequest error"));
+					this.enqueueRequest(nextFn).catch((err: unknown) =>
+						log.error(err, "enqueueRequest error"),
+					);
 				}
 			}
 		}
@@ -111,7 +119,9 @@ export class OllamaService {
 					this.activeRequests--;
 					const next = this.requestQueue.shift();
 					if (next) {
-						this.enqueueRequest(next).catch((err: unknown) => log.error(err, "enqueueRequest error"));
+						this.enqueueRequest(next).catch((err: unknown) =>
+							log.error(err, "enqueueRequest error"),
+						);
 					}
 				}
 			});
@@ -154,7 +164,7 @@ export class OllamaService {
 		});
 
 		// Create axios client with keep-alive
-		const axiosTimeout = parseInt(process.env.OLLAMA_TIMEOUT || "300000", 10);
+		const axiosTimeout = parseInt(process.env.LLM_TIMEOUT || process.env.OLLAMA_TIMEOUT || "600000", 10);
 		this.axiosClient = axios.create({
 			httpAgent: this.httpAgent,
 			httpsAgent: this.httpsAgent,
@@ -170,12 +180,15 @@ export class OllamaService {
 	public async checkConnection(): Promise<void> {
 		try {
 			await this.axiosClient.get(`${this.baseUrl}/api/tags`, { timeout: 3000 });
-			const cyan = "\x1b[36m";
-			const yellow = "\x1b[33m";
-			const green = "\x1b[32m";
-			const reset = "\x1b[0m";
+			const _cyan = "\x1b[36m";
+			const _yellow = "\x1b[33m";
+			const _green = "\x1b[32m";
+			const _reset = "\x1b[0m";
 
-			log.info({ host: this.baseUrl, mode: process.env.NODE_ENV || "development" }, "✅ Ollama Engine Connection Established");
+			log.info(
+				{ host: this.baseUrl, mode: process.env.NODE_ENV || "development" },
+				"✅ Ollama Engine Connection Established",
+			);
 		} catch (_error) {
 			log.error("❌ No se pudo conectar al motor Ollama local");
 		}
@@ -184,19 +197,27 @@ export class OllamaService {
 	// --- GPU Metrics Watcher (async, non-blocking) ---
 	private startGpuMetricsWatcher() {
 		setInterval(() => {
+			if (this.gpuUnavailable) return;
 			const cmd =
 				"nvidia-smi --query-gpu=memory.total,memory.used,memory.free,power.draw,temperature.gpu,fan.speed,utilization.gpu --format=csv,noheader,nounits";
-			const timeoutHandle = setTimeout(() => {}, 2000);
 			exec(cmd, (err: Error | null, stdout: string) => {
-				clearTimeout(timeoutHandle);
-				if (err) return;
+				if (err) {
+					this.gpuUnavailable = true;
+					log.warn("nvidia-smi no disponible, desactivando monitoreo GPU");
+					return;
+				}
 				try {
 					const parts = stdout
 						.trim()
 						.split(",")
 						.map((v: string) => parseFloat(v.trim()));
 					this.cachedGpuMetrics = {
-						vram: { total: parts[0], used: parts[1], free: parts[2], available: true },
+						vram: {
+							total: parts[0],
+							used: parts[1],
+							free: parts[2],
+							available: true,
+						},
 						powerDraw: Number.isNaN(parts[3]) ? null : parts[3],
 						temperature: Number.isNaN(parts[4]) ? null : parts[4],
 						fanSpeed: Number.isNaN(parts[5]) ? null : parts[5],
@@ -209,7 +230,7 @@ export class OllamaService {
 					// ignore parse errors
 				}
 			});
-		}, 3000);
+		}, 60_000);
 	}
 
 	// --- Auto-Unload Watcher ---
@@ -218,7 +239,10 @@ export class OllamaService {
 			if (this.autoUnloadMinutes <= 0) return;
 			const inactiveMins = (Date.now() - this.lastChatTime) / 60000;
 			if (inactiveMins >= this.autoUnloadMinutes) {
-				log.info({ inactiveMins: inactiveMins.toFixed(1) }, "auto-unload: liberando VRAM");
+				log.info(
+					{ inactiveMins: inactiveMins.toFixed(1) },
+					"auto-unload: liberando VRAM",
+				);
 				try {
 					await this.unloadModels();
 					if (this.io)
@@ -289,7 +313,12 @@ export class OllamaService {
 		}
 	}
 
-	trackTokenUsage(inputTokens: number, outputTokens: number, durationMs: number, powerWatts?: number | null) {
+	trackTokenUsage(
+		inputTokens: number,
+		outputTokens: number,
+		durationMs: number,
+		powerWatts?: number | null,
+	) {
 		this.stats.totalInputTokens += inputTokens || 0;
 		this.stats.totalOutputTokens += outputTokens || 0;
 		this.stats.totalInferenceMs += durationMs || 0;
@@ -333,14 +362,20 @@ export class OllamaService {
 		io.on("connection", (socket) => {
 			// Enviar estados actuales de descarga al nuevo cliente
 			this.pullStates.forEach((value, key) => {
-				socket.emit("pull-progress", { model: key, percent: value.percent, status: value.status });
+				socket.emit("pull-progress", {
+					model: key,
+					percent: value.percent,
+					status: value.status,
+				});
 			});
 		});
 	}
 
 	async showModel(model: string): Promise<Record<string, unknown>> {
 		try {
-			const response = await this.axiosClient.post(`${this.baseUrl}/api/show`, { name: model });
+			const response = await this.axiosClient.post(`${this.baseUrl}/api/show`, {
+				name: model,
+			});
 			return response.data;
 		} catch (error) {
 			log.error({ err: error, model }, "Failed to show model details");
@@ -350,7 +385,9 @@ export class OllamaService {
 
 	async listModels(): Promise<OllamaModel[]> {
 		try {
-			const response = await this.axiosClient.get(`${this.baseUrl}/api/tags`, { timeout: 2000 });
+			const response = await this.axiosClient.get(`${this.baseUrl}/api/tags`, {
+				timeout: 2000,
+			});
 			return response.data.models || [];
 		} catch {
 			return []; // Devolver vacío silenciosamente si el motor está apagado
@@ -361,24 +398,30 @@ export class OllamaService {
 		model: string,
 		prompt: string,
 		options: Record<string, unknown> = {},
-		keep_alive: string | number = "5m"
+		keep_alive: string | number = "5m",
 	): Promise<string> {
-		const response = await this.axiosClient.post(`${this.baseUrl}/api/generate`, {
-			model,
-			prompt,
-			options,
-			keep_alive,
-			stream: false,
-		});
+		const response = await this.axiosClient.post(
+			`${this.baseUrl}/api/generate`,
+			{
+				model,
+				prompt,
+				options,
+				keep_alive,
+				stream: false,
+			},
+		);
 		return response.data.response;
 	}
 
 	async embed(model: string, input: string | string[]): Promise<number[][]> {
 		try {
-			const response = await this.axiosClient.post(`${this.baseUrl}/api/embed`, {
-				model,
-				input,
-			});
+			const response = await this.axiosClient.post(
+				`${this.baseUrl}/api/embed`,
+				{
+					model,
+					input,
+				},
+			);
 			return response.data.embeddings || [];
 		} catch (error) {
 			log.error(error, "Error generating embeddings");
@@ -390,7 +433,9 @@ export class OllamaService {
 	 * Construye mensajes de sesión comprimiendo historial antiguo para ahorrar tokens.
 	 * Si hay >6 msgs en cache, resume los antiguos en un system msg y mantiene los últimos 5.
 	 */
-	private convertToOllamaMessages(messages: SessionMessage[]): SessionMessage[] {
+	private convertToOllamaMessages(
+		messages: SessionMessage[],
+	): SessionMessage[] {
 		const result: SessionMessage[] = [];
 
 		for (const msg of messages) {
@@ -405,16 +450,28 @@ export class OllamaService {
 							args = {};
 						}
 					}
-					return { function: { name: (fn as Record<string, unknown>).name, arguments: args ?? {} } };
+					return {
+						function: {
+							name: (fn as Record<string, unknown>).name,
+							arguments: args ?? {},
+						},
+					};
 				});
-				result.push({ role: "assistant", content: "", tool_calls: calls } as unknown as SessionMessage);
+				result.push({
+					role: "assistant",
+					content: "",
+					tool_calls: calls,
+				} as unknown as SessionMessage);
 			} else if (msg.role === "tool") {
 				const msgAny = msg as Record<string, unknown>;
 				const toolName =
-					msgAny.tool_name || msgAny.toolName || (typeof msgAny.name === "string" ? msgAny.name : undefined);
+					msgAny.tool_name ||
+					msgAny.toolName ||
+					(typeof msgAny.name === "string" ? msgAny.name : undefined);
 				const ollamaMsg: Record<string, unknown> = {
 					role: "tool",
-					content: msg.content && typeof msg.content === "string" ? msg.content : "",
+					content:
+						msg.content && typeof msg.content === "string" ? msg.content : "",
 				};
 				if (toolName) ollamaMsg.tool_name = toolName;
 				result.push(ollamaMsg as SessionMessage);
@@ -458,7 +515,10 @@ export class OllamaService {
 		return result;
 	}
 
-	private buildSessionMessages(messages: SessionMessage[], sessionId?: string): SessionMessage[] {
+	private buildSessionMessages(
+		messages: SessionMessage[],
+		sessionId?: string,
+	): SessionMessage[] {
 		if (!sessionId) return messages;
 		const cached = this.sessionCache.get(sessionId) || [];
 		if (messages.length !== 1 || cached.length === 0) return messages;
@@ -468,9 +528,14 @@ export class OllamaService {
 			// Resumir mensajes antiguos en un system message
 			const keep = cached.slice(-5);
 			const lastContent = cached[cached.length - 1]?.content;
-const lastTopic = typeof lastContent === "string" ? lastContent.substring(0, 80) : "";
-const summary = `[Historial: ${cached.length - 5} mensajes anteriores resumidos. Último tema: "${lastTopic}"]`;
-			finalMessages = [{ role: "system", content: summary }, ...keep, ...messages];
+			const lastTopic =
+				typeof lastContent === "string" ? lastContent.substring(0, 80) : "";
+			const summary = `[Historial: ${cached.length - 5} mensajes anteriores resumidos. Último tema: "${lastTopic}"]`;
+			finalMessages = [
+				{ role: "system", content: summary },
+				...keep,
+				...messages,
+			];
 		} else {
 			finalMessages = [...cached, ...messages];
 		}
@@ -489,14 +554,19 @@ const summary = `[Historial: ${cached.length - 5} mensajes anteriores resumidos.
 		options: Record<string, unknown>,
 		keepAlive: string | number,
 		stream: boolean,
-		tools?: Record<string, unknown>[]
+		tools?: Record<string, unknown>[],
 	): Record<string, unknown> {
-		const body: Record<string, unknown> = { model, messages: this.convertToOllamaMessages(messages), stream };
+		const body: Record<string, unknown> = {
+			model,
+			messages: this.convertToOllamaMessages(messages),
+			stream,
+		};
 		if (tools && Array.isArray(tools) && tools.length > 0) {
 			body.tools = tools;
 		}
 		const mergedOptions = { ...options };
-		if (options.num_ctx === undefined) mergedOptions.num_ctx = this.globalNumCtx;
+		if (options.num_ctx === undefined)
+			mergedOptions.num_ctx = this.globalNumCtx;
 		if (Object.keys(mergedOptions).length > 0) body.options = mergedOptions;
 		if (keepAlive !== "5m") body.keep_alive = keepAlive;
 		return body;
@@ -508,7 +578,7 @@ const summary = `[Historial: ${cached.length - 5} mensajes anteriores resumidos.
 		options: Record<string, unknown> = {},
 		keep_alive: string | number = "5m",
 		sessionId?: string,
-		tools?: Record<string, unknown>[]
+		tools?: Record<string, unknown>[],
 	): Promise<ChatResponse> {
 		return this.enqueueRequest(async () => {
 			const finalMessages = this.buildSessionMessages(messages, sessionId);
@@ -518,7 +588,14 @@ const summary = `[Historial: ${cached.length - 5} mensajes anteriores resumidos.
 
 			const response = await this.axiosClient.post(
 				`${this.baseUrl}/api/chat`,
-				this.buildOllamaBody(model, finalMessages, options, keep_alive, false, tools)
+				this.buildOllamaBody(
+					model,
+					finalMessages,
+					options,
+					keep_alive,
+					false,
+					tools,
+				),
 			);
 
 			const durationMs = Date.now() - startMs;
@@ -542,17 +619,27 @@ const summary = `[Historial: ${cached.length - 5} mensajes anteriores resumidos.
 		options: Record<string, unknown> = {},
 		keep_alive: string | number = "5m",
 		sessionId?: string,
-		tools?: Record<string, unknown>[]
+		tools?: Record<string, unknown>[],
 	): Promise<{ data: import("stream").Readable }> {
 		return this.enqueueRequest(async () => {
 			const finalMessages = this.buildSessionMessages(messages, sessionId);
 			this.lastChatTime = Date.now();
-			log.agent({ model, msgCount: messages.length, sessionId }, "LLM stream call");
+			log.agent(
+				{ model, msgCount: messages.length, sessionId },
+				"LLM stream call",
+			);
 
 			return this.axiosClient.post(
 				`${this.baseUrl}/api/chat`,
-				this.buildOllamaBody(model, finalMessages, options, keep_alive, true, tools),
-				{ responseType: "stream" }
+				this.buildOllamaBody(
+					model,
+					finalMessages,
+					options,
+					keep_alive,
+					true,
+					tools,
+				),
+				{ responseType: "stream" },
 			);
 		});
 	}
@@ -570,11 +657,14 @@ const summary = `[Historial: ${cached.length - 5} mensajes anteriores resumidos.
 	}
 
 	async pullModel(model: string): Promise<void> {
-		const status = (await this.getServerStatus()) as { diskSpace?: { free: number } };
+		const status = (await this.getServerStatus()) as {
+			diskSpace?: { free: number };
+		};
 		const diskFree = status.diskSpace?.free ?? 0;
 		if (diskFree < 2) {
 			const msg = `Espacio insuficiente para descargar ${model}. Libres: ${diskFree.toFixed(2)}GB`;
-			if (this.io) this.io.emit("security-alert", { type: "error", message: msg });
+			if (this.io)
+				this.io.emit("security-alert", { type: "error", message: msg });
 			throw new Error(msg);
 		}
 
@@ -585,7 +675,7 @@ const summary = `[Historial: ${cached.length - 5} mensajes anteriores resumidos.
 					name: model,
 					stream: true,
 				},
-				{ responseType: "stream" }
+				{ responseType: "stream" },
 			);
 
 			let buffer = "";
@@ -599,20 +689,44 @@ const summary = `[Historial: ${cached.length - 5} mensajes anteriores resumidos.
 					try {
 						const update = JSON.parse(line);
 						if (update.status === "downloading" && update.total) {
-							const percent = Math.round((update.completed / update.total) * 100);
+							const percent = Math.round(
+								(update.completed / update.total) * 100,
+							);
 							const prevState = this.pullStates.get(model);
 							const now = Date.now();
 							// Emitir si el porcentaje avanzó o pasaron más de 2 segundos
-							if (!prevState || percent >= prevState.percent + 1 || now - prevState.lastUpdate > 2000) {
-								this.pullStates.set(model, { percent, status: update.status, lastUpdate: now });
-								if (this.io) this.io.emit("pull-progress", { model, percent, status: update.status });
+							if (
+								!prevState ||
+								percent >= prevState.percent + 1 ||
+								now - prevState.lastUpdate > 2000
+							) {
+								this.pullStates.set(model, {
+									percent,
+									status: update.status,
+									lastUpdate: now,
+								});
+								if (this.io)
+									this.io.emit("pull-progress", {
+										model,
+										percent,
+										status: update.status,
+									});
 							}
 						} else if (update.status === "success") {
 							this.pullStates.delete(model);
 							if (this.io) {
-								this.io.emit("pull-progress", { model, percent: 100, status: "completed" });
+								this.io.emit("pull-progress", {
+									model,
+									percent: 100,
+									status: "completed",
+								});
 								setTimeout(() => {
-									if (this.io) this.io.emit("pull-progress", { model, percent: 100, status: "done" });
+									if (this.io)
+										this.io.emit("pull-progress", {
+											model,
+											percent: 100,
+											status: "done",
+										});
 								}, 1500);
 							}
 						}
@@ -624,7 +738,10 @@ const summary = `[Historial: ${cached.length - 5} mensajes anteriores resumidos.
 		} catch (e: unknown) {
 			const message = e instanceof Error ? e.message : String(e);
 			if (this.io)
-				this.io.emit("security-alert", { type: "error", message: `Fallo al descargar ${model}: ${message}` });
+				this.io.emit("security-alert", {
+					type: "error",
+					message: `Fallo al descargar ${model}: ${message}`,
+				});
 			throw e;
 		}
 	}
@@ -692,7 +809,7 @@ const summary = `[Historial: ${cached.length - 5} mensajes anteriores resumidos.
 		if (this.modelDeletePending.size > 0) {
 			const pendingModels = Array.from(this.modelDeletePending).join(", ");
 			throw new Error(
-				`Cannot clean workspace: ${this.modelDeletePending.size} model(s) deletion in progress: ${pendingModels}`
+				`Cannot clean workspace: ${this.modelDeletePending.size} model(s) deletion in progress: ${pendingModels}`,
 			);
 		}
 
@@ -763,16 +880,23 @@ const summary = `[Historial: ${cached.length - 5} mensajes anteriores resumidos.
 
 		let ngrokInfo = { url: null as string | null, latency: 0, active: false };
 		try {
-			const ngrokResponse = await this.axiosClient.get("http://mcp-ngrok-tunnel:4040/api/tunnels", {
-				timeout: 2000,
-			});
+			const ngrokResponse = await this.axiosClient.get(
+				"http://mcp-ngrok-tunnel:4040/api/tunnels",
+				{
+					timeout: 2000,
+				},
+			);
 			const tunnel = ngrokResponse.data.tunnels[0];
 			if (tunnel) {
 				ngrokInfo = { url: tunnel.public_url, latency: 0, active: true };
 			}
 		} catch (e: unknown) {
 			const err = e as { code?: string; message?: string };
-			if (err?.code !== "ENOTFOUND" && err?.code !== "ECONNREFUSED" && err?.code !== "ETIMEDOUT") {
+			if (
+				err?.code !== "ENOTFOUND" &&
+				err?.code !== "ECONNREFUSED" &&
+				err?.code !== "ETIMEDOUT"
+			) {
 				log.warn({ err }, "ngrok error inesperado");
 			}
 		}
@@ -827,12 +951,21 @@ const summary = `[Historial: ${cached.length - 5} mensajes anteriores resumidos.
 
 		let loadedModels = [];
 		let ollamaRunning = false;
-		try {
-			const psResponse = await this.axiosClient.get(`${this.baseUrl}/api/ps`, { timeout: 3000 });
-			loadedModels = psResponse.data.models || [];
+		const now = Date.now();
+		if (this.cachedPsResult && now - this.cachedPsResult.timestamp < this.psCacheTtl) {
+			loadedModels = this.cachedPsResult.models;
 			ollamaRunning = true;
-		} catch {
-			ollamaRunning = false;
+		} else {
+			try {
+				const psResponse = await this.axiosClient.get(`${this.baseUrl}/api/ps`, {
+					timeout: 3000,
+				});
+				loadedModels = psResponse.data.models || [];
+				ollamaRunning = true;
+				this.cachedPsResult = { models: loadedModels, timestamp: now };
+			} catch {
+				ollamaRunning = false;
+			}
 		}
 
 		const gpu = this.getGpuMetrics();

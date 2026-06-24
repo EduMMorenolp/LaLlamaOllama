@@ -5,11 +5,9 @@ mode: subagent
 permission:
   read:
     "backend/**": "allow"
-    "agent-engine/**": "allow"
     "*": "deny"
   edit:
     "backend/**": "allow"
-    "agent-engine/**": "allow"
     "*": "deny"
   glob: "allow"
   grep: "allow"

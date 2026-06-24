@@ -1,0 +1,14 @@
+﻿{
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"preset": "recommended",
+			"complexity": { "noBannedTypes": "off" }
+		}
+	},
+	"formatter": { "enabled": true, "indentStyle": "tab", "indentWidth": 2 },
+	"javascript": {
+		"formatter": { "quoteStyle": "double", "semicolons": "always" }
+	},
+	"files": { "includes": ["**/src/**", "!**/node_modules", "!**/dist"] }
+}

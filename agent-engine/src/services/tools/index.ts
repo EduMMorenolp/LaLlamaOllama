@@ -1,6 +1,7 @@
 ﻿import type { BrainClient } from "../brain/client.js";
 import { registerBashTool } from "./bash.js";
 import { registerCalcTool } from "./calc.js";
+import { registerContextTools } from "./context-tools.js";
 import { registerDelegateTool } from "./delegate.js";
 import { registerEvolutivoTools } from "./evolutivo/index.js";
 import { registerGlobTool } from "./glob-search.js";
@@ -31,8 +32,8 @@ export function registerAllTools(brain: BrainClient): void {
 	registerReadUrlTool();
 	registerDelegateTool();
 	registerMemoryTools(brain);
+	registerContextTools(brain);
 
-	// Nuevas tools
 	registerWeatherTool();
 	registerWebSearchTool();
 	registerCalcTool();
@@ -43,7 +44,6 @@ export function registerAllTools(brain: BrainClient): void {
 	registerKnowledgeSearchTool();
 
 	// Modo Evolutivo meta-tools
-		// Task tools
 	registerCreateTaskTool();
 	registerCancelTaskTool();
 	registerScheduleTaskTool();
