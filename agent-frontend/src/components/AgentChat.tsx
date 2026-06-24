@@ -163,6 +163,7 @@ export const AgentChat: React.FC = () => {
 				}
 
 				const text = msg.payload?.text as string;
+				if (!text || !text.trim()) break;
 				if (chatId === currentChatId || !currentChatId) {
 					setMessages((prev) => {
 						const last = prev[prev.length - 1];
@@ -792,8 +793,8 @@ export const AgentChat: React.FC = () => {
 	const filteredMessageIndices = chatSearchQuery
 		? messages
 				.map((msg, i) => ({ msg, i }))
-				.filter(({ msg }) => msg.content.toLowerCase().includes(chatSearchQuery.toLowerCase()))
-		: messages.map((msg, i) => ({ msg, i }));
+				.filter(({ msg }) => msg.content.trim() && msg.content.toLowerCase().includes(chatSearchQuery.toLowerCase()))
+		: messages.map((msg, i) => ({ msg, i })).filter(({ msg }) => msg.content.trim());
 
 	const filteredCount = filteredMessageIndices.length;
 
