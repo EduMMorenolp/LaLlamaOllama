@@ -11,9 +11,10 @@ const CAPABILITY_MAP: Record<string, string> = {
 	tools: "tools",
 	thinking: "thinking",
 	audio: "audio",
+	video: "video",
 };
 
-const CAPABILITY_ORDER = ["vision", "thinking", "tools", "audio", "text"];
+const CAPABILITY_ORDER = ["vision", "thinking", "video", "tools", "audio", "text"];
 
 export class ModelCapabilitiesService {
 	private cache = new Map<string, CacheEntry>();
@@ -38,27 +39,36 @@ export class ModelCapabilitiesService {
 				if (mapped) caps.add(mapped);
 			}
 		} catch {
-			const name = modelName.toLowerCase();
+			// fallback
+		}
 
-			if (/vision|llava|moondream|paligemma|cogvlm|minicpm-v|internvl/.test(name)) {
-				caps.add("vision");
-			}
-			if (/deepseek-r1|qwq|r1-distill/.test(name)) {
-				caps.add("thinking");
-			}
-			if (/whisper|bark/.test(name)) {
-				caps.add("audio");
-			}
+		const name = modelName.toLowerCase();
 
-			const TOOL_FAMILIES = [
-				"qwen2.5", "qwen3", "llama3.1", "llama3.2", "llama3.3",
-				"mistral", "mixtral", "phi-4", "phi4",
-				"command-r", "deepseek-v2", "deepseek-v3",
-				"dbrx", "nemotron", "hermes", "functionary",
-			];
-			if (TOOL_FAMILIES.some((f) => name.includes(f))) {
-				caps.add("tools");
-			}
+		// Vision — from Ollama or name
+		if (/vision|llava|moondream|paligemma|cogvlm|minicpm-v|internvl/.test(name)) {
+			caps.add("vision");
+		}
+		// Thinking
+		if (/deepseek-r1|qwq|r1-distill/.test(name)) {
+			caps.add("thinking");
+		}
+		// Audio
+		if (/whisper|bark/.test(name)) {
+			caps.add("audio");
+		}
+		// Video — Qwen3.5 y otros modelos multimodales con soporte de video
+		if (/qwen3\.5/.test(name) || /minicpm-v|internvl/.test(name)) {
+			caps.add("video");
+		}
+		// Tools
+		const TOOL_FAMILIES = [
+			"qwen2.5", "qwen3", "llama3.1", "llama3.2", "llama3.3",
+			"mistral", "mixtral", "phi-4", "phi4",
+			"command-r", "deepseek-v2", "deepseek-v3",
+			"dbrx", "nemotron", "hermes", "functionary",
+		];
+		if (TOOL_FAMILIES.some((f) => name.includes(f))) {
+			caps.add("tools");
 		}
 
 		caps.add("text");

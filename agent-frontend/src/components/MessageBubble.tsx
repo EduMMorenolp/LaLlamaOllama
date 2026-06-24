@@ -1,4 +1,5 @@
-import { Reply, Star, ThumbsDown, ThumbsUp } from "lucide-react";
+import { ChevronDown, ChevronRight, Reply, Star, ThumbsDown, ThumbsUp } from "lucide-react";
+import { useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { ChatMessage } from "../types/chat";
@@ -38,6 +39,31 @@ function extractImagesFromContent(content: string): string[] {
 	return images;
 }
 
+function parseThinkingContent(content: string): { thinking: string; response: string } {
+	const thinkRegex = /<think>([\s\S]*?)<\/think>/g;
+	const thinkingParts: string[] = [];
+	const responseParts: string[] = [];
+	let lastIndex = 0;
+	let match;
+
+	while ((match = thinkRegex.exec(content)) !== null) {
+		if (match.index > lastIndex) {
+			responseParts.push(content.slice(lastIndex, match.index));
+		}
+		thinkingParts.push(match[1].trim());
+		lastIndex = match.index + match[0].length;
+	}
+
+	if (lastIndex < content.length) {
+		responseParts.push(content.slice(lastIndex));
+	}
+
+	return {
+		thinking: thinkingParts.join("\n\n"),
+		response: responseParts.join("").trim(),
+	};
+}
+
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
 	message,
 	index,
@@ -51,6 +77,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 }) => {
 	const isUser = message.role === "user";
 	const isSystem = message.role === "system";
+	const [thinkOpen, setThinkOpen] = useState(false);
+	const { thinking, response: cleanContent } = parseThinkingContent(message.content);
+	const displayContent = cleanContent || message.content;
 
 	const images = extractImagesFromContent(message.content);
 
@@ -115,56 +144,104 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 				{isUser ? (
 					<div style={{ whiteSpace: "pre-wrap" }}>{message.content}</div>
 				) : (
-					<Markdown
-						remarkPlugins={[remarkGfm]}
-						components={{
-							code({ className, children, ...props }) {
-								const isInline = !className;
-								if (isInline) {
-									return (
-										<code
-											style={{
-												background: "rgba(255,255,255,0.05)",
-												padding: "2px 6px",
-												borderRadius: "3px",
-												fontSize: "12px",
-											}}
-											{...props}
-										>
-											{children}
-										</code>
-									);
-								}
-								return (
-									<pre
+					<>
+						{thinking && (
+							<div
+								style={{
+									marginBottom: displayContent ? "8px" : 0,
+									background: "rgba(52,211,153,0.04)",
+									border: "1px solid rgba(52,211,153,0.12)",
+									borderRadius: "8px",
+									overflow: "hidden",
+								}}
+							>
+								<div
+									onClick={() => setThinkOpen(!thinkOpen)}
+									style={{
+										display: "flex",
+										alignItems: "center",
+										gap: "6px",
+										padding: "6px 10px",
+										fontSize: "11px",
+										fontWeight: 700,
+										color: "#34d399",
+										cursor: "pointer",
+										userSelect: "none",
+									}}
+								>
+									{thinkOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+									🧠 Razonamiento
+								</div>
+								{thinkOpen && (
+									<div
 										style={{
-											background: "rgba(0,0,0,0.3)",
-											padding: "12px",
-											borderRadius: "8px",
-											overflow: "auto",
-											fontSize: "12px",
+											padding: "0 10px 8px",
+											fontSize: "11px",
+											lineHeight: 1.6,
+											color: "var(--text-dim)",
+											whiteSpace: "pre-wrap",
 										}}
 									>
-										<code {...props}>{children}</code>
-									</pre>
-								);
-							},
-							a({ href, children }) {
-								return (
-									<a
-										href={href}
-										target="_blank"
-										rel="noopener noreferrer"
-										style={{ color: "var(--accent)" }}
-									>
-										{children}
-									</a>
-								);
-							},
-						}}
-					>
-						{message.content}
-					</Markdown>
+										{thinking}
+									</div>
+								)}
+							</div>
+						)}
+						{displayContent ? (
+							<Markdown
+								remarkPlugins={[remarkGfm]}
+								components={{
+									code({ className, children, ...props }) {
+										const isInline = !className;
+										if (isInline) {
+											return (
+												<code
+													style={{
+														background: "rgba(255,255,255,0.05)",
+														padding: "2px 6px",
+														borderRadius: "3px",
+														fontSize: "12px",
+													}}
+													{...props}
+												>
+													{children}
+												</code>
+											);
+										}
+										return (
+											<pre
+												style={{
+													background: "rgba(0,0,0,0.3)",
+													padding: "12px",
+													borderRadius: "8px",
+													overflow: "auto",
+													fontSize: "12px",
+												}}
+											>
+												<code {...props}>{children}</code>
+											</pre>
+										);
+									},
+									a({ href, children }) {
+										return (
+											<a
+												href={href}
+												target="_blank"
+												rel="noopener noreferrer"
+												style={{ color: "var(--accent)" }}
+											>
+												{children}
+											</a>
+										);
+									},
+								}}
+							>
+								{displayContent}
+							</Markdown>
+						) : thinking ? null : (
+							message.content
+						)}
+					</>
 				)}
 				{images.length > 0 && (
 					<div style={{ marginTop: "8px", display: "flex", flexDirection: "column", gap: "6px" }}>

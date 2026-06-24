@@ -21,6 +21,7 @@ import type { OllamaModel, PullProgressData } from "../types/api";
 const CAPABILITY_STYLES: Record<string, { color: string; bg: string; icon: string }> = {
 	vision:    { color: "#a78bfa", bg: "rgba(167,139,250,0.12)", icon: "👁" },
 	thinking:  { color: "#34d399", bg: "rgba(52,211,153,0.12)", icon: "🧠" },
+	video:     { color: "#f97316", bg: "rgba(249,115,22,0.12)",  icon: "🎬" },
 	tools:     { color: "#fbbf24", bg: "rgba(251,191,36,0.12)",  icon: "🔧" },
 	audio:     { color: "#f472b6", bg: "rgba(244,114,182,0.12)", icon: "🎤" },
 	text:      { color: "#94a3b8", bg: "rgba(148,163,184,0.12)", icon: "📝" },
