@@ -44,6 +44,7 @@ export interface OllamaModel {
 		parameter_size?: string;
 		quantization_level?: string;
 	};
+	capabilities?: string[];
 	[key: string]: any;
 }
 
