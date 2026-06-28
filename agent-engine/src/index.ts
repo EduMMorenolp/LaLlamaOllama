@@ -26,7 +26,7 @@ async function bootstrap() {
 	// 2. Load configuration
 	const config = loadConfig();
 	logger.info(`[Config] Port: ${config.enginePort}`);
-	logger.info(`[Config] Backend: ${config.backendUrl}`);
+	logger.info(`[Config] Ollama: ${config.ollamaUrl}`);
 	logger.info(`[Config] Brain: ${config.brainUrl}`);
 	logger.info(`[Config] Model: ${config.defaultModel}`);
 

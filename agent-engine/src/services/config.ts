@@ -5,6 +5,7 @@ export interface AppConfig {
 	backendUrl: string;
 	brainUrl: string;
 	redisUrl: string;
+	ollamaUrl: string;
 	apiKey: string;
 	defaultModel: string;
 	llmTimeout: number;
@@ -24,6 +25,7 @@ export function loadConfig(): AppConfig {
 		backendUrl: process.env.BACKEND_URL || "http://localhost:3016",
 		brainUrl: process.env.BRAIN_URL || "http://localhost:3015",
 		redisUrl: process.env.REDIS_URL || "redis://localhost:6379",
+		ollamaUrl: process.env.OLLAMA_URL || "http://localhost:11434",
 		apiKey: process.env.API_KEY!,
 		defaultModel: process.env.DEFAULT_MODEL || "llama3.2:3b",
 		llmTimeout: parseInt(process.env.LLM_TIMEOUT || "600000", 10),

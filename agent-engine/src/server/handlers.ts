@@ -166,11 +166,10 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 
 				// Ollama models
 				case "list_ollama_models": {
-					const backendUrl = config.backendUrl;
+					const ollamaUrl = config.ollamaUrl;
 					axios
-						.get(backendUrl + "/api/models", {
+						.get(ollamaUrl + "/api/tags", {
 							timeout: 3000,
-							headers: { "X-API-Key": config.apiKey },
 						})
 						.then((response) => {
 							const models = response.data?.models || [];

@@ -164,7 +164,7 @@ services:
       - "3021:3021"
     environment:
       - ENGINE_PORT=${ENGINE_PORT:-3020}
-      - BACKEND_URL=http://backend:3016
+      - OLLAMA_URL=http://ollama:11434
       - BRAIN_URL=http://brain:3015
       - REDIS_URL=redis://:${REDIS_PASSWORD:-lallamaollama2026}@redis:6379
       - API_KEY=${API_KEY:-McPOllama2026-V1-Home}
@@ -181,7 +181,6 @@ services:
       - ./:/workspace
       - ./data:/data
     depends_on:
-      - backend
       - mcp-brain
       - redis
     networks:

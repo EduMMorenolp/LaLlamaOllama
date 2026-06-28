@@ -38,20 +38,18 @@ export function getDefaultModelConfig(env: AppConfig): ModelConfig {
 	return {
 		provider: "ollama",
 		model: env.defaultModel,
-		baseUrl: `${env.backendUrl}/v1`,
-		apiKey: env.apiKey,
+		baseUrl: `${env.ollamaUrl}/v1`,
+		apiKey: "ollama",
 		timeout: env.llmTimeout,
 	};
 }
 
 export async function listModels(env: AppConfig): Promise<string[]> {
 	try {
-		const res = await fetch(`${env.backendUrl}/api/models`, {
-			headers: { "x-api-key": env.apiKey },
-		});
+		const res = await fetch(`${env.ollamaUrl}/api/tags`);
 		if (!res.ok) return [env.defaultModel];
 		const data = (await res.json()) as { models?: Array<{ name: string }> };
-		return data.models?.map((m) => m.name) || [env.defaultModel];
+		return data.models?.map((m: any) => m.name) || [env.defaultModel];
 	} catch {
 		return [env.defaultModel];
 	}
