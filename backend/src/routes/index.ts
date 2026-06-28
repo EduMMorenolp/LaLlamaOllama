@@ -1,5 +1,6 @@
 import type { RequestHandler, Router } from "express";
 import type { AuthService } from "../auth/auth.service.js";
+import { ModelCapabilitiesService } from "../ollama/model-capabilities.service.js";
 import type { OllamaService } from "../ollama/ollama.service.js";
 import { MCP_TOOL_CATALOG } from "../ollama/ollama.tools.js";
 import { DockerContainerRepository } from "../repositories/docker-container.repository.js";
@@ -166,7 +167,8 @@ export function createAllRoutes(
 	);
 
 	// --- Models ---
-	const listModels = new ListModelsUseCase(ollamaService);
+	const modelCapabilities = new ModelCapabilitiesService(ollamaService);
+	const listModels = new ListModelsUseCase(ollamaService, modelCapabilities);
 	const listModelsOpenAi = new ListModelsOpenAiUseCase(ollamaService);
 	const pullModel = new PullModelUseCase(ollamaService);
 	const unloadModels = new UnloadModelsUseCase(ollamaService);

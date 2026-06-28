@@ -343,9 +343,6 @@ Puedes obtener información adicional bajo demanda usando estas herramientas:
 		},
 	}));
 
-	// Determine if this is a subsequent turn (existing history beyond current user message)
-	let isNewTurn = session.messages.length > 2;
-
 	let finalContent = "";
 	const totalUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 	const maxIterations = 10;
@@ -377,15 +374,13 @@ Puedes obtener información adicional bajo demanda usando estas herramientas:
 			logger.agent(`[${chatId}] Context compacted to ${session.messages.length} messages (${totalChars} chars, ~${Math.ceil(totalChars / 4)} est. tokens, summary: ${session.summary?.length || 0} chars)`);
 		}
 
-		const messagesForLLM = (isNewTurn && iteration === 0)
-			? [session.messages[session.messages.length - 1]]
-			: session.messages;
+		const messagesForLLM = session.messages;
 
 		try {
 			const stream = await client.chat.completions.create({
 				model: modelConfig.model,
 				messages: messagesForLLM,
-				user: (isNewTurn && iteration === 0) ? chatId : undefined,
+				user: chatId,
 				tools: openAiTools.length > 0 ? openAiTools : undefined,
 				tool_choice: "auto",
 				stream: true,
@@ -442,11 +437,6 @@ Puedes obtener información adicional bajo demanda usando estas herramientas:
 					totalUsage.completionTokens += chunk.usage.completion_tokens || 0;
 					totalUsage.totalTokens += chunk.usage.total_tokens || 0;
 				}
-			}
-
-			// After first iteration, restore full context for tool call handling
-			if (isNewTurn && iteration === 0) {
-				isNewTurn = false;
 			}
 
 			// After streaming: determine if tool calls or content
@@ -510,8 +500,10 @@ Puedes obtener información adicional bajo demanda usando estas herramientas:
 				continue;
 			}
 
-			finalContent = fullContent;
-			session.messages.push({ role: "assistant", content: finalContent });
+			finalContent = fullContent || "He procesado tu solicitud usando las herramientas disponibles.";
+			if (finalContent.trim()) {
+				session.messages.push({ role: "assistant", content: finalContent });
+			}
 
 			if (session.messages.length > 60) {
 				const systemMsg = session.messages[0];
