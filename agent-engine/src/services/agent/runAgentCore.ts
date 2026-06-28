@@ -7,6 +7,8 @@ import { toolRegistry } from "../tools/registry.js";
 import type { ToolSpec as RegistryToolSpec } from "../tools/types.js";
 import { buildSystemPrompt } from "./buildPrompt.js";
 import { createClient, getDefaultModelConfig } from "./createClient.js";
+import { SkillsService } from "../skills/service.js";
+import type { SkillProposal } from "../skills/types.js";
 import { summarizeMessages } from "./sessionSummary.js";
 import { afterResponseLearning } from "./userLearning.js";
 import type { AgentOptions, AgentResult, SessionState } from "./types.js";
@@ -168,6 +170,26 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 		if (enabledTools.length > 0) {
 			const toolList = enabledTools.map((t) => `- ${t.function.name}`).join("\n");
 			assembly.push(`<available_tools>\nHerramientas disponibles:\n${toolList}\n</available_tools>`);
+		}
+
+		// Skills injection (procedural memory)
+		try {
+			const skillsService = new SkillsService(config.workspaceDir);
+			const skills = skillsService.list();
+			if (skills.length > 0) {
+				const skillLines = skills.map(
+					(s) => `- **${s.name}**: ${s.description} (v${s.version})`
+				);
+				assembly.push(`<skills_disponibles>
+Tienes las siguientes skills procedurales almacenadas. Úsalas como guía para tareas recurrentes:
+${skillLines.join("\n")}
+
+Para ver el contenido completo de una skill, usa \`skill_view\`.
+Para crear o actualizar skills, usa \`skill_manage\`.
+</skills_disponibles>`);
+			}
+		} catch {
+			// skills system is optional
 		}
 
 		assembly.push(`<info_contextual>
@@ -346,6 +368,7 @@ Puedes obtener información adicional bajo demanda usando estas herramientas:
 	let finalContent = "";
 	const totalUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 	const maxIterations = 10;
+	let totalToolCalls = 0;
 
 	for (let iteration = 0; iteration < maxIterations; iteration++) {
 		logger.agent(`[${chatId}] LLM call #${iteration + 1} (model: ${modelConfig.model})`);
@@ -468,6 +491,7 @@ Puedes obtener información adicional bajo demanda usando estas herramientas:
 						args = {};
 					}
 
+					totalToolCalls++;
 					onToolCall?.(toolName, args);
 					onStatus?.(`?? Usando herramienta: ${toolName}`);
 					logger.tool(`[${chatId}] Tool call: ${toolName}`, args);
@@ -540,6 +564,31 @@ Puedes obtener información adicional bajo demanda usando estas herramientas:
 			onTyping?.(false);
 			logger.agent(`[${chatId}] Response complete (${latency}ms)`);
 
+			// Auto-propose skill if complex task (3+ tool calls)
+			if (totalToolCalls >= 3) {
+				try {
+					const skillsService = new SkillsService(config.workspaceDir);
+					const summary = (finalContent || "").substring(0, 500);
+					const proposal: SkillProposal = {
+						metadata: {
+							name: `auto-task-${Date.now().toString(36)}`,
+							description: `Procedimiento auto-generado para tarea con ${totalToolCalls} pasos`,
+							version: "1.0.0",
+							category: "auto-generated",
+							tags: ["auto-generated", `tools:${totalToolCalls}`],
+							created_at: new Date().toISOString(),
+						},
+						content: `## Procedimiento automático\n\nEsta tarea requirió ${totalToolCalls} herramientas.\n\n### Resumen de la conversación\n${summary}\n\n> Propuesta generada automáticamente. Revisa y edita antes de usar.`,
+						sourceRunId: chatId,
+						createdAt: new Date().toISOString(),
+					};
+					skillsService.createProposal(proposal);
+					logger.agent(`[${chatId}] Auto-created skill proposal (${totalToolCalls} tool calls)`);
+				} catch {
+					// auto-proposal is optional
+				}
+			}
+
 			afterResponseLearning(userId, userText, finalContent, brain).catch(() => {});
 			// Trigger summarization on brain if session has too many messages
 			if (session.messages.length > 15) {
@@ -610,6 +659,31 @@ Puedes obtener información adicional bajo demanda usando estas herramientas:
 		// DB might not be available
 	}
 	brain.appendConversationMessage(chatId, "assistant", finalContent, totalUsage.completionTokens).catch(() => {});
+
+	// Auto-propose skill if complex task reached iteration limit
+	if (totalToolCalls >= 3) {
+		try {
+			const skillsService = new SkillsService(config.workspaceDir);
+			const summary = (finalContent || "").substring(0, 500);
+			const proposal: SkillProposal = {
+				metadata: {
+					name: `auto-task-${Date.now().toString(36)}`,
+					description: `Procedimiento con ${totalToolCalls} pasos (límite de iteraciones)`,
+					version: "1.0.0",
+					category: "auto-generated",
+					tags: ["auto-generated", `tools:${totalToolCalls}`],
+					created_at: new Date().toISOString(),
+				},
+				content: `## Procedimiento automático\n\nEsta tarea requirió ${totalToolCalls} herramientas y alcanzó el límite de iteraciones.\n\n### Resumen\n${summary}\n\n> Propuesta generada automáticamente. Revisa y edita antes de usar.`,
+				sourceRunId: chatId,
+				createdAt: new Date().toISOString(),
+			};
+			skillsService.createProposal(proposal);
+			logger.agent(`[${chatId}] Auto-created skill proposal at iteration limit (${totalToolCalls} tool calls)`);
+		} catch {
+			// auto-proposal is optional
+		}
+	}
 
 	afterResponseLearning(userId, userText, finalContent, brain).catch(() => {});
 	if (session.messages.length > 15) {

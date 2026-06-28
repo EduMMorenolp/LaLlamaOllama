@@ -67,7 +67,7 @@ async function bootstrap() {
 	initOrchestrator();
 
 	// 7. Register all tools (injected with brain dependency)
-	registerAllTools(brain);
+	registerAllTools(brain, config);
 	logger.info(`[Tools] ${toolRegistry.getToolNames().length} tools registered:`);
 	for (const name of toolRegistry.getToolNames()) {
 		logger.info(`  - ${name} (${toolRegistry.isEnabled(name) ? "enabled" : "disabled"})`);
