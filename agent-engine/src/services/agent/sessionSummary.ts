@@ -1,5 +1,7 @@
 import type OpenAI from "openai";
 import { logger } from "../../utils/logger.js";
+import type { AppConfig } from "../config.js";
+import { callOllamaChatSimple } from "./createOllamaClient.js";
 
 /**
  * Generate a concise summary of a list of conversation messages.
@@ -9,7 +11,8 @@ export async function summarizeMessages(
 	client: OpenAI,
 	model: string,
 	messages: Array<{ role: string; content: string }>,
-	maxTokens = 300
+	maxTokens = 300,
+	config?: AppConfig,
 ): Promise<string> {
 	if (messages.length === 0) return "";
 
@@ -27,15 +30,23 @@ ${messages.map((m) => `[${m.role.toUpperCase()}]: ${typeof m.content === "string
 
 Resumen:`;
 
+		const summaryMessages = [
+			{
+				role: "system" as const,
+				content: "Eres un extractor de resúmenes preciso y conciso. Generas resúmenes en español con bullets points. Máximo 300 tokens.",
+			},
+			{ role: "user" as const, content: summaryPrompt },
+		];
+
+		// Use native ollama API if config is provided (ollama provider)
+		if (config) {
+			const result = await callOllamaChatSimple(config, model, summaryMessages, [], { temperature: 0.3 });
+			return result.content.trim() || fallbackSummary(messages);
+		}
+
 		const res = await client.chat.completions.create({
 			model,
-			messages: [
-				{
-					role: "system",
-					content: "Eres un extractor de resúmenes preciso y conciso. Generas resúmenes en español con bullets points. Máximo 300 tokens.",
-				},
-				{ role: "user", content: summaryPrompt },
-			],
+			messages: summaryMessages,
 			max_tokens: maxTokens,
 			temperature: 0.3,
 		});

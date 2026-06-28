@@ -6,7 +6,8 @@ import { getMessages, saveMessage } from "../db/messages.js";
 import { toolRegistry } from "../tools/registry.js";
 import type { ToolSpec as RegistryToolSpec } from "../tools/types.js";
 import { buildSystemPrompt } from "./buildPrompt.js";
-import { createClient, getDefaultModelConfig } from "./createClient.js";
+import { createClient, getDefaultModelConfig, type ModelConfig } from "./createClient.js";
+import { callOllamaChat } from "./createOllamaClient.js";
 import { SkillsService } from "../skills/service.js";
 import type { SkillProposal } from "../skills/types.js";
 import { summarizeMessages } from "./sessionSummary.js";
@@ -383,7 +384,7 @@ Puedes obtener información adicional bajo demanda usando estas herramientas:
 			const recentMsgs = session.messages.slice(-11);
 			if (msgsToSummarize.length >= 4) {
 				try {
-					const newSummary = await summarizeMessages(client, modelConfig.model, msgsToSummarize as Array<{ role: string; content: string }>);
+					const newSummary = await summarizeMessages(client, modelConfig.model, msgsToSummarize as Array<{ role: string; content: string }>, 300, config);
 					session.summary = session.summary
 						? `${session.summary}\n\n${newSummary}`
 						: newSummary;
@@ -400,18 +401,6 @@ Puedes obtener información adicional bajo demanda usando estas herramientas:
 		const messagesForLLM = session.messages;
 
 		try {
-			const stream = await client.chat.completions.create({
-				model: modelConfig.model,
-				messages: messagesForLLM,
-				user: chatId,
-				tools: openAiTools.length > 0 ? openAiTools : undefined,
-				tool_choice: "auto",
-				stream: true,
-				max_tokens: 4096,
-				temperature: generalTemperature,
-				...(opts.options || {}),
-			});
-
 			let fullContent = "";
 			const toolCallDeltas: Array<{
 				index: number;
@@ -420,45 +409,85 @@ Puedes obtener información adicional bajo demanda usando estas herramientas:
 				function?: { name?: string; arguments?: string };
 			}> = [];
 
-			for await (const chunk of stream) {
-				const delta = chunk.choices[0]?.delta;
-				if (!delta) continue;
+			if (modelConfig.provider !== "ollama") {
+				const stream = await client.chat.completions.create({
+					model: modelConfig.model,
+					messages: messagesForLLM,
+					user: chatId,
+					tools: openAiTools.length > 0 ? openAiTools : undefined,
+					tool_choice: "auto",
+					stream: true,
+					max_tokens: 4096,
+					temperature: generalTemperature,
+					...(opts.options || {}),
+				});
 
-				// Content streaming
-				if (delta.content) {
-					fullContent += delta.content;
-					opts.onChunk?.(delta.content);
-				}
+				for await (const chunk of stream) {
+					const delta = chunk.choices[0]?.delta;
+					if (!delta) continue;
 
-				// Tool call accumulation from deltas
-				if (delta.tool_calls) {
-					for (const tc of delta.tool_calls) {
-						const idx = tc.index ?? 0;
-						if (!toolCallDeltas[idx]) {
-							toolCallDeltas[idx] = { index: idx, id: tc.id, type: tc.type, function: {} };
-						}
-						if (tc.id) toolCallDeltas[idx].id = tc.id;
-						if (tc.type) toolCallDeltas[idx].type = tc.type;
-						if (tc.function?.name) {
-							toolCallDeltas[idx].function = {
-								...toolCallDeltas[idx].function,
-								name: (toolCallDeltas[idx].function?.name || "") + tc.function.name,
-							};
-						}
-						if (tc.function?.arguments) {
-							toolCallDeltas[idx].function = {
-								...toolCallDeltas[idx].function,
-								arguments: (toolCallDeltas[idx].function?.arguments || "") + tc.function.arguments,
-							};
+					if (delta.content) {
+						fullContent += delta.content;
+						opts.onChunk?.(delta.content);
+					}
+
+					if (delta.tool_calls) {
+						for (const tc of delta.tool_calls) {
+							const idx = tc.index ?? 0;
+							if (!toolCallDeltas[idx]) {
+								toolCallDeltas[idx] = { index: idx, id: tc.id, type: tc.type, function: {} };
+							}
+							if (tc.id) toolCallDeltas[idx].id = tc.id;
+							if (tc.type) toolCallDeltas[idx].type = tc.type;
+							if (tc.function?.name) {
+								toolCallDeltas[idx].function = {
+									...toolCallDeltas[idx].function,
+									name: (toolCallDeltas[idx].function?.name || "") + tc.function.name,
+								};
+							}
+							if (tc.function?.arguments) {
+								toolCallDeltas[idx].function = {
+									...toolCallDeltas[idx].function,
+									arguments: (toolCallDeltas[idx].function?.arguments || "") + tc.function.arguments,
+								};
+							}
 						}
 					}
-				}
 
-				// Usage (last chunk)
-				if (chunk.usage) {
-					totalUsage.promptTokens += chunk.usage.prompt_tokens || 0;
-					totalUsage.completionTokens += chunk.usage.completion_tokens || 0;
-					totalUsage.totalTokens += chunk.usage.total_tokens || 0;
+					if (chunk.usage) {
+						totalUsage.promptTokens += chunk.usage.prompt_tokens || 0;
+						totalUsage.completionTokens += chunk.usage.completion_tokens || 0;
+						totalUsage.totalTokens += chunk.usage.total_tokens || 0;
+					}
+				}
+			} else {
+				const ollamaStream = await callOllamaChat(
+					config,
+					modelConfig.model,
+					messagesForLLM as Array<{ role: string; content: string }>,
+					openAiTools,
+					{ temperature: generalTemperature },
+				);
+
+				for await (const chunk of ollamaStream) {
+					if (chunk.content) {
+						fullContent += chunk.content;
+						opts.onChunk?.(chunk.content);
+					}
+
+					for (const tc of chunk.toolCalls) {
+						const existing = toolCallDeltas.find(d => d.function?.name === tc.function.name);
+						if (existing) {
+							existing.function!.arguments = (existing.function!.arguments || "") + tc.function.arguments;
+						} else {
+							toolCallDeltas.push({
+								index: toolCallDeltas.length,
+								id: tc.id,
+								type: tc.type,
+								function: { name: tc.function.name, arguments: tc.function.arguments },
+							});
+						}
+					}
 				}
 			}
 
