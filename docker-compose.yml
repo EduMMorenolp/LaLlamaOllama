@@ -123,24 +123,28 @@ services:
       - "${BRAIN_PORT:-3015}:${BRAIN_PORT:-3015}"
     environment:
       - BRAIN_PORT=${BRAIN_PORT:-3015}
-      - OLLAMA_API_URL=http://ollama:11434
-      - BACKEND_URL=http://backend:${APP_PORT:-3016}
-      - API_KEY=${API_KEY:-McPOllama2026-V1-Home}
     volumes:
-      # OPCIÓN A (Recomendada - Bind Mount al Host):
-      # Conecta la carpeta local de Windows './data' con '/app/data' dentro de Docker.
-      # Permite que el Dashboard y los agentes del IDE compartan exactamente el mismo archivo SQLite (lallama-memory.db).
       - ./data:/app/data
-
-      # OPCIÓN B (Aislada - Volumen Virtual de Docker):
-      # Si prefieres que la base de datos viva de forma completamente aislada dentro del motor de Docker
-      # (sin tocar tu disco en Windows), comenta la línea de arriba y descomenta la siguiente:
-      # - brain_data:/app/data
-    depends_on:
-      - ollama
+    depends_on: []
     networks:
       - mcp-network
     restart: unless-stopped
+  brain-frontend:
+    build:
+      context: ./brain-frontend
+      dockerfile: Dockerfile
+    container_name: brain-frontend
+    mem_limit: ${BRAIN_FRONTEND_MEM_LIMIT:-256m}
+    ports:
+      - "8082:80"
+    environment:
+      - VITE_BRAIN_URL=http://brain:3015
+    networks:
+      - mcp-network
+    depends_on:
+      - mcp-brain
+    restart: unless-stopped
+
   redis:
     image: redis:7-alpine
     container_name: agent-engine-redis
