@@ -10,6 +10,7 @@ const asistente: PromptDefinition = {
     "recall", "get_context", "memorize",
     "notify_frontend", "notify_telegram",
     "create_task", "schedule_task", "cancel_task",
+    "task_create", "task_list", "task_get", "task_update", "task_delete",
     "switch_mode",
   ],
   sections: {
