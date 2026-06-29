@@ -987,15 +987,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 					channelChats: listChannelChats(userId),
 				});
 
-				// Auto-save to brain if meaningful
-				if (result.text.length > 50) {
-					const title = "chat_" + chatId + "_" + text.substring(0, 60) + "...";
-					await brain.saveMemory(
-						"chat_" + chatId,
-						title,
-						"**User**: " + text + "\n\n**Agent**: " + result.text.substring(0, 2000)
-					);
-				}
+				// Auto-save to brain disabled — handled by runAgentCore to avoid duplicates
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err);
 				logger.error("[" + chatId + "] Agent error: " + msg);

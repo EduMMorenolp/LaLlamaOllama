@@ -379,6 +379,7 @@ Puedes obtener información adicional bajo demanda usando estas herramientas:
 	let totalToolCalls = 0;
 	let lastToolName = "";
 	let lastToolResult = "";
+	let memorySavedInThisRun = false;
 
 	for (let iteration = 0; iteration < maxIterations; iteration++) {
 		logger.agent(`[${chatId}] LLM call #${iteration + 1} (model: ${modelConfig.model})`);
@@ -546,6 +547,10 @@ Puedes obtener información adicional bajo demanda usando estas herramientas:
 					lastToolResult = result.substring(0, 500);
 					onToolResult?.(toolName, result);
 
+					if (toolName === "memorize" && !result.startsWith("Error")) {
+						memorySavedInThisRun = true;
+					}
+
 					// Index successful read_url results to Brain
 					if (toolName === "read_url" && !result.startsWith("Error")) {
 						const url = (args.url as string) || "";
@@ -648,8 +653,8 @@ Puedes obtener información adicional bajo demanda usando estas herramientas:
 				}
 			}
 
-			afterResponseLearning(userId, userText, finalContent, brain, config).catch(() => {});
-			if (session.messages.length > 5) {
+			setTimeout(() => afterResponseLearning(userId, userText, finalContent, brain, config).catch(() => {}), 0);
+			if (session.messages.length > 5 && !memorySavedInThisRun) {
 				brain.summarizeConversation(chatId).catch(() => {});
 				const summaryText = session.summary || `**Usuario**: ${userText.substring(0, 200)}\n\n**Agente**: ${finalContent.substring(0, 500)}`;
 				brain.saveMemory("conversation", `Chat: ${userText.substring(0, 60)}...`, summaryText, "auto-summary,conversation").catch(() => {});
@@ -759,8 +764,8 @@ Puedes obtener información adicional bajo demanda usando estas herramientas:
 		}
 	}
 
-	afterResponseLearning(userId, userText, finalContent, brain, config).catch(() => {});
-	if (session.messages.length > 5) {
+	setTimeout(() => afterResponseLearning(userId, userText, finalContent, brain, config).catch(() => {}), 0);
+	if (session.messages.length > 5 && !memorySavedInThisRun) {
 		brain.summarizeConversation(chatId).catch(() => {});
 		const summaryText = session.summary || `**Usuario**: ${userText.substring(0, 200)}\n\n**Agente**: ${finalContent.substring(0, 500)}`;
 		brain.saveMemory("conversation", `Chat: ${userText.substring(0, 60)}...`, summaryText, "auto-summary,conversation").catch(() => {});
