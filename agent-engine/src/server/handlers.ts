@@ -991,7 +991,7 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 				if (result.text.length > 50) {
 					const title = "Agent chat: " + text.substring(0, 60) + "...";
 					await brain.saveMemory(
-						"decision",
+						"chat",
 						title,
 						"**User**: " + text + "\n\n**Agent**: " + result.text.substring(0, 2000)
 					);
