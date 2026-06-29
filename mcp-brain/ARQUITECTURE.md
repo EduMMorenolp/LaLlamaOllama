@@ -1,3 +1,6 @@
+> **v3:** MCP Brain es completamente independiente. No requiere Ollama para embeddings
+> ni Backend para generación de texto. Todas las funciones LLM están desactivadas.
+
 # Arquitectura — MCP Brain
 
 ```
@@ -17,7 +20,7 @@ src/
 │   └── rest.ts               # Express REST API
 └── services/
     ├── llm/
-    │   └── embeddings.ts     # Embeddings vía Ollama
+    │   └── embeddings.ts     # Embeddings vía Ollama (desactivado en v3)
     ├── memories/
     │   ├── save.ts           # Guardar + detección de conflictos
     │   ├── search.ts         # Búsqueda híbrida
@@ -37,31 +40,31 @@ src/
 
 ### MCP Tool Call
 ```
-Cliente MCP → stdio/SSE → mcp.ts handler
-  → services/memories | analysis | audit
-  → SQLite WriteQueue → DB commit → response
+Cliente MCP ——> stdio/SSE ——> mcp.ts handler
+  ——> services/memories | analysis | audit
+  ——> SQLite WriteQueue ——> DB commit ——> response
 ```
 
 ### REST API
 ```
-HTTP Request → rest.ts → services → JSON Response
+HTTP Request ——> rest.ts ——> services ——> JSON Response
 ```
 
 ## Transportes
 
 - **stdio**: procesos locales (Claude Desktop, OpenCode CLI)
-- **SSE**: conexiones remotas HTTP (`/sse` + `/messages`)
+- **SSE**: conexiones remotas HTTP (/sse + /messages)
 
-## Búsqueda híbrida
+## Búsqueda híbrida (desactivada en v3)
 
-1. Intenta embedding semántico (Ollama)
-2. Calcula similitud coseno en vectores
-3. Si Ollama falla → fallback a FTS5 léxico
+1. ~~Intenta embedding semántico (Ollama)~~ — Desactivado
+2. ~~Calcula similitud coseno en vectores~~ — Desactivado
+3. Usa FTS5 léxico (único método en v3)
 4. Combina resultados con ranking por relevancia
 
-## Auditoría (v2.0)
+## Auditoría (v2.0+)
 
-Toda llamada MCP se registra automáticamente en `mcp_audit_log`:
+Toda llamada MCP se registra automáticamente en mcp_audit_log:
 - timestamp, agent, tool, project, metadata
-- Compliance check: verifica último `mem_save` del agente
-- Herramienta `mem_my_compliance` para auto-auditoría
+- Compliance check: verifica último mem_save del agente
+- Herramienta mem_my_compliance para auto-auditoría

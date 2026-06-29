@@ -1,6 +1,32 @@
-﻿# Agent Engine — Changelog
+# Agent Engine — Changelog
 
 ## [Unreleased]
+
+## [3.0.0] — 2026-06-28
+
+### 🎯 v3 — Conexión directa a Ollama, Skills System y Task Management
+
+#### 🔧 Conexión directa a Ollama
+- **`createClient.ts`** — Usa `ollamaUrl/v1` en vez de `BACKEND_URL`; apiKey `"ollama"`
+- **`listModels`** — Consulta `/api/tags` directamente a Ollama (no via backend proxy)
+- **`config.ts`** — Nuevo campo `ollamaUrl` (default `http://localhost:11434`)
+
+#### 🐛 Fix: Ollama 0.30.10 `/v1/chat/completions` hang
+- **`createOllamaClient.ts`** (NUEVO) — Cliente nativo `/api/chat` con `callOllamaChat` (streaming) y `callOllamaChatSimple` (no streaming)
+- **`runAgentCore.ts`** — Cambiado de OpenAI SDK a `callOllamaChat` cuando `provider === "ollama"`
+- **`sessionSummary.ts`** — Acepta `AppConfig` opcional; usa `callOllamaChatSimple`
+
+#### 🤖 Skills System
+- **`services/skills/`** — SkillsService con CRUD, progressive disclosure, propuestas automáticas
+- **`services/tools/skills-tools.ts`** — 3 tools: `skills_list`, `skill_view`, `skill_manage`
+- **`runAgentCore.ts`** — Integración de skills + auto-propuesta tras 3+ tool calls
+- **`buildPrompt.ts`** — Inyección de skills en system prompt
+
+#### 📋 Task Management
+- **`services/tools/task-tools.ts`** (NUEVO) — 5 tools: `task_create`, `task_list`, `task_get`, `task_update`, `task_delete`
+- **`tools/index.ts`** — Registro de `registerTaskTools()`
+- **`buildPrompt.ts`** — Nueva sección `<task_management>`
+- **Modos** — Tools añadidas a los 8 modos por defecto
 
 
 ### 🔧 npm audit fix — 0 vulnerabilidades
@@ -221,4 +247,6 @@ Alineación de versión con el proyecto raíz LaLlamaOllama.
 - Gateway WebSocket + REST
 - Integración con mcp-brain (BrainClient)
 - Docker service en docker-compose.yml
+
+
 

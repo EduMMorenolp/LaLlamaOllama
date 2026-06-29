@@ -3,7 +3,7 @@
 > **Plataforma de orquestación inteligente para LLMs locales.**  
 > Dashboard glassmorphism + Agent Engine autónomo + Cerebro MCP con memoria persistente + Chat multi-agente.
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue?style=flat-square)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-3.0.0-blue?style=flat-square)](./CHANGELOG.md)
 [![Docker](https://img.shields.io/badge/docker-compose-2496ED?style=flat-square&logo=docker)](./docker-compose.yml)
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](./LICENSE)
 
@@ -17,6 +17,8 @@ LaLlamaOllama es un **ecosistema completo** para ejecutar, gestionar y orquestar
 - **Agent Engine** — agente de código autónomo con tool calling multi-turno, memoria persistente y soporte multi-provider (Ollama, OpenAI, OpenRouter).
 - **Chat multi-agente** — conversaciones persistentes con sub-agentes especializados, historial completo y herramientas en vivo.
 - **MCP Brain** — cerebro de memoria compartida con búsqueda semántica (FTS5 + embeddings), directivas de proyecto y consolidación automática.
+- **Brain Frontend** — UI standalone React para navegar memorias del MCP Brain, con búsqueda full-text, estadísticas y editor Markdown.
+- **Skills System** — memoria procedural donde el agente aprende flujos de trabajo repetitivos y los reutiliza automáticamente.
 
 ---
 
@@ -31,19 +33,28 @@ LaLlamaOllama es un **ecosistema completo** para ejecutar, gestionar y orquestar
 - Consola del Brain: explorar memorias, fusionar proyectos, ver directivas
 
 ### 🤖 Agent Engine
-- Agente de codificación autónomo con 8 herramientas integradas
-- Multi-provider: Ollama, OpenAI, OpenRouter (detección automática)
+- Agente de codificación autónomo con tool calling multi-turno
+- Multi-provider: Ollama (conexión directa, sin proxy), OpenAI, OpenRouter
 - Tool calling en tiempo real con búsqueda, edición de archivos, bash y más
 - Conversaciones persistentes con SQLite local
 - Sub-agentes especializados configurables desde la UI
+- **Skills System** — memoria procedural que aprende y reutiliza flujos de trabajo
+- **Task Management** — 5 herramientas nativas para gestionar tareas
 - WebSocket en vivo: streaming de respuestas, tool calls, estados
 
 ### 🧠 MCP Brain (Cerebro Compartido)
 - Memoria persistente con SQLite + FTS5 + embeddings vectoriales
 - Búsqueda semántica, lexical e híbrida
 - Directivas de proyecto inyectadas en el protocolo MCP
-- Consolidación automática de memorias redundantes vía Ollama
+- Consolidación automática de memorias redundantes
+- **Totalmente independiente** — no requiere Ollama ni Backend para operar
 - Sincronización multi-IDE: OpenCode, Cursor, Claude Desktop, Windsurf, RooCode
+
+### 🧠 Brain Frontend
+- UI standalone para navegar memorias, estadísticas y búsqueda full-text
+- Componentes: lista de memorias con filtros, cuadrícula de estadísticas, SearchView, MemoryModal (ver/crear/editar con Markdown)
+- Conexión directa a la API REST de mcp-brain
+- Puerto 8082, imagen Docker: `lallamaollama-brain-frontend`
 
 ### 💬 Chat Multi-Agente
 - Múltiples conversaciones con pin, búsqueda y organización
@@ -59,16 +70,37 @@ LaLlamaOllama es un **ecosistema completo** para ejecutar, gestionar y orquestar
 
 ---
 
+## Arquitectura
+
+LaLlamaOllama se compone de **6 servicios Docker** que se comunican entre sí:
+
+| Servicio | Puerto | Descripción |
+|----------|--------|-------------|
+| **backend** | 3000 | API principal (Express) — proxy Ollama histórico, telemetría, seguridad |
+| **frontend** | 8080 | Dashboard administrativo glassmorphism (React) |
+| **mcp-brain** | 3015 | Cerebro de memoria compartida — SQLite + FTS5 |
+| **brain-frontend** | 8082 | UI standalone para navegar memorias del MCP Brain |
+| **agent-engine** | 3020 | Agente autónomo con tool calling, skills y task management |
+| **agent-frontend** | 8081 | Frontend del agente — chat, sub-agentes, WebSocket |
+
+Los **3 dashboards** del ecosistema:
+- **Admin Dashboard** (8080) — monitoreo de GPU, modelos, seguridad, telemetría
+- **Agent Frontend** (8081) — chat interactivo con el agente, sub-agentes, configuración
+- **Brain Frontend** (8082) — explorador de memorias, estadísticas y búsqueda full-text
+
+---
+
 ## Stack Tecnológico
 
 | Capa | Tecnología |
 |------|-----------|
 | **LLM Runtime** | Ollama |
 | **Agent Engine** | Node.js, Express 4, TypeScript, better-sqlite3 |
-| **MCP Brain** | Node.js, Express 4, TypeScript, SQLite FTS5 + embeddings |
+| **MCP Brain** | Node.js, Express 4, TypeScript, SQLite FTS5 |
+| **Brain Frontend** | React 19, Vite 7, TypeScript |
 | **Frontend** | React 19, Vite 7, TypeScript, Lucide Icons |
 | **Agent Frontend** | React 19, Vite 7, TypeScript, WebSocket |
-| **Infraestructura** | Docker Compose, Ngrok |
+| **Infraestructura** | Docker Compose, Ngrok, Redis |
 | **Control Docker** | Dockerode |
 | **Linting** | Biome v2 |
 
@@ -77,11 +109,9 @@ LaLlamaOllama es un **ecosistema completo** para ejecutar, gestionar y orquestar
 ## Requisitos
 
 - **Node.js 18+**
+- **Docker Compose** (para despliegue completo)
 - **OpenCode** instalado ([opencode.ai](https://opencode.ai))
-- **Playwright Chromium** — necesario para usar el servidor MCP de Playwright en opencode:
-  ```bash
-  npx playwright install chromium
-  ```
+- **NVIDIA GPU** con controladores CUDA (recomendado, no obligatorio)
 
 ---
 

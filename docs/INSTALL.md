@@ -17,6 +17,7 @@ Guía completa para instalar, configurar y desplegar LaLlamaOllama.
 ```
 agent-frontend  →  puerto 8081  (dashboard agente)
 frontend        →  puerto 8080  (dashboard admin)
+brain-frontend  →  puerto 8082  (UI memorias MCP Brain)
 agent-engine    →  puerto 3020  (agente de código)
 backend         →  puerto 3016  (API + MCP server)
 mcp-brain       →  puerto 3015  (memoria persistente)
