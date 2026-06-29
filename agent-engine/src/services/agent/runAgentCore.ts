@@ -117,6 +117,13 @@ async function resolveModeConfig(opts: AgentOptions, chatId: string, _config: { 
 	return { model, temperature, historyLimit, systemPrompt };
 }
 
+function buildFallbackMessage(lastToolName: string, lastToolResult: string): string {
+	if (lastToolName && lastToolResult) {
+		return `Ejecuté ${lastToolName} y obtuve:\n${lastToolResult.substring(0, 300)}\n\n¿Necesitas que haga algo más con esto o prefieres continuar con otra cosa?`;
+	}
+	return "He procesado tu solicitud. ¿En qué más puedo ayudarte?";
+}
+
 export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 	const { chatId, userText, config, brain, onToolCall, onToolResult, onStatus, onTyping } = opts;
 	const startTime = Date.now();
@@ -370,6 +377,8 @@ Puedes obtener información adicional bajo demanda usando estas herramientas:
 	const totalUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 	const maxIterations = 10;
 	let totalToolCalls = 0;
+	let lastToolName = "";
+	let lastToolResult = "";
 
 	for (let iteration = 0; iteration < maxIterations; iteration++) {
 		logger.agent(`[${chatId}] LLM call #${iteration + 1} (model: ${modelConfig.model})`);
@@ -418,7 +427,7 @@ Puedes obtener información adicional bajo demanda usando estas herramientas:
 					tools: openAiTools.length > 0 ? openAiTools : undefined,
 					tool_choice: "auto",
 					stream: true,
-					max_tokens: 4096,
+					max_tokens: 8192,
 					temperature: generalTemperature,
 					...(opts.options || {}),
 				});
@@ -533,6 +542,8 @@ Puedes obtener información adicional bajo demanda usando estas herramientas:
 						result = `Error: ${err instanceof Error ? err.message : String(err)}`;
 					}
 
+					lastToolName = toolName;
+					lastToolResult = result.substring(0, 500);
 					onToolResult?.(toolName, result);
 
 					// Index successful read_url results to Brain
@@ -545,18 +556,36 @@ Puedes obtener información adicional bajo demanda usando estas herramientas:
 						}
 					}
 
-					session.messages.push({
-						role: "tool",
-						tool_call_id: tc.id,
-						content: result,
-					});
+				session.messages.push({
+					role: "tool",
+					tool_call_id: tc.id,
+					content: result,
+				});
+				const toolMsgCount = session.messages.filter((m) => m.role === "tool").length;
+				if (toolMsgCount > 20) {
+					const idx = session.messages.findIndex((m) => m.role === "tool");
+					if (idx >= 0) session.messages.splice(idx, 1);
+				}
 				}
 				continue;
 			}
 
-			finalContent = fullContent || "He procesado tu solicitud usando las herramientas disponibles.";
+			finalContent = fullContent || buildFallbackMessage(lastToolName, lastToolResult);
 			if (finalContent.trim()) {
 				session.messages.push({ role: "assistant", content: finalContent });
+			}
+
+			const isFallback = finalContent.startsWith("Ejecuté") || finalContent.startsWith("He procesado");
+			if (isFallback) {
+				session.consecutiveFallbacks = (session.consecutiveFallbacks || 0) + 1;
+			} else {
+				session.consecutiveFallbacks = 0;
+			}
+
+			if ((session.consecutiveFallbacks || 0) >= 3) {
+				session.consecutiveFallbacks = 0;
+				finalContent = "Parece que estoy teniendo dificultades para procesar tu solicitud. ¿Podrías reformularla o probar con algo más específico? Si el problema persiste, prueba con /reset para reiniciar la conversación.";
+				logger.agent(`[${chatId}] Circuit breaker: 3 consecutive fallbacks, suggesting reset`);
 			}
 
 			if (session.messages.length > 60) {
@@ -663,7 +692,21 @@ Puedes obtener información adicional bajo demanda usando estas herramientas:
 
 	const latency = Date.now() - startTime;
 	finalContent =
-		finalContent || "He llegado al límite de iteraciones. Considera dividir la tarea en partes más pequeñas.";
+		finalContent || buildFallbackMessage(lastToolName, lastToolResult);
+
+	const isFallback = finalContent.startsWith("Ejecuté") || finalContent.startsWith("He procesado");
+	if (isFallback) {
+		session.consecutiveFallbacks = (session.consecutiveFallbacks || 0) + 1;
+	} else {
+		session.consecutiveFallbacks = 0;
+	}
+
+	if ((session.consecutiveFallbacks || 0) >= 3) {
+		session.consecutiveFallbacks = 0;
+		finalContent = "Parece que estoy teniendo dificultades para procesar tu solicitud. ¿Podrías reformularla o probar con algo más específico? Si el problema persiste, prueba con /reset para reiniciar la conversación.";
+		logger.agent(`[${chatId}] Circuit breaker: 3 consecutive fallbacks, suggesting reset`);
+	}
+
 	session.messages.push({ role: "assistant", content: finalContent });
 	onTyping?.(false);
 

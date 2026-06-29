@@ -49,5 +49,6 @@ export interface SessionState {
 	messages: Array<OpenAI.Chat.Completions.ChatCompletionMessageParam>;
 	toolContext: ToolContext;
 	summary?: string;
+	consecutiveFallbacks?: number;
 }
 
