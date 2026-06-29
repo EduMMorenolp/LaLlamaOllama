@@ -1,83 +1,64 @@
-# LaLlamaOllama: MCP Brain Server 🧠
+# LaLlamaOllama: MCP Brain Server
 
-El **MCP Brain Server** es el módulo central de memoria a largo plazo (Long-Term Memory) de LaLlamaOllama, diseñado bajo la especificación del Model Context Protocol (MCP). Proporciona a los agentes de IA persistencia avanzada, descubrimiento relacional y análisis de contexto.
+El **MCP Brain Server** es el módulo central de memoria a largo plazo (Long-Term Memory) de LaLlamaOllama, diseñado bajo la especificación del Model Context Protocol (MCP).
 
-## 🌟 Características Principales
+## Características Principales
 
-- **Memoria Persistente:** Almacenamiento seguro en SQLite con soporte para operaciones ACID mediante una cola de escritura (WriteQueue) para entornos altamente concurrentes.
-- **Detección de Conflictos (Relational Graph):** El sistema evalúa proactivamente si una nueva memoria contradice, expande o reemplaza una existente utilizando grafos relacionales y heurísticas de similitud.
-- **Búsqueda Híbrida Avanzada:**
-  - *Léxica:* Búsqueda ultrarrápida usando FTS5 nativo de SQLite.
-  - *Semántica:* Búsqueda por similitud del coseno usando embeddings generados localmente por **Ollama** (ej. `nomic-embed-text`).
-- **Arquitectura de Casos de Uso:** Código altamente modular y puramente funcional, garantizando que cada operación (guardar, analizar, buscar) viva de forma aislada.
-- **Interfaces de Comunicación Duales:** 
-  - `stdio` (JSON-RPC) para agentes MCP.
-  - `Express REST API` para consultas y analíticas desde dashboards.
+- **Memoria Persistente:** Almacenamiento seguro en SQLite con soporte para operaciones ACID.
+- **Búsqueda Full-Text:** Búsqueda ultrarrápida usando FTS5 nativo de SQLite.
+- **Arquitectura de Casos de Uso:** Código altamente modular y puramente funcional.
+- **Interfaces de Comunicación Duales:**
+  - `stdio` (JSON-RPC) para agentes MCP locales.
+  - `Express REST API` para consultas desde dashboards (agent-frontend, brain-frontend).
+- **Independiente:** No requiere Ollama ni Backend para funcionar (v3).
+- **Brain Frontend:** UI standalone React para explorar memorias (puerto 8082).
 
-## 📂 Arquitectura del Proyecto
+## Arquitectura del Proyecto
 
-El servidor utiliza una arquitectura orientada a Casos de Uso (Use Case Pattern) apoyada en Inyección de Dependencias funcional.
-
-```text
+```
 mcp-brain/
 ├── src/
 │   ├── index.ts                 # Orquestador e Inicializador
-│   ├── database/                # Conexión, WriteQueue y Schemas de DB
-│   ├── server/                  # Controladores MCP (stdio) y REST (Express)
-│   └── services/                # Lógica de Negocio (Funciones puras)
-│       ├── llm/                 # Generación y Embeddings (Ollama)
-│       ├── memories/            # CRUD central y Búsquedas Híbridas
+│   ├── database/                # Conexión y Schemas de DB
+│   ├── server/                  # Controladores MCP (stdio/SSE) y REST (Express)
+│   └── services/                # Lógica de Negocio
+│       ├── memories/            # CRUD central y Búsquedas
 │       ├── sessions/            # Gestión de Contextos de Sesión
-│       └── analysis/            # Evaluadores, Jueces y Taxonomía IA
+│       ├── audit/               # Auditoría y compliance
+│       └── llm/                 # Embeddings y generación (no operativos en v3)
 ```
 
-## 🚀 Requisitos Previos
+## Requisitos Previos
 
 1. **Node.js** (v18 o superior).
-2. **Ollama** ejecutándose localmente o en tu red (para embeddings y razonamiento semántico).
-3. **Modelo de Embeddings:** Por defecto el cerebro usa `nomic-embed-text`. Para descargarlo, ejecuta en tu consola de Ollama:
-   ```bash
-   ollama run nomic-embed-text
-   ```
+2. No requiere Ollama ni Backend (v3).
+3. Base de datos SQLite creada automáticamente al iniciar.
 
-## 🛠️ Instalación y Uso
+## Instalación y Uso
 
 1. Instala las dependencias:
    ```bash
    npm install
    ```
 
-2. (Opcional) Crea un archivo `.env` en la raíz de `mcp-brain` si tu instancia de Ollama no corre en el puerto predeterminado:
-   ```env
-   OLLAMA_API_URL=http://127.0.0.1:11434
-   BRAIN_PORT=3015
-   ```
-
-3. Compila el proyecto:
+2. Compila el proyecto:
    ```bash
    npm run build
    ```
 
-4. Levanta el servidor en modo desarrollo:
+3. Levanta el servidor en modo desarrollo:
    ```bash
    npm run dev
    ```
 
-## 🛡️ Degradación Elegante (Graceful Degradation)
+## Herramientas MCP Soportadas
 
-El servidor está diseñado para continuar operando incluso si **Ollama** se encuentra apagado o no disponible:
-- **Búsqueda Semántica:** Si los vectores matemáticos no pueden ser generados, la búsqueda híbrida realiza una caída (fallback) automática a una búsqueda léxica exacta (SQLite FTS5).
-- **Delegación Cognitiva:** Si fallan las herramientas de análisis (`mem_compare` o `mem_suggest_tags`), el servidor atrapa el error y le instruye dinámicamente al **Agente de IA (MCP Client)** que asuma el control y realice el análisis usando sus propias capacidades y ventana de contexto.
-
-## 🧩 Herramientas MCP Soportadas
-
-Los agentes conectados a este servidor tienen acceso a las siguientes herramientas principales:
-- `mem_save`: Guarda decisiones y aprendizajes. Identifica conflictos silenciosamente.
-- `mem_search`: Encuentra contexto antiguo vía búsquedas híbridas.
-- `mem_judge`: Evalúa si dos memorias parecidas son compatibles o si una reemplaza a la otra.
-- `mem_capture_passive`: Escanea outputs largos y extrae automáticamente "Key Learnings".
-- `mem_suggest_topic_key`: Agrupa conocimiento que evoluciona bajo una misma etiqueta.
-- `mem_session_summary`: Obliga al agente a sintetizar sus hallazgos al final del trabajo.
+- `mem_save`: Guarda decisiones y aprendizajes en memoria persistente.
+- `mem_search`: Busca contexto antiguo vía búsqueda FTS5.
+- `mem_judge`: Evalúa relación entre dos memorias.
+- `mem_capture_passive`: Escanea outputs y extrae Key Learnings.
+- `mem_suggest_topic_key`: Agrupa conocimiento bajo una misma etiqueta.
+- `mem_session_summary`: Sintetiza hallazgos al final del trabajo.
+- `mem_get_directives`: Consulta directivas centrales del proyecto.
 
 ---
-*Desarrollado para el ecosistema modular de LaLlamaOllama.*

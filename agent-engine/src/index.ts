@@ -26,7 +26,7 @@ async function bootstrap() {
 	// 2. Load configuration
 	const config = loadConfig();
 	logger.info(`[Config] Port: ${config.enginePort}`);
-	logger.info(`[Config] Backend: ${config.backendUrl}`);
+	logger.info(`[Config] Ollama: ${config.ollamaUrl}`);
 	logger.info(`[Config] Brain: ${config.brainUrl}`);
 	logger.info(`[Config] Model: ${config.defaultModel}`);
 
@@ -67,7 +67,7 @@ async function bootstrap() {
 	initOrchestrator();
 
 	// 7. Register all tools (injected with brain dependency)
-	registerAllTools(brain);
+	registerAllTools(brain, config);
 	logger.info(`[Tools] ${toolRegistry.getToolNames().length} tools registered:`);
 	for (const name of toolRegistry.getToolNames()) {
 		logger.info(`  - ${name} (${toolRegistry.isEnabled(name) ? "enabled" : "disabled"})`);

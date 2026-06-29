@@ -1,7 +1,59 @@
-﻿# LaLlamaOllama — Changelog
+# LaLlamaOllama — Changelog
 
 Todos los cambios notables del proyecto están documentados aquí.
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
+
+---
+
+## [3.0.0] — 2026-06-28
+
+### 🎯 v3 — Arquitectura Modular y Servicios Independientes
+
+#### 🧠 **MCP Brain independiente** (no requiere Ollama ni Backend)
+- **`embed.ts`** — Retorna `[]` sin llamar a Ollama (eliminada dependencia de embeddings externos)
+- **`generate.ts`** — Lanza error si se intenta usar (eliminada dependencia del backend)
+- **`config.ts`** — Limpiado: ya no necesita `ollamaUrl`, `backendUrl` ni `apiKey`
+- **`docker-compose.yml`** — Sin `depends_on`, sin env vars de Ollama/backend, volúmenes reducidos
+
+#### 🔧 **Agent Engine → Ollama directo** (sin proxy Backend)
+- **`createClient.ts`** — Usa `OLLAMA_URL/v1` en vez de `BACKEND_URL`; apiKey `"ollama"`
+- **`listModels`** — Consulta `/api/tags` directamente a Ollama
+- **`config.ts`** — Nuevo campo `ollamaUrl` (default `http://localhost:11434`)
+- **`docker-compose.yml`** — Reemplazado `BACKEND_URL` por `OLLAMA_URL`, eliminado backend de `depends_on`
+
+#### 🐛 **Fix: Ollama 0.30.10 `/v1/chat/completions` hang**
+- **`createOllamaClient.ts`** (NUEVO) — Cliente nativo `/api/chat` con `callOllamaChat` (streaming) y `callOllamaChatSimple` (no streaming)
+- **`runAgentCore.ts`** — Cambiado de OpenAI SDK `client.chat.completions` a `callOllamaChat` cuando `provider === "ollama"`
+- **`sessionSummary.ts`** — Acepta `AppConfig` opcional; usa `callOllamaChatSimple` cuando se provee config
+
+#### 🤖 **Skills System — Memoria procedural**
+- **`services/skills/`** — SkillsService con CRUD, progressive disclosure y propuestas automáticas
+- **`services/tools/skills-tools.ts`** — 3 tools: `skills_list`, `skill_view`, `skill_manage`
+- **System prompt** — Inyección de skills + auto-propuesta tras 3+ tool calls
+- **`runAgentCore.ts`** — Integración de skills en el loop principal
+
+#### 📋 **Task Management — 5 nuevas tools del agente**
+- **`services/tools/task-tools.ts`** (NUEVO) — `task_create`, `task_list`, `task_get`, `task_update`, `task_delete`
+- **`tools/index.ts`** — Registro de `registerTaskTools()`
+- **`buildPrompt.ts`** — Nueva sección `<task_management>` en system prompt
+- **Modos** — Las 5 nuevas tools añadidas a los 8 modos por defecto
+
+#### 🌐 **Brain Frontend — UI standalone de memoria**
+- **Nuevo proyecto `brain-frontend/`** — React 19 + Vite 7 + TypeScript, puerto 8082
+- **`Memories.tsx`** — Lista, filtro por tipo y eliminación de memorias
+- **`Stats.tsx`** — Grid con totales de memoria por tipo
+- **`SearchView.tsx`** — Búsqueda full-text en memorias
+- **`MemoryModal.tsx`** — Vista, creación y edición con Markdown
+- **Docker image** — `lallamaollama-brain-frontend`, servicio en `docker-compose.yml`
+
+#### Commits
+- `5332401` feat: make mcp-brain fully independent
+- `9db4669` refactor: connect agent-engine directly to ollama
+- `8d2b076` fix: use native ollama /api/chat for 0.30.10 compat
+- `f437aa4` feat: skills system with procedural memory
+- `007f14f` feat: agent-led task management — 5 new tools
+- `21e17ef` feat: add task tools to all mode definitions
+- `b60a585` feat: brain-frontend — standalone memory browser
 
 ---
 

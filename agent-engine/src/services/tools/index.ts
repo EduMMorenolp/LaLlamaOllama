@@ -1,4 +1,5 @@
 ﻿import type { BrainClient } from "../brain/client.js";
+import type { AppConfig } from "../config.js";
 import { registerBashTool } from "./bash.js";
 import { registerCalcTool } from "./calc.js";
 import { registerContextTools } from "./context-tools.js";
@@ -21,8 +22,10 @@ import { registerCreateTaskTool } from "./create-task.js";
 import { registerCancelTaskTool } from "./cancel-task.js";
 import { registerScheduleTaskTool } from "./schedule-task.js";
 import { registerSwitchModeTool } from "./switch-mode.js";
+import { registerSkillsTools } from "./skills-tools.js";
+import { registerTaskTools } from "./task-tools.js";
 
-export function registerAllTools(brain: BrainClient): void {
+export function registerAllTools(brain: BrainClient, config?: AppConfig): void {
 	registerBashTool();
 	registerReadFileTool();
 	registerWriteFileTool();
@@ -50,6 +53,12 @@ export function registerAllTools(brain: BrainClient): void {
 	registerSwitchModeTool();
 
 	registerEvolutivoTools();
+	registerTaskTools();
+
+	// Skills system (procedural memory)
+	if (config) {
+		registerSkillsTools(config);
+	}
 }
 
 export { toolRegistry } from "./registry.js";

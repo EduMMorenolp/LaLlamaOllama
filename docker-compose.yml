@@ -17,7 +17,7 @@ services:
     environment:
       - OLLAMA_CONTEXT_LENGTH=8192
       - OLLAMA_NUM_PARALLEL=1
-      - OLLAMA_LLM_LIBRARY=cuda_v12
+      - OLLAMA_LLM_LIBRARY=cuda_v13
       - OLLAMA_KEEP_ALIVE=30m
       - OLLAMA_LOAD_TIMEOUT=15m
       - CUDA_VISIBLE_DEVICES=0
@@ -55,22 +55,6 @@ services:
     networks:
       - mcp-network
     restart: unless-stopped
-  ngrok:
-    image: ngrok/ngrok:latest
-    container_name: mcp-ngrok-tunnel
-    mem_limit: ${NGROK_MEM_LIMIT:-128m}
-    profiles:
-      - tunnel
-    depends_on:
-      - backend
-    environment:
-      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
-    command:
-      - http
-      - backend:${APP_PORT:-3016}
-    networks:
-      - mcp-network
-    restart: "no"
   frontend:
     build:
       context: ./frontend
@@ -113,6 +97,39 @@ services:
     depends_on:
       - agent-engine
     restart: unless-stopped
+  agent-engine:
+      build:
+        context: ./agent-engine
+        dockerfile: Dockerfile
+      container_name: agent-engine
+      mem_limit: ${ENGINE_MEM_LIMIT:-512m}
+      ports:
+        - "${ENGINE_PORT:-3020}:${ENGINE_PORT:-3020}"
+        - "3021:3021"
+      environment:
+        - ENGINE_PORT=${ENGINE_PORT:-3020}
+        - OLLAMA_URL=http://ollama:11434
+        - BRAIN_URL=http://brain:3015
+        - REDIS_URL=redis://:${REDIS_PASSWORD:-lallamaollama2026}@redis:6379
+        - API_KEY=${API_KEY:-McPOllama2026-V1-Home}
+        - DEFAULT_MODEL=${DEFAULT_MODEL:-llama3.2:3b}
+        - LLM_TIMEOUT=${LLM_TIMEOUT:-600000}
+        - WORKSPACE_DIR=/workspace
+        - DB_PATH=/data/agent-engine.db
+        - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+        - TELEGRAM_ALLOWED_USERS=${TELEGRAM_ALLOWED_USERS}
+        - TRANSFORMERS_CACHE=/data/transformers
+        - BRAIN_PROJECT=${BRAIN_PROJECT:-AgenteLaLlamaOllama}
+      volumes:
+        - /var/run/docker.sock:/var/run/docker.sock
+        - ./:/workspace
+        - ./data:/data
+      depends_on:
+        - mcp-brain
+        - redis
+      networks:
+        - mcp-network
+      restart: unless-stopped
   mcp-brain:
     build:
       context: ./mcp-brain
@@ -123,24 +140,27 @@ services:
       - "${BRAIN_PORT:-3015}:${BRAIN_PORT:-3015}"
     environment:
       - BRAIN_PORT=${BRAIN_PORT:-3015}
-      - OLLAMA_API_URL=http://ollama:11434
-      - BACKEND_URL=http://backend:${APP_PORT:-3016}
-      - API_KEY=${API_KEY:-McPOllama2026-V1-Home}
     volumes:
-      # OPCIÓN A (Recomendada - Bind Mount al Host):
-      # Conecta la carpeta local de Windows './data' con '/app/data' dentro de Docker.
-      # Permite que el Dashboard y los agentes del IDE compartan exactamente el mismo archivo SQLite (lallama-memory.db).
       - ./data:/app/data
-
-      # OPCIÓN B (Aislada - Volumen Virtual de Docker):
-      # Si prefieres que la base de datos viva de forma completamente aislada dentro del motor de Docker
-      # (sin tocar tu disco en Windows), comenta la línea de arriba y descomenta la siguiente:
-      # - brain_data:/app/data
-    depends_on:
-      - ollama
+    depends_on: []
     networks:
       - mcp-network
     restart: unless-stopped
+  brain-frontend:
+    build:
+      context: ./brain-frontend
+      dockerfile: Dockerfile
+    container_name: brain-frontend
+    mem_limit: ${BRAIN_FRONTEND_MEM_LIMIT:-256m}
+    ports:
+      - "8082:80"
+    environment:
+      - VITE_BRAIN_URL=http://brain:3015
+    networks:
+      - mcp-network
+    depends_on:
+      - mcp-brain
+    restart: unless-stopped  
   redis:
     image: redis:7-alpine
     container_name: agent-engine-redis
@@ -153,41 +173,22 @@ services:
     networks:
       - mcp-network
     restart: unless-stopped
-  agent-engine:
-    build:
-      context: ./agent-engine
-      dockerfile: Dockerfile
-    container_name: agent-engine
-    mem_limit: ${ENGINE_MEM_LIMIT:-512m}
-    ports:
-      - "${ENGINE_PORT:-3020}:${ENGINE_PORT:-3020}"
-      - "3021:3021"
-    environment:
-      - ENGINE_PORT=${ENGINE_PORT:-3020}
-      - BACKEND_URL=http://backend:3016
-      - BRAIN_URL=http://brain:3015
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-lallamaollama2026}@redis:6379
-      - API_KEY=${API_KEY:-McPOllama2026-V1-Home}
-      - DEFAULT_MODEL=${DEFAULT_MODEL:-llama3.2:3b}
-      - LLM_TIMEOUT=${LLM_TIMEOUT:-600000}
-      - WORKSPACE_DIR=/workspace
-      - DB_PATH=/data/agent-engine.db
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - TELEGRAM_ALLOWED_USERS=${TELEGRAM_ALLOWED_USERS}
-      - TRANSFORMERS_CACHE=/data/transformers
-      - BRAIN_PROJECT=${BRAIN_PROJECT:-AgenteLaLlamaOllama}
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./:/workspace
-      - ./data:/data
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: mcp-ngrok-tunnel
+    mem_limit: ${NGROK_MEM_LIMIT:-128m}
+    profiles:
+      - tunnel
     depends_on:
       - backend
-      - mcp-brain
-      - redis
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
+    command:
+      - http
+      - backend:${APP_PORT:-3016}
     networks:
       - mcp-network
-    restart: unless-stopped
-
+    restart: "no"
 networks:
   mcp-network:
     driver: bridge

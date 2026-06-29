@@ -44,6 +44,10 @@ LaLlamaOllama/
 │       ├── server/           → api.ts, ws.ts, handlers.ts, cron.ts
 │       ├── services/         → agent/, tools/, brain/, db/, queue/, telegram/
 │       └── gateway/          → protocol.ts
+├── brain-frontend/   → UI standalone memorias MCP, puerto 8082 (React 19 + Vite 7)
+│   └── src/
+│       ├── components/       → Memories, Stats, SearchView, MemoryModal
+│       └── api.ts            → Cliente REST para MCP Brain
 ├── agent-frontend/   → Frontend del agente, puerto 8081 (React + Vite + nginx)
 │   └── src/
 │       ├── components/       → AgentChat, Agentes, Knowledge, Tareas, Conexion
@@ -62,13 +66,14 @@ LaLlamaOllama/
 | Container | Puerto | Stack |
 |-----------|--------|-------|
 | `mcp-ollama-motor` | 11434 | Ollama LLM |
-| `backend` | 3016 | Express + TS |
+| `backend` | 3000 | Express + TS |
 | `brain` | 3015 | mcp-brain (MCP + REST) |
+| `brain-frontend` | 8082 | React + Vite (UI memorias) |
 | `frontend` | 8080 | React + Vite (Dashboard) |
 | `agent-engine` | 3020 | Express + WS + BullMQ + SQLite |
 | `agent-frontend` | 8081 | React + Vite + nginx |
 | `agent-engine-redis` | 6379 | Redis 7 Alpine |
-| `mcp-ngrok-tunnel` | — | Ngrok |
+| `mcp-ngrok-tunnel` | — | Ngrok (opcional) |
 
 ---
 

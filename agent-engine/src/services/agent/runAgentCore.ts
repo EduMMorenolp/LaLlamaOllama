@@ -6,7 +6,10 @@ import { getMessages, saveMessage } from "../db/messages.js";
 import { toolRegistry } from "../tools/registry.js";
 import type { ToolSpec as RegistryToolSpec } from "../tools/types.js";
 import { buildSystemPrompt } from "./buildPrompt.js";
-import { createClient, getDefaultModelConfig } from "./createClient.js";
+import { createClient, getDefaultModelConfig, type ModelConfig } from "./createClient.js";
+import { callOllamaChat } from "./createOllamaClient.js";
+import { SkillsService } from "../skills/service.js";
+import type { SkillProposal } from "../skills/types.js";
 import { summarizeMessages } from "./sessionSummary.js";
 import { afterResponseLearning } from "./userLearning.js";
 import type { AgentOptions, AgentResult, SessionState } from "./types.js";
@@ -168,6 +171,26 @@ export async function runAgentCore(opts: AgentOptions): Promise<AgentResult> {
 		if (enabledTools.length > 0) {
 			const toolList = enabledTools.map((t) => `- ${t.function.name}`).join("\n");
 			assembly.push(`<available_tools>\nHerramientas disponibles:\n${toolList}\n</available_tools>`);
+		}
+
+		// Skills injection (procedural memory)
+		try {
+			const skillsService = new SkillsService(config.workspaceDir);
+			const skills = skillsService.list();
+			if (skills.length > 0) {
+				const skillLines = skills.map(
+					(s) => `- **${s.name}**: ${s.description} (v${s.version})`
+				);
+				assembly.push(`<skills_disponibles>
+Tienes las siguientes skills procedurales almacenadas. Úsalas como guía para tareas recurrentes:
+${skillLines.join("\n")}
+
+Para ver el contenido completo de una skill, usa \`skill_view\`.
+Para crear o actualizar skills, usa \`skill_manage\`.
+</skills_disponibles>`);
+			}
+		} catch {
+			// skills system is optional
 		}
 
 		assembly.push(`<info_contextual>
@@ -346,6 +369,7 @@ Puedes obtener información adicional bajo demanda usando estas herramientas:
 	let finalContent = "";
 	const totalUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 	const maxIterations = 10;
+	let totalToolCalls = 0;
 
 	for (let iteration = 0; iteration < maxIterations; iteration++) {
 		logger.agent(`[${chatId}] LLM call #${iteration + 1} (model: ${modelConfig.model})`);
@@ -360,7 +384,7 @@ Puedes obtener información adicional bajo demanda usando estas herramientas:
 			const recentMsgs = session.messages.slice(-11);
 			if (msgsToSummarize.length >= 4) {
 				try {
-					const newSummary = await summarizeMessages(client, modelConfig.model, msgsToSummarize as Array<{ role: string; content: string }>);
+					const newSummary = await summarizeMessages(client, modelConfig.model, msgsToSummarize as Array<{ role: string; content: string }>, 300, config);
 					session.summary = session.summary
 						? `${session.summary}\n\n${newSummary}`
 						: newSummary;
@@ -377,18 +401,6 @@ Puedes obtener información adicional bajo demanda usando estas herramientas:
 		const messagesForLLM = session.messages;
 
 		try {
-			const stream = await client.chat.completions.create({
-				model: modelConfig.model,
-				messages: messagesForLLM,
-				user: chatId,
-				tools: openAiTools.length > 0 ? openAiTools : undefined,
-				tool_choice: "auto",
-				stream: true,
-				max_tokens: 4096,
-				temperature: generalTemperature,
-				...(opts.options || {}),
-			});
-
 			let fullContent = "";
 			const toolCallDeltas: Array<{
 				index: number;
@@ -397,45 +409,85 @@ Puedes obtener información adicional bajo demanda usando estas herramientas:
 				function?: { name?: string; arguments?: string };
 			}> = [];
 
-			for await (const chunk of stream) {
-				const delta = chunk.choices[0]?.delta;
-				if (!delta) continue;
+			if (modelConfig.provider !== "ollama") {
+				const stream = await client.chat.completions.create({
+					model: modelConfig.model,
+					messages: messagesForLLM,
+					user: chatId,
+					tools: openAiTools.length > 0 ? openAiTools : undefined,
+					tool_choice: "auto",
+					stream: true,
+					max_tokens: 4096,
+					temperature: generalTemperature,
+					...(opts.options || {}),
+				});
 
-				// Content streaming
-				if (delta.content) {
-					fullContent += delta.content;
-					opts.onChunk?.(delta.content);
-				}
+				for await (const chunk of stream) {
+					const delta = chunk.choices[0]?.delta;
+					if (!delta) continue;
 
-				// Tool call accumulation from deltas
-				if (delta.tool_calls) {
-					for (const tc of delta.tool_calls) {
-						const idx = tc.index ?? 0;
-						if (!toolCallDeltas[idx]) {
-							toolCallDeltas[idx] = { index: idx, id: tc.id, type: tc.type, function: {} };
-						}
-						if (tc.id) toolCallDeltas[idx].id = tc.id;
-						if (tc.type) toolCallDeltas[idx].type = tc.type;
-						if (tc.function?.name) {
-							toolCallDeltas[idx].function = {
-								...toolCallDeltas[idx].function,
-								name: (toolCallDeltas[idx].function?.name || "") + tc.function.name,
-							};
-						}
-						if (tc.function?.arguments) {
-							toolCallDeltas[idx].function = {
-								...toolCallDeltas[idx].function,
-								arguments: (toolCallDeltas[idx].function?.arguments || "") + tc.function.arguments,
-							};
+					if (delta.content) {
+						fullContent += delta.content;
+						opts.onChunk?.(delta.content);
+					}
+
+					if (delta.tool_calls) {
+						for (const tc of delta.tool_calls) {
+							const idx = tc.index ?? 0;
+							if (!toolCallDeltas[idx]) {
+								toolCallDeltas[idx] = { index: idx, id: tc.id, type: tc.type, function: {} };
+							}
+							if (tc.id) toolCallDeltas[idx].id = tc.id;
+							if (tc.type) toolCallDeltas[idx].type = tc.type;
+							if (tc.function?.name) {
+								toolCallDeltas[idx].function = {
+									...toolCallDeltas[idx].function,
+									name: (toolCallDeltas[idx].function?.name || "") + tc.function.name,
+								};
+							}
+							if (tc.function?.arguments) {
+								toolCallDeltas[idx].function = {
+									...toolCallDeltas[idx].function,
+									arguments: (toolCallDeltas[idx].function?.arguments || "") + tc.function.arguments,
+								};
+							}
 						}
 					}
-				}
 
-				// Usage (last chunk)
-				if (chunk.usage) {
-					totalUsage.promptTokens += chunk.usage.prompt_tokens || 0;
-					totalUsage.completionTokens += chunk.usage.completion_tokens || 0;
-					totalUsage.totalTokens += chunk.usage.total_tokens || 0;
+					if (chunk.usage) {
+						totalUsage.promptTokens += chunk.usage.prompt_tokens || 0;
+						totalUsage.completionTokens += chunk.usage.completion_tokens || 0;
+						totalUsage.totalTokens += chunk.usage.total_tokens || 0;
+					}
+				}
+			} else {
+				const ollamaStream = await callOllamaChat(
+					config,
+					modelConfig.model,
+					messagesForLLM as Array<{ role: string; content: string }>,
+					openAiTools,
+					{ temperature: generalTemperature },
+				);
+
+				for await (const chunk of ollamaStream) {
+					if (chunk.content) {
+						fullContent += chunk.content;
+						opts.onChunk?.(chunk.content);
+					}
+
+					for (const tc of chunk.toolCalls) {
+						const existing = toolCallDeltas.find(d => d.function?.name === tc.function.name);
+						if (existing) {
+							existing.function!.arguments = (existing.function!.arguments || "") + tc.function.arguments;
+						} else {
+							toolCallDeltas.push({
+								index: toolCallDeltas.length,
+								id: tc.id,
+								type: tc.type,
+								function: { name: tc.function.name, arguments: tc.function.arguments },
+							});
+						}
+					}
 				}
 			}
 
@@ -468,6 +520,7 @@ Puedes obtener información adicional bajo demanda usando estas herramientas:
 						args = {};
 					}
 
+					totalToolCalls++;
 					onToolCall?.(toolName, args);
 					onStatus?.(`?? Usando herramienta: ${toolName}`);
 					logger.tool(`[${chatId}] Tool call: ${toolName}`, args);
@@ -540,6 +593,31 @@ Puedes obtener información adicional bajo demanda usando estas herramientas:
 			onTyping?.(false);
 			logger.agent(`[${chatId}] Response complete (${latency}ms)`);
 
+			// Auto-propose skill if complex task (3+ tool calls)
+			if (totalToolCalls >= 3) {
+				try {
+					const skillsService = new SkillsService(config.workspaceDir);
+					const summary = (finalContent || "").substring(0, 500);
+					const proposal: SkillProposal = {
+						metadata: {
+							name: `auto-task-${Date.now().toString(36)}`,
+							description: `Procedimiento auto-generado para tarea con ${totalToolCalls} pasos`,
+							version: "1.0.0",
+							category: "auto-generated",
+							tags: ["auto-generated", `tools:${totalToolCalls}`],
+							created_at: new Date().toISOString(),
+						},
+						content: `## Procedimiento automático\n\nEsta tarea requirió ${totalToolCalls} herramientas.\n\n### Resumen de la conversación\n${summary}\n\n> Propuesta generada automáticamente. Revisa y edita antes de usar.`,
+						sourceRunId: chatId,
+						createdAt: new Date().toISOString(),
+					};
+					skillsService.createProposal(proposal);
+					logger.agent(`[${chatId}] Auto-created skill proposal (${totalToolCalls} tool calls)`);
+				} catch {
+					// auto-proposal is optional
+				}
+			}
+
 			afterResponseLearning(userId, userText, finalContent, brain).catch(() => {});
 			// Trigger summarization on brain if session has too many messages
 			if (session.messages.length > 15) {
@@ -610,6 +688,31 @@ Puedes obtener información adicional bajo demanda usando estas herramientas:
 		// DB might not be available
 	}
 	brain.appendConversationMessage(chatId, "assistant", finalContent, totalUsage.completionTokens).catch(() => {});
+
+	// Auto-propose skill if complex task reached iteration limit
+	if (totalToolCalls >= 3) {
+		try {
+			const skillsService = new SkillsService(config.workspaceDir);
+			const summary = (finalContent || "").substring(0, 500);
+			const proposal: SkillProposal = {
+				metadata: {
+					name: `auto-task-${Date.now().toString(36)}`,
+					description: `Procedimiento con ${totalToolCalls} pasos (límite de iteraciones)`,
+					version: "1.0.0",
+					category: "auto-generated",
+					tags: ["auto-generated", `tools:${totalToolCalls}`],
+					created_at: new Date().toISOString(),
+				},
+				content: `## Procedimiento automático\n\nEsta tarea requirió ${totalToolCalls} herramientas y alcanzó el límite de iteraciones.\n\n### Resumen\n${summary}\n\n> Propuesta generada automáticamente. Revisa y edita antes de usar.`,
+				sourceRunId: chatId,
+				createdAt: new Date().toISOString(),
+			};
+			skillsService.createProposal(proposal);
+			logger.agent(`[${chatId}] Auto-created skill proposal at iteration limit (${totalToolCalls} tool calls)`);
+		} catch {
+			// auto-proposal is optional
+		}
+	}
 
 	afterResponseLearning(userId, userText, finalContent, brain).catch(() => {});
 	if (session.messages.length > 15) {
