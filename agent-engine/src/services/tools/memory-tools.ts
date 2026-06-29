@@ -44,6 +44,14 @@ export function registerMemoryTools(brain: BrainClient) {
 
 			if (!title || !content) return "Error: title and content are required";
 
+			const existing = await brain.searchMemories(title, 5, type);
+			const duplicate = existing.find(
+				(m) => m.title.toLowerCase().includes(title.toLowerCase()) || title.toLowerCase().includes(m.title.toLowerCase())
+			);
+			if (duplicate) {
+				return `Ya existe una memoria similar: "${duplicate.title}". Usa update_memory si deseas modificarla.`;
+			}
+
 			await brain.saveMemory(type, title, content, tags);
 			return `Memorized: "${title}"`;
 		},

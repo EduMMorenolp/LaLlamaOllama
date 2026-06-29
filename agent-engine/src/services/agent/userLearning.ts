@@ -1,6 +1,9 @@
 import { getRecentFeedback, getFeedbackStats } from "../db/feedback.js";
 import { getUser, updateUserPreferences, updateUserStats } from "../db/users.js";
 import type { BrainClient } from "../brain/client.js";
+import type { AppConfig } from "../config.js";
+import { callOllamaChatSimple } from "./createOllamaClient.js";
+import { logger } from "../../utils/logger.js";
 
 /* ─── Lightweight topic extraction ─────────────────────────────── */
 
@@ -113,6 +116,46 @@ export function detectPersona(text: string): string | null {
 	return null;
 }
 
+/* ─── LLM-powered preference extraction ────────────────────────── */
+
+interface LLMPreference {
+	preference: string;
+	value: string;
+	confidence: "alta" | "media" | "baja";
+}
+
+async function extractPreferencesWithLLM(
+	config: AppConfig,
+	userMessage: string,
+	assistantResponse: string
+): Promise<LLMPreference[]> {
+	try {
+		const prompt = `Analiza el siguiente intercambio y extrae preferencias explícitas o implícitas del usuario. Responde SOLO con un array JSON (ej. [{"preference": "framework_frontend", "value": "React", "confidence": "alta"}]). Si no hay preferencias claras, responde [].
+No incluyas explicaciones, solo el JSON.
+
+MENSAJE DEL USUARIO: ${userMessage.substring(0, 2000)}
+RESPUESTA DEL ASISTENTE: ${assistantResponse.substring(0, 500)}`;
+
+		const messages = [
+			{ role: "system" as const, content: "Eres un extractor de preferencias preciso. Identificas gustos, aversiones, tecnologías preferidas, estilos de trabajo y patrones de comunicación." },
+			{ role: "user" as const, content: prompt },
+		];
+
+		const result = await callOllamaChatSimple(config, config.defaultModel, messages, [], { temperature: 0.2 });
+		const raw = result.content.trim();
+
+		// Extract JSON array from response (handle markdown fences)
+		const jsonMatch = raw.match(/\[[\s\S]*?\]/);
+		if (!jsonMatch) return [];
+
+		const parsed = JSON.parse(jsonMatch[0]) as LLMPreference[];
+		return Array.isArray(parsed) ? parsed.filter((p) => p.confidence !== "baja") : [];
+	} catch (err) {
+		logger.warn(`[UserLearning] LLM preference extraction failed: ${err}`);
+		return [];
+	}
+}
+
 /* ─── Main orchestrator ────────────────────────────────────────── */
 
 export interface LearningResult {
@@ -126,7 +169,8 @@ export async function afterResponseLearning(
 	userId: string,
 	userMessage: string,
 	assistantResponse: string,
-	brain?: BrainClient
+	brain?: BrainClient,
+	config?: AppConfig
 ): Promise<LearningResult> {
 	const combined = `${userMessage} ${assistantResponse}`;
 
@@ -193,6 +237,15 @@ export async function afterResponseLearning(
 			persona,
 			interaction_count: newCount,
 		}), "auto-learned,user-profile").catch(() => {});
+	}
+
+	// LLM-powered preference extraction (async, best-effort)
+	if (brain && config) {
+		extractPreferencesWithLLM(config, userMessage, assistantResponse).then((prefs) => {
+			for (const p of prefs) {
+				brain.saveMemory("user_profile", `Preferencia: ${p.preference}`, `${p.value} (confianza: ${p.confidence})`, "auto-learned,llm-extracted,user-preference").catch(() => {});
+			}
+		}).catch(() => {});
 	}
 
 	return { topics, sentiment, style, persona };

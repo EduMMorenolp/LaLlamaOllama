@@ -33,6 +33,7 @@ agent-engine.db-wal
 knowledge/
 .playwright-mcp/
 /docsPrivados
+.lallama
 
 # IDEs
 .vscode/settings.json
