@@ -989,9 +989,9 @@ export function registerWsHandlers(brain: BrainClient, wsServer: WsServer) {
 
 				// Auto-save to brain if meaningful
 				if (result.text.length > 50) {
-					const title = "Agent chat: " + text.substring(0, 60) + "...";
+					const title = "chat_" + chatId + "_" + text.substring(0, 60) + "...";
 					await brain.saveMemory(
-						"chat",
+						"chat_" + chatId,
 						title,
 						"**User**: " + text + "\n\n**Agent**: " + result.text.substring(0, 2000)
 					);
