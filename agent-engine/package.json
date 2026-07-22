@@ -20,6 +20,8 @@
 		"dotenv": "^16.4.7",
 		"express": "^4.21.2",
 		"express-rate-limit": "^7.5.0",
+		"google-auth-library": "^10.9.0",
+		"googleapis": "^173.0.0",
 		"ioredis": "^5.6.1",
 		"node-telegram-bot-api": "^1.1.1",
 		"openai": "^4.95.0",

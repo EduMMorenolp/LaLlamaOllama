@@ -1,4 +1,4 @@
-﻿import { Cable, Cpu, HardDrive, Monitor, Plus, Radio, Save, Send, Trash2, Wifi, WifiOff } from "lucide-react";
+﻿import { Cable, Cpu, HardDrive, Monitor, Plus, Radio, Save, Send, Trash2, Wifi, WifiOff, LogIn, LogOut, CheckCircle, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { config } from "../config";
 import { useWs } from "../contexts/WebSocketContext";
@@ -46,6 +46,100 @@ export const Conexion: React.FC = () => {
 	const [telegramTokenPreview, setTelegramTokenPreview] = useState<string | null>(null);
 	const [telegramAllowedUsers, setTelegramAllowedUsers] = useState("");
 	const [telegramSaving, setTelegramSaving] = useState(false);
+
+	// Google
+	const [googleConnected, setGoogleConnected] = useState(false);
+	const [googleConfigured, setGoogleConfigured] = useState(false);
+	const [googleLoading, setGoogleLoading] = useState(false);
+	const [googleEmail, setGoogleEmail] = useState<string | null>(null);
+
+	useEffect(() => {
+		checkGoogleStatus();
+	}, []);
+
+	const checkGoogleStatus = async () => {
+		try {
+			const res = await fetch(`${config.engineUrl}/api/google/status`, {
+				headers: { "x-api-key": config.apiKey },
+			});
+			const data = await res.json();
+			setGoogleConnected(data.connected);
+			setGoogleConfigured(data.configured);
+		} catch {
+			setGoogleConfigured(false);
+			setGoogleConnected(false);
+		}
+	};
+
+	const handleGoogleConnect = () => {
+		if (!config.googleClientId) {
+			alert("VITE_GOOGLE_CLIENT_ID no está configurado en el .env del frontend.");
+			return;
+		}
+		setGoogleLoading(true);
+		// PKCE flow: generate code_verifier + code_challenge
+		const generateCodeVerifier = () => {
+			const array = new Uint8Array(32);
+			crypto.getRandomValues(array);
+			return btoa(String.fromCharCode(...array))
+				.replace(/\+/g, "-")
+				.replace(/\//g, "_")
+				.replace(/=+$/, "");
+		};
+		const sha256 = async (plain: string) => {
+			const encoder = new TextEncoder();
+			const data = encoder.encode(plain);
+			const hash = await crypto.subtle.digest("SHA-256", data);
+			return btoa(String.fromCharCode(...new Uint8Array(hash)))
+				.replace(/\+/g, "-")
+				.replace(/\//g, "_")
+				.replace(/=+$/, "");
+		};
+
+		(async () => {
+			const verifier = generateCodeVerifier();
+			const challenge = await sha256(verifier);
+			sessionStorage.setItem("google_code_verifier", verifier);
+
+			const redirectUri = `${window.location.origin}/google/callback`;
+			const scope = [
+				"https://www.googleapis.com/auth/calendar",
+				"https://www.googleapis.com/auth/calendar.events",
+				"https://www.googleapis.com/auth/gmail.modify",
+				"https://www.googleapis.com/auth/drive",
+				"https://www.googleapis.com/auth/documents",
+				"https://www.googleapis.com/auth/spreadsheets",
+				"https://www.googleapis.com/auth/presentations",
+				"https://www.googleapis.com/auth/tasks",
+				"https://www.googleapis.com/auth/contacts",
+			].join(" ");
+
+			const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${config.googleClientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&code_challenge_method=S256&code_challenge=${challenge}&scope=${encodeURIComponent(scope)}&access_type=offline&prompt=consent`;
+
+			window.location.href = authUrl;
+		})();
+	};
+
+	const handleGoogleDisconnect = async () => {
+		if (!confirm("Desconectar Google? Esto revocará el acceso.")) return;
+		setGoogleLoading(true);
+		try {
+			await fetch(`${config.engineUrl}/api/google/revoke`, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					"x-api-key": config.apiKey,
+				},
+				body: JSON.stringify({ user_id: "default" }),
+			});
+			setGoogleConnected(false);
+			setGoogleEmail(null);
+		} catch (err) {
+			console.error("Failed to disconnect Google:", err);
+		} finally {
+			setGoogleLoading(false);
+		}
+	};
 
 	// Subscribe to WS messages
 	useEffect(() => {
@@ -638,6 +732,126 @@ export const Conexion: React.FC = () => {
 					El bot de Telegram permite interactuar con el Agent Engine desde Telegram.
 					Usá <code style={{ fontSize: "10px", background: "rgba(255,255,255,0.05)", padding: "1px 4px", borderRadius: "3px" }}>/ayuda</code> para ver los comandos disponibles.
 				</div>
+			</div>
+
+			{/* Google Workspace */}
+			<div style={sectionCard}>
+				<div
+					style={{
+						display: "flex",
+						justifyContent: "space-between",
+						alignItems: "center",
+						marginBottom: "12px",
+					}}
+				>
+					<label style={{ ...sectionTitle, marginBottom: 0 }}>
+						<svg width="14" height="14" viewBox="0 0 24 24" style={{ marginRight: "6px", verticalAlign: "middle" }}>
+							<path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
+							<path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+							<path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+							<path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+						</svg>
+						Google Workspace
+					</label>
+					{googleConfigured && (
+						<span
+							style={{
+								padding: "3px 10px",
+								borderRadius: "4px",
+								fontSize: "10px",
+								fontWeight: 700,
+								background: googleConnected
+									? "rgba(34,197,94,0.15)"
+									: "rgba(255,255,255,0.03)",
+								color: googleConnected ? "var(--success)" : "var(--text-dim)",
+								border: `1px solid ${googleConnected ? "rgba(34,197,94,0.3)" : "var(--border-light)"}`,
+							}}
+						>
+							{googleConnected ? "Conectado" : "Desconectado"}
+						</span>
+					)}
+				</div>
+
+				{!googleConfigured ? (
+					<div
+						style={{
+							fontSize: "11px",
+							color: "var(--text-dim)",
+							padding: "8px 12px",
+							borderRadius: "4px",
+							background: "rgba(255,255,255,0.02)",
+							border: "1px solid var(--border-light)",
+						}}
+					>
+						Google OAuth no configurado. Establecé <code style={{ fontSize: "10px", background: "rgba(255,255,255,0.05)", padding: "1px 4px", borderRadius: "3px" }}>GOOGLE_CLIENT_ID</code> y <code style={{ fontSize: "10px", background: "rgba(255,255,255,0.05)", padding: "1px 4px", borderRadius: "3px" }}>GOOGLE_CLIENT_SECRET</code> en el .env del Agent Engine, y <code style={{ fontSize: "10px", background: "rgba(255,255,255,0.05)", padding: "1px 4px", borderRadius: "3px" }}>VITE_GOOGLE_CLIENT_ID</code> en el frontend.
+					</div>
+				) : (
+					<>
+						{googleConnected && googleEmail && (
+							<div style={{ fontSize: "12px", color: "var(--text-main)", marginBottom: "12px" }}>
+								Conectado como: <strong>{googleEmail}</strong>
+							</div>
+						)}
+						<div style={{ display: "flex", gap: "8px" }}>
+							{googleConnected ? (
+								<button
+									type="button"
+									onClick={handleGoogleDisconnect}
+									disabled={googleLoading}
+									style={{
+										...actionBtnStyle,
+										flex: 1,
+										justifyContent: "center",
+										background: "rgba(239,68,68,0.1)",
+										border: "1px solid rgba(239,68,68,0.2)",
+										color: "var(--error)",
+										opacity: googleLoading ? 0.5 : 1,
+										cursor: googleLoading ? "not-allowed" : "pointer",
+									}}
+								>
+									<LogOut size={14} style={{ marginRight: "4px" }} />
+									{googleLoading ? "Desconectando..." : "Desconectar Google"}
+								</button>
+							) : (
+								<button
+									type="button"
+									onClick={handleGoogleConnect}
+									disabled={googleLoading}
+									style={{
+										...actionBtnStyle,
+										flex: 1,
+										justifyContent: "center",
+										opacity: googleLoading ? 0.5 : 1,
+										cursor: googleLoading ? "not-allowed" : "pointer",
+									}}
+								>
+									<LogIn size={14} style={{ marginRight: "4px" }} />
+									{googleLoading ? "Conectando..." : "Conectar Google"}
+								</button>
+							)}
+						</div>
+
+						<div
+							style={{
+								fontSize: "10px",
+								color: "var(--text-dim)",
+								marginTop: "12px",
+								padding: "8px",
+								borderRadius: "4px",
+								background: "rgba(255,255,255,0.02)",
+								border: "1px solid var(--border-light)",
+								lineHeight: "1.5",
+							}}
+						>
+							Al conectar Google, el agente podrá acceder a: Calendar, Gmail, Drive, Docs, Sheets, Slides, Tasks y Contactos.
+							{!googleConnected && (
+								<span style={{ display: "block", marginTop: "4px", color: "var(--text-muted)" }}>
+									Serás redirigido a Google para autorizar el acceso.
+								</span>
+							)}
+						</div>
+					</>
+				)}
 			</div>
 
 			{/* MCP Brain */}

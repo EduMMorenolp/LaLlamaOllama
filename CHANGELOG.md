@@ -60,6 +60,39 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 ## [Unreleased]
 
 
+### 🌐 Google Workspace: Calendar, Gmail y autenticación OAuth 2.0
+
+#### Agent Engine — Google Auth Service
+- **`google-auth.ts`** (NUEVO) — Cliente OAuth2 vía `google-auth-library` con `getAuthUrl()`, `exchangeCodeForTokens()`, `refreshAccessToken()`, `revokeToken()`, `getUserInfo()`
+- **`token-store.ts`** (NUEVO) — Almacenamiento cifrado de tokens en SQLite con AES-256-GCM (GOOGLE_ENCRYPTION_KEY)
+- **`google-service.ts`** (NUEVO) — `getAccessToken()` con auto-refresh, `createGoogleClients()` factory para Calendar, Gmail, Drive, Docs, Sheets, Slides, Tasks y People
+- **API endpoints**: `GET /api/google/auth`, `POST /api/google/callback`, `GET /api/google/status`, `POST /api/google/revoke`
+- **DB schema**: Nueva tabla `google_tokens` con cifrado de access_token y refresh_token
+- **Dependencias**: `google-auth-library@^10.9.0`, `googleapis@^173.0.0`
+- **Archivos modificados**: `api.ts`, `config.ts`, `connection.ts`, `tools/index.ts`
+
+#### Agent Engine — Calendar Tools (4 tools)
+- **`calendar_list_events`** — Lista eventos en un rango de fechas con soporte multi-calendario
+- **`calendar_create_event`** — Crea eventos con título, descripción, ubicación, asistentes y Google Meet
+- **`calendar_update_event`** — Actualiza eventos existentes (título, fechas, descripción)
+- **`calendar_delete_event`** — Elimina eventos por ID
+
+#### Agent Engine — Gmail Tools (5 tools)
+- **`gmail_list`** — Lista correos con filtro por labels y query, incluye snippet
+- **`gmail_send`** — Envía correos con CC, BCC y soporte HTML
+- **`gmail_search`** — Búsqueda avanzada con sintaxis Gmail
+- **`gmail_get`** — Obtiene contenido completo con headers (From, To, Subject, Date, CC) y cuerpo decodificado
+- **`gmail_trash`** — Mueve correos a la papelera
+
+#### Agent Frontend — Google OAuth UI
+- **`GoogleCallback.tsx`** (NUEVO) — Componente que maneja el redirect OAuth con spinner, success/error states
+- **`Conexion.tsx`** — Sección "Google Workspace" con botón Conectar/Desconectar, estado en tiempo real y badge de conexión
+- **`config.ts`** — Nueva propiedad `googleClientId` desde `VITE_GOOGLE_CLIENT_ID`
+- **`App.tsx`** — Ruta condicional para `/google/callback`
+
+#### Docker
+- **`docker-compose.yml`** — 3 nuevas env vars para agent-engine: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `GOOGLE_ENCRYPTION_KEY`
+
 ### 🔧 MCP Brain: Autenticación en endpoints SSE/MCP
 
 #### MCP Brain

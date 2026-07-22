@@ -15,6 +15,11 @@ export interface AppConfig {
 	telegramBotToken: string;
 	telegramAllowedUsers: string[];
 	allowedOrigins?: string[];
+	/** Google OAuth config */
+	googleClientId: string;
+	googleClientSecret: string;
+	googleRedirectUri: string;
+	googleEncryptionKey: string;
 	/** Docker environment info (detected at startup) */
 	dockerInfo?: DockerInfo;
 }
@@ -35,5 +40,9 @@ export function loadConfig(): AppConfig {
 		telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || "",
 		telegramAllowedUsers: (process.env.TELEGRAM_ALLOWED_USERS || "").split(",").filter(Boolean),
 		allowedOrigins: (process.env.ALLOWED_ORIGINS || "").split(",").filter(Boolean),
+		googleClientId: process.env.GOOGLE_CLIENT_ID || "",
+		googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+		googleRedirectUri: process.env.GOOGLE_REDIRECT_URI || "http://localhost:3020/api/google/callback",
+		googleEncryptionKey: process.env.GOOGLE_ENCRYPTION_KEY || "",
 	};
 }

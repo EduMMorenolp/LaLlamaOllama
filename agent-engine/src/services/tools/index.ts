@@ -24,6 +24,7 @@ import { registerScheduleTaskTool } from "./schedule-task.js";
 import { registerSwitchModeTool } from "./switch-mode.js";
 import { registerSkillsTools } from "./skills-tools.js";
 import { registerTaskTools } from "./task-tools.js";
+import { registerGoogleTools } from "./google-index.js";
 
 export function registerAllTools(brain: BrainClient, config?: AppConfig): void {
 	registerBashTool();
@@ -58,6 +59,11 @@ export function registerAllTools(brain: BrainClient, config?: AppConfig): void {
 	// Skills system (procedural memory)
 	if (config) {
 		registerSkillsTools(config);
+	}
+
+	// Google tools (Calendar + Gmail)
+	if (config?.googleClientId) {
+		registerGoogleTools(config);
 	}
 }
 

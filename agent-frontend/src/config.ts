@@ -2,6 +2,7 @@ export const config = {
 	engineUrl: import.meta.env.VITE_ENGINE_URL || "http://localhost:3020",
 	brainUrl: import.meta.env.VITE_BRAIN_URL || "http://localhost:3015",
 	apiKey: import.meta.env.VITE_API_KEY || "",
+	googleClientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || "",
 	get wsUrl(): string {
 		try {
 			const url = new URL(this.engineUrl);

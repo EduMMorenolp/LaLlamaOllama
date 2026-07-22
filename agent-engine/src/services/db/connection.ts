@@ -354,6 +354,24 @@ export function getDb(dbPath?: string): Database.Database {
 
 	try {
 		_db.exec(`
+			CREATE TABLE IF NOT EXISTS google_tokens (
+				user_id TEXT PRIMARY KEY,
+				access_token TEXT NOT NULL,
+				refresh_token TEXT,
+				scope TEXT NOT NULL,
+				token_type TEXT DEFAULT 'Bearer',
+				expiry_date INTEGER,
+				email TEXT,
+				name TEXT,
+				avatar_url TEXT,
+				created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+				updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+			);
+		`);
+	} catch { /* ignore */ }
+
+	try {
+		_db.exec(`
 			CREATE TABLE IF NOT EXISTS saved_messages (
 				id INTEGER PRIMARY KEY AUTOINCREMENT,
 				userId TEXT NOT NULL,

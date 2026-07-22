@@ -35,6 +35,10 @@ import { subAgentTemplates } from "../services/prompts/sub-agents.js";
 import type { WsServer } from "./ws.js";
 import { logger } from "../utils/logger.js";
 
+// Google OAuth imports
+import { getAuthUrl, exchangeCodeForTokens, getUserInfo, revokeToken } from "../services/google/google-auth.js";
+import { getGoogleToken, saveGoogleToken, deleteGoogleToken, googleTokenExists } from "../services/google/token-store.js";
+
 const apiLimiter = rateLimit({
 	windowMs: 60 * 1000,
 	max: 500,
@@ -213,7 +217,78 @@ export function startApiServer(config: AppConfig, brain?: BrainClient, wsServer?
 		}
 	});
 
-	// Health endpoint
+	// ── Google OAuth ──────────────────────────────────────
+	app.get("/api/google/auth", (_req: Request, res: Response) => {
+		if (!config.googleClientId) {
+			res.status(400).json({ error: "Google OAuth not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET." });
+			return;
+		}
+		const url = getAuthUrl(config);
+		res.json({ url });
+	});
+
+	app.post("/api/google/callback", async (req: Request, res: Response) => {
+		if (!config.googleClientId) {
+			res.status(400).json({ error: "Google OAuth not configured" });
+			return;
+		}
+		const { code, user_id } = req.body as { code: string; user_id?: string };
+		if (!code) {
+			res.status(400).json({ error: "Missing 'code' in request body" });
+			return;
+		}
+		try {
+			const tokens = await exchangeCodeForTokens(config, code);
+			const userId = user_id || "default";
+			let userInfo: { email: string; name: string; picture: string } | null = null;
+			try {
+				userInfo = await getUserInfo(config, tokens.access_token);
+			} catch { /* non-fatal */ }
+			saveGoogleToken(userId, {
+				access_token: tokens.access_token,
+				refresh_token: tokens.refresh_token,
+				scope: tokens.scope,
+				token_type: tokens.token_type,
+				expiry_date: tokens.expiry_date,
+				email: userInfo?.email || null,
+				name: userInfo?.name || null,
+				avatar_url: userInfo?.picture || null,
+			}, config.googleEncryptionKey);
+			res.json({ success: true, email: userInfo?.email || null, name: userInfo?.name || null });
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			logger.error(`[Google] Callback error: ${msg}`);
+			res.status(500).json({ error: "Google auth failed", detail: msg });
+		}
+	});
+
+	app.get("/api/google/status", (req: Request, res: Response) => {
+		const userId = (req.query.user_id as string) || "default";
+		const connected = googleTokenExists(userId);
+		const configOk = !!config.googleClientId;
+		res.json({ connected, configured: configOk });
+	});
+
+	app.post("/api/google/revoke", async (req: Request, res: Response) => {
+		if (!config.googleClientId) {
+			res.status(400).json({ error: "Google OAuth not configured" });
+			return;
+		}
+		const userId = (req.body.user_id as string) || "default";
+		try {
+			const token = getGoogleToken(userId, config.googleEncryptionKey);
+			if (token) {
+				try { await revokeToken(config, token.access_token); } catch { /* ignore */ }
+				deleteGoogleToken(userId);
+			}
+			res.json({ success: true });
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			res.status(500).json({ error: "Revoke failed", detail: msg });
+		}
+	});
+
+// Health endpoint
 	app.get("/health", (_req: Request, res: Response) => {
 		res.json({
 			status: "ok",

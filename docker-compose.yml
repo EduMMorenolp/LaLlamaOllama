@@ -120,6 +120,10 @@ services:
         - TELEGRAM_ALLOWED_USERS=${TELEGRAM_ALLOWED_USERS}
         - TRANSFORMERS_CACHE=/data/transformers
         - BRAIN_PROJECT=${BRAIN_PROJECT:-AgenteLaLlamaOllama}
+        - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+        - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+        - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI:-http://localhost:3020/api/google/callback}
+        - GOOGLE_ENCRYPTION_KEY=${GOOGLE_ENCRYPTION_KEY}
       volumes:
         - /var/run/docker.sock:/var/run/docker.sock
         - ./:/workspace

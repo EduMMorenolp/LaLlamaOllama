@@ -5,6 +5,7 @@ import { AgentChat } from "./components/AgentChat";
 import { Agentes } from "./components/Agentes";
 import { Conexion } from "./components/Conexion";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { GoogleCallback } from "./components/GoogleCallback";
 import { Knowledge } from "./components/Knowledge";
 import { Perfil } from "./components/Perfil";
 import { Tareas } from "./components/Tareas";
@@ -31,6 +32,10 @@ export default function App() {
 	const { theme, toggle: toggleTheme } = useTheme();
 	const [activeTab, setActiveTab] = useState<Tab>("chat");
 	const [sidebarOpen, setSidebarOpen] = useState(false);
+
+	if (window.location.pathname === "/google/callback") {
+		return <GoogleCallback />;
+	}
 
 	const currentTab = tabs.find((t) => t.id === activeTab)!;
 
